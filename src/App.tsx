@@ -3,13 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
 import Plans from "./pages/Plans";
-import PromotionsPortal from "./pages/PromotionsPortal";
+import Promotions from "./pages/Promotions";
 import Middleware from "./pages/Middleware";
 import Marketing from "./pages/Marketing";
 import Wallet from "./pages/Wallet";
@@ -21,50 +18,22 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <Toaster />
+      <Sonner />
       <BrowserRouter>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
+        <AppLayout>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <AppLayout><Index /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/plans" element={
-              <ProtectedRoute>
-                <AppLayout><Plans /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/promotions" element={
-              <ProtectedRoute>
-                <AppLayout><PromotionsPortal /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/middleware" element={
-              <ProtectedRoute>
-                <AppLayout><Middleware /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/marketing" element={
-              <ProtectedRoute>
-                <AppLayout><Marketing /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/wallet" element={
-              <ProtectedRoute>
-                <AppLayout><Wallet /></AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <AppLayout><Settings /></AppLayout>
-              </ProtectedRoute>
-            } />
+            <Route path="/" element={<Index />} />
+            <Route path="/plans" element={<Plans />} />
+            <Route path="/promotions" element={<Promotions />} />
+            <Route path="/middleware" element={<Middleware />} />
+            <Route path="/marketing" element={<Marketing />} />
+            <Route path="/wallet" element={<Wallet />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
+        </AppLayout>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

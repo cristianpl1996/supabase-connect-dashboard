@@ -1,6 +1,6 @@
 // Types based on the SQL schema provided
 
-export type PromoStatus = 'borrador' | 'pendiente_aprobacion' | 'revision' | 'aprobada' | 'activa' | 'pausada' | 'finalizada' | 'cancelada';
+export type PromoStatus = 'borrador' | 'revision' | 'aprobada' | 'activa' | 'pausada' | 'finalizada' | 'cancelada';
 export type WalletTxType = 'deposito_plan' | 'ajuste_manual' | 'reserva_promo' | 'gasto_real' | 'reintegro_no_usado';
 export type SourceRole = 'laboratorio' | 'distribuidor' | 'admin';
 
