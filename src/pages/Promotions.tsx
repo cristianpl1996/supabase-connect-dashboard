@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Promotion, Laboratory, PromoMechanic } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   AlertCircle, Plus, Search, Eye, Pencil, Trash2, 
-  Tag, Calendar, DollarSign, Zap 
+  Tag, Calendar, DollarSign, Zap, Copy, Upload 
 } from 'lucide-react';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
@@ -23,8 +23,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 
 // Extended type with lab info
 interface PromotionWithLab extends Promotion {
@@ -62,6 +63,9 @@ const Promotions = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
+  const [isCloning, setIsCloning] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -181,6 +185,179 @@ const Promotions = () => {
     setDetailsSheetOpen(true);
   };
 
+  // Clone/Duplicate promotion
+  const handleClonePromo = async (promo: PromotionWithLab) => {
+    setIsCloning(true);
+    try {
+      // Calculate next month dates
+      const nextMonthStart = addMonths(new Date(), 1);
+      const nextMonthEnd = addMonths(nextMonthStart, 1);
+
+      // Create new promotion
+      const { data: newPromo, error: promoError } = await supabase
+        .from('promotions')
+        .insert({
+          lab_id: promo.lab_id,
+          title: `Copia de ${promo.title}`,
+          start_date: format(nextMonthStart, 'yyyy-MM-dd'),
+          end_date: format(nextMonthEnd, 'yyyy-MM-dd'),
+          status: 'borrador',
+          target_segment: promo.target_segment,
+          estimated_cost: promo.estimated_cost,
+        })
+        .select()
+        .single();
+
+      if (promoError) throw promoError;
+
+      // Copy mechanics if exists
+      const promoMechanics = mechanics[promo.id];
+      if (promoMechanics && promoMechanics.length > 0) {
+        const mechanicToCopy = promoMechanics[0];
+          const { error: mechError } = await supabase
+          .from('promo_mechanics')
+          .insert({
+            promo_id: newPromo.id,
+            condition_type: mechanicToCopy.condition_type,
+            condition_config: mechanicToCopy.condition_config,
+            reward_type: mechanicToCopy.reward_type,
+            reward_config: mechanicToCopy.reward_config,
+            accounting_treatment: mechanicToCopy.accounting_treatment,
+          });
+
+        if (mechError) {
+          console.error('Error copying mechanics:', mechError);
+        }
+      }
+
+      toast.success('Promoción duplicada exitosamente');
+      fetchData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`Error al clonar: ${errorMessage}`);
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  // Excel import handling
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('El archivo está vacío');
+        return;
+      }
+
+      // Expected columns mapping
+      const expectedColumns = ['Laboratorio', 'Titulo', 'SKU_Condicion', 'Cantidad_Condicion', 'Tipo_Beneficio', 'Valor_Beneficio'];
+      const firstRow = jsonData[0];
+      const missingColumns = expectedColumns.filter(col => !(col in firstRow));
+      
+      if (missingColumns.length > 0) {
+        toast.error(`Columnas faltantes: ${missingColumns.join(', ')}`);
+        return;
+      }
+
+      // Create lab name to ID map
+      const labMap = new Map(laboratories.map(lab => [lab.name.toLowerCase(), lab.id]));
+
+      let importedCount = 0;
+      let skippedCount = 0;
+      const errors: string[] = [];
+
+      for (const row of jsonData) {
+        const labName = String(row['Laboratorio'] || '').toLowerCase();
+        const labId = labMap.get(labName);
+
+        if (!labId) {
+          skippedCount++;
+          errors.push(`Lab no encontrado: ${row['Laboratorio']}`);
+          continue;
+        }
+
+        // Map benefit type
+        let rewardType = 'free_product';
+        const benefitType = String(row['Tipo_Beneficio'] || '').toLowerCase();
+        if (benefitType.includes('descuento') || benefitType.includes('%')) {
+          rewardType = 'discount_percent';
+        } else if (benefitType.includes('precio')) {
+          rewardType = 'special_price';
+        }
+
+        // Create promotion
+        const nextMonth = addMonths(new Date(), 1);
+        const { data: newPromo, error: promoError } = await supabase
+          .from('promotions')
+          .insert({
+            lab_id: labId,
+            title: String(row['Titulo'] || 'Sin título'),
+            start_date: format(nextMonth, 'yyyy-MM-dd'),
+            end_date: format(addMonths(nextMonth, 1), 'yyyy-MM-dd'),
+            status: 'borrador',
+            target_segment: { type: 'all' },
+            estimated_cost: 0,
+          })
+          .select()
+          .single();
+
+        if (promoError) {
+          skippedCount++;
+          errors.push(`Error en fila: ${promoError.message}`);
+          continue;
+        }
+
+        // Create mechanics
+        await supabase
+          .from('promo_mechanics')
+          .insert({
+            promo_id: newPromo.id,
+            condition_type: 'sku_list',
+            condition_config: { 
+              skus: String(row['SKU_Condicion'] || '').split(',').map(s => s.trim()),
+              quantity: Number(row['Cantidad_Condicion']) || 1
+            },
+            reward_type: rewardType,
+            reward_config: { value: Number(row['Valor_Beneficio']) || 0 },
+            accounting_treatment: 'bonificacion_precio_cero',
+          });
+
+        importedCount++;
+      }
+
+      if (importedCount > 0) {
+        toast.success(`Se importaron ${importedCount} promociones correctamente`);
+        fetchData();
+      }
+      
+      if (skippedCount > 0) {
+        toast.warning(`Se omitieron ${skippedCount} filas. ${errors.slice(0, 3).join('; ')}`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`Error al importar: ${errorMessage}`);
+    } finally {
+      setIsImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -209,10 +386,28 @@ const Promotions = () => {
             <h1 className="text-3xl font-bold text-foreground">Gestión de Promociones</h1>
             <p className="text-muted-foreground mt-1">Crea y administra promociones comerciales</p>
           </div>
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nueva Promoción
-          </Button>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".xlsx,.xls"
+              className="hidden"
+            />
+            <Button 
+              variant="outline" 
+              onClick={handleImportClick}
+              disabled={isImporting}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              {isImporting ? 'Importando...' : 'Importar Excel'}
+            </Button>
+            <Button onClick={handleOpenCreate} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nueva Promoción
+            </Button>
+          </div>
         </div>
 
         {/* Error Display */}
@@ -374,6 +569,16 @@ const Promotions = () => {
                               title="Ver detalles"
                             >
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleClonePromo(promo)}
+                              disabled={isCloning}
+                              title="Duplicar promoción"
+                            >
+                              <Copy className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
