@@ -1,11 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AnnualPlan, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2, Eye, Search } from 'lucide-react';
 import { PlanFormSheet } from '@/components/plans/PlanFormSheet';
+import { PlanDetailsSheet } from '@/components/plans/PlanDetailsSheet';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -18,6 +21,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+  activo: { label: 'Activo', variant: 'default' },
+  negociacion: { label: 'En Negociación', variant: 'secondary' },
+  cerrado: { label: 'Cerrado', variant: 'outline' },
+};
+
 const Plans = () => {
   const [plans, setPlans] = useState<AnnualPlan[]>([]);
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
@@ -28,6 +37,9 @@ const Plans = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<AnnualPlan | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
+  const [viewingPlan, setViewingPlan] = useState<AnnualPlan | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -55,6 +67,28 @@ const Plans = () => {
       setLoading(false);
     }
   }, []);
+
+  // Create a map for lab names
+  const labMap = useMemo(() => {
+    return laboratories.reduce((acc, lab) => {
+      acc[lab.id] = lab.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [laboratories]);
+
+  // Filter plans by search query
+  const filteredPlans = useMemo(() => {
+    if (!searchQuery.trim()) return plans;
+    
+    const query = searchQuery.toLowerCase();
+    return plans.filter((plan) => {
+      const labName = labMap[plan.lab_id] || '';
+      return (
+        labName.toLowerCase().includes(query) ||
+        plan.name.toLowerCase().includes(query)
+      );
+    });
+  }, [plans, searchQuery, labMap]);
 
   useEffect(() => {
     fetchData();
@@ -103,6 +137,11 @@ const Plans = () => {
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
     }
+  };
+
+  const handleViewPlan = (plan: AnnualPlan) => {
+    setViewingPlan(plan);
+    setDetailsSheetOpen(true);
   };
 
   const totalPurchaseGoal = plans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
@@ -189,9 +228,20 @@ const Plans = () => {
         {/* Plans Table */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <CardTitle>Planes Anuales</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <CardTitle>Planes Anuales</CardTitle>
+              </div>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar laboratorio..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -201,14 +251,18 @@ const Plans = () => {
                   <div key={i} className="h-12 bg-muted animate-pulse rounded" />
                 ))}
               </div>
-            ) : plans.length === 0 ? (
+            ) : filteredPlans.length === 0 ? (
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-                <p className="text-muted-foreground">No hay planes anuales registrados</p>
-                <Button variant="outline" className="mt-4" onClick={handleOpenCreate}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear primer plan
-                </Button>
+                <p className="text-muted-foreground">
+                  {searchQuery ? 'No se encontraron planes con ese criterio' : 'No hay planes anuales registrados'}
+                </p>
+                {!searchQuery && (
+                  <Button variant="outline" className="mt-4" onClick={handleOpenCreate}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear primer plan
+                  </Button>
+                )}
               </div>
             ) : (
               <Table>
@@ -223,43 +277,58 @@ const Plans = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {plans.map((plan) => (
-                    <TableRow key={plan.id}>
-                      <TableCell className="font-medium">{plan.name}</TableCell>
-                      <TableCell>{plan.year}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                          {plan.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(plan.total_purchase_goal || 0)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(plan.total_budget_allocated || 0)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEditPlan(plan)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(plan)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredPlans.map((plan) => {
+                    const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
+                    
+                    return (
+                      <TableRow key={plan.id}>
+                        <TableCell className="font-medium">{plan.name}</TableCell>
+                        <TableCell>{plan.year}</TableCell>
+                        <TableCell>
+                          <Badge variant={statusConfig.variant}>
+                            {statusConfig.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(plan.total_purchase_goal || 0)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(plan.total_budget_allocated || 0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleViewPlan(plan)}
+                              title="Ver detalles"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEditPlan(plan)}
+                              title="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClick(plan)}
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -277,6 +346,14 @@ const Plans = () => {
         laboratories={laboratories}
         onSuccess={handlePlanSaved}
         editingPlan={editingPlan}
+      />
+
+      {/* Details Sheet */}
+      <PlanDetailsSheet
+        open={detailsSheetOpen}
+        onOpenChange={setDetailsSheetOpen}
+        plan={viewingPlan}
+        labName={viewingPlan ? labMap[viewingPlan.lab_id] : undefined}
       />
 
       {/* Delete Confirmation Dialog */}
