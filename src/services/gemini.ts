@@ -5,14 +5,16 @@ const API_KEY = "AIzaSyDiEnLT_ocn3_1B-y1eFGfWaP_njAHxxoM";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 export interface ContractAnalysisResult {
-  labName: string;
+  brand_name: string;
   year: number;
-  totalGoal: number;
+  annual_goal: number;
   invoice_discount_perc: number;
   rebate_sell_in_perc: number;
   rebate_sell_out_perc: number;
   marketing_perc: number;
+  marketing_fixed_value: number;
   financial_discount_perc: number;
+  total_margin_perc: number;
   funds: Array<{
     concept: string;
     type: "percentage" | "fixed";
@@ -39,52 +41,85 @@ export async function analyzeContract(file: File): Promise<ContractAnalysisResul
 
   const prompt = `Actúa como un analista de contratos comerciales. Analiza este PDF adjunto.
 
-REGLAS DE NORMALIZACIÓN DEL NOMBRE:
-- Al extraer el campo 'labName', elimina sufijos legales como 'S.A.', 'S.A.S', 'Ltda', 'Inc', 'Colombia', 'México', 'de C.V.', etc.
-- Deja solo el NOMBRE COMERCIAL principal.
-- Ejemplo: Si dice 'Zoetis Colombia S.A.S', extrae solo 'Zoetis'.
-- Ejemplo: Si dice 'Boehringer Ingelheim S.A.', extrae solo 'Boehringer Ingelheim'.
-- Ejemplo: Si dice 'Laboratorios MSD de México S.A. de C.V.', extrae solo 'MSD'.
+══════════════════════════════════════════════════════════════════════
+REGLA 1: LISTA CERRADA DE LABORATORIOS (OBLIGATORIO)
+══════════════════════════════════════════════════════════════════════
+Al identificar el laboratorio, DEBES elegir EXACTAMENTE uno de esta lista. No inventes ni acortes nombres:
 
-DICCIONARIO DE CLASIFICACIÓN DE PORCENTAJES:
-Clasifica cada porcentaje encontrado en el campo correcto:
+- Elanco (Total 2025)
+- Boehringer Ingelheim (Porcicultura)
+- Boehringer Ingelheim (Pets)
+- Zoetis (Porcicultura)
+- Zoetis (Pets)
+- Virbac
+- MSD (Ganadería)
+- MSD (Avicultura)
+- Biogenesis Bago
+- Ceva
+- Ourofino
+- Italcol
+- Bayer
+- Vetoquinol
+- Agrovet Market
+- Labyes
 
-1. invoice_discount_perc (Pie de Factura): 
-   - 'Descuento Base', 'Descuento Comercial', 'Off Invoice', 'Descuento Permanente', 'Descuento en Factura'
+Si el PDF dice "Boehringer" sin especificar, busca en el texto pistas como "porcino", "cerdo", "swine" → usa "Boehringer Ingelheim (Porcicultura)". Si dice "mascota", "pet", "canino" → usa "Boehringer Ingelheim (Pets)".
 
-2. rebate_sell_in_perc (Rebate Compra): 
-   - 'Rappel', 'Bonificación por Volumen', 'Cumplimiento de Meta', 'Nota Crédito Anual', 'Quarterly Rebate', 'Rebate Sell-In'
+Si no estás 100% seguro del segmento, usa el nombre genérico más cercano de la lista.
 
-3. rebate_sell_out_perc (Rebate Venta/Evacuación): 
-   - 'Sell-out', 'Evacuación', 'Rotación', 'Transferencia', 'Descuento al Farmacéutico', 'Rebate Sell-Out'
+══════════════════════════════════════════════════════════════════════
+REGLA 2: MAPEO EXACTO DE COLUMNAS (DATABASE KEYS)
+══════════════════════════════════════════════════════════════════════
+Tu salida JSON DEBE usar EXACTAMENTE estas keys (no cambies ni una letra):
 
-4. marketing_perc (Mercadeo): 
-   - 'Cooperativa', 'Visibilidad', 'Plan de Medios', 'Eventos', 'Apoyo Comercial', 'Marketing', 'Publicidad'
+- brand_name              → Para cruzar con el Selector (usa nombre de la lista)
+- annual_goal             → Meta Anual (número sin formato)
+- invoice_discount_perc   → Descuento Pie de Factura %
+- rebate_sell_in_perc     → Rebate Sell-In % (compras)
+- rebate_sell_out_perc    → Rebate Sell-Out % (ventas/evacuación)
+- marketing_perc          → Marketing % (si es porcentaje)
+- marketing_fixed_value   → Marketing valor fijo (si es monto $)
+- financial_discount_perc → Pronto Pago / Descuento Financiero %
+- total_margin_perc       → Suma de TODOS los porcentajes anteriores
 
-5. financial_discount_perc (Financiero): 
-   - 'Pronto Pago', 'Descuento Financiero', 'Descuento por Pago Anticipado'
+══════════════════════════════════════════════════════════════════════
+REGLA 3: DICCIONARIO DE CLASIFICACIÓN
+══════════════════════════════════════════════════════════════════════
+Clasifica cada porcentaje encontrado según estos criterios:
 
-Si un concepto no encaja exactamente, usa tu mejor criterio: si es beneficio por COMPRAR → rebate_sell_in_perc, si es por VENDER → rebate_sell_out_perc.
+1. invoice_discount_perc: 'Descuento Base', 'Descuento Comercial', 'Off Invoice', 'Descuento Permanente'
 
-Extrae y devuelve UNICAMENTE un objeto JSON (sin markdown) con esta estructura exacta:
+2. rebate_sell_in_perc: 'Rappel', 'Bonificación por Volumen', 'Cumplimiento de Meta', 'Nota Crédito Anual', 'Quarterly Rebate'
+
+3. rebate_sell_out_perc: 'Sell-out', 'Evacuación', 'Rotación', 'Transferencia', 'Descuento al Farmacéutico'
+
+4. marketing_perc/marketing_fixed_value: 'Cooperativa', 'Visibilidad', 'Plan de Medios', 'Eventos', 'Apoyo Comercial'
+
+5. financial_discount_perc: 'Pronto Pago', 'Descuento Financiero', 'Pago Anticipado'
+
+══════════════════════════════════════════════════════════════════════
+FORMATO DE RESPUESTA (JSON PURO, SIN MARKDOWN)
+══════════════════════════════════════════════════════════════════════
 {
-  "labName": "Nombre comercial limpio del laboratorio",
+  "brand_name": "Nombre EXACTO de la lista",
   "year": 2025,
-  "totalGoal": 000000,
+  "annual_goal": 000000,
   "invoice_discount_perc": 0,
   "rebate_sell_in_perc": 0,
   "rebate_sell_out_perc": 0,
   "marketing_perc": 0,
+  "marketing_fixed_value": 0,
   "financial_discount_perc": 0,
+  "total_margin_perc": 0,
   "funds": [
-    { "concept": "Nombre original encontrado", "type": "percentage" o "fixed", "value": 0 }
+    { "concept": "Nombre original del PDF", "type": "percentage", "value": 0 }
   ]
 }
 
-IMPORTANTE: 
-- Normaliza los porcentajes (ej: 3% = 3.0).
-- El array 'funds' debe contener TODOS los conceptos encontrados con sus valores originales.
-- Los campos *_perc deben tener la suma de porcentajes correspondientes a cada categoría.`;
+IMPORTANTE:
+- Normaliza porcentajes: 3% = 3.0
+- total_margin_perc = suma de invoice_discount_perc + rebate_sell_in_perc + rebate_sell_out_perc + marketing_perc + financial_discount_perc
+- El array 'funds' conserva TODOS los conceptos originales del PDF para auditoría.`;
 
   const result = await model.generateContent([
     {
