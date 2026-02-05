@@ -75,6 +75,7 @@ export interface Promotion {
   current_redemptions: number;
   target_segment: Record<string, unknown> | null;
   flash_card_url: string | null;
+  marketing_copy: string | null;
   created_at: string;
 }
 
