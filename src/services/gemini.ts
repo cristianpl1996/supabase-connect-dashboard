@@ -28,7 +28,8 @@ async function fileToBase64(file: File): Promise<string> {
 }
 
 export async function analyzeContract(file: File): Promise<ContractAnalysisResult> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  // 2026: Using gemini-2.5-pro for complex reasoning, fallback to gemini-2.0-flash
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
   const base64Data = await fileToBase64(file);
 
