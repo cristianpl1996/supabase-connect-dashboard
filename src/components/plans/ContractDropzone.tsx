@@ -4,9 +4,16 @@ import { cn } from '@/lib/utils';
 
 interface ContractDropzoneProps {
   onFileAnalyzed: (result: {
-    labName: string;
+    brand_name: string;
     year: number;
-    totalGoal: number;
+    annual_goal: number;
+    invoice_discount_perc: number;
+    rebate_sell_in_perc: number;
+    rebate_sell_out_perc: number;
+    marketing_perc: number;
+    marketing_fixed_value: number;
+    financial_discount_perc: number;
+    total_margin_perc: number;
     funds: Array<{ concept: string; type: 'percentage' | 'fixed'; value: number }>;
   }) => void;
   disabled?: boolean;

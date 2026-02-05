@@ -117,15 +117,23 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
   // Handle AI analysis results
   const handleContractAnalyzed = useCallback((result: {
-    labName: string;
+    brand_name: string;
     year: number;
-    totalGoal: number;
+    annual_goal: number;
+    invoice_discount_perc: number;
+    rebate_sell_in_perc: number;
+    rebate_sell_out_perc: number;
+    marketing_perc: number;
+    marketing_fixed_value: number;
+    financial_discount_perc: number;
+    total_margin_perc: number;
     funds: Array<{ concept: string; type: 'percentage' | 'fixed'; value: number }>;
   }) => {
-    // Try to match lab by name
+    // Try to match lab by exact name from the closed list
     const matchedLab = laboratories.find(
-      (lab) => lab.name.toLowerCase().includes(result.labName.toLowerCase()) ||
-               result.labName.toLowerCase().includes(lab.name.toLowerCase())
+      (lab) => lab.name.toLowerCase() === result.brand_name.toLowerCase() ||
+               lab.name.toLowerCase().includes(result.brand_name.toLowerCase()) ||
+               result.brand_name.toLowerCase().includes(lab.name.toLowerCase())
     );
     
     if (matchedLab) {
@@ -133,30 +141,71 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       setLabNameFromAI('');
     } else {
       setLabId('');
-      setLabNameFromAI(result.labName);
+      setLabNameFromAI(result.brand_name);
     }
 
     setYear(result.year || currentYear + 1);
-    setPurchaseGoal(result.totalGoal || 0);
+    setPurchaseGoal(result.annual_goal || 0);
 
-    // Map funds from AI
-    const mappedFunds: PlanFundInput[] = result.funds.map((f) => {
-      // Try to match concept to our predefined list
-      const matchedConcept = FUND_CONCEPTS.find(
-        (c) => c.toLowerCase().includes(f.concept.toLowerCase()) ||
-               f.concept.toLowerCase().includes(c.toLowerCase())
-      ) || 'Otro';
-
-      return {
+    // Map structured percentage fields to funds
+    const mappedFunds: PlanFundInput[] = [];
+    
+    if (result.invoice_discount_perc > 0) {
+      mappedFunds.push({
         id: crypto.randomUUID(),
-        concept: matchedConcept,
-        amount_type: f.type === 'percentage' ? 'porcentaje' : 'fijo',
-        amount_value: f.value,
-      };
-    });
+        concept: 'Otro', // Descuento Pie Factura
+        amount_type: 'porcentaje',
+        amount_value: result.invoice_discount_perc,
+      });
+    }
+    
+    if (result.rebate_sell_in_perc > 0) {
+      mappedFunds.push({
+        id: crypto.randomUUID(),
+        concept: 'Rebate Sell-In',
+        amount_type: 'porcentaje',
+        amount_value: result.rebate_sell_in_perc,
+      });
+    }
+    
+    if (result.rebate_sell_out_perc > 0) {
+      mappedFunds.push({
+        id: crypto.randomUUID(),
+        concept: 'Rebate Sell-Out',
+        amount_type: 'porcentaje',
+        amount_value: result.rebate_sell_out_perc,
+      });
+    }
+    
+    if (result.marketing_perc > 0) {
+      mappedFunds.push({
+        id: crypto.randomUUID(),
+        concept: 'Marketing',
+        amount_type: 'porcentaje',
+        amount_value: result.marketing_perc,
+      });
+    }
+    
+    if (result.marketing_fixed_value > 0) {
+      mappedFunds.push({
+        id: crypto.randomUUID(),
+        concept: 'Marketing',
+        amount_type: 'fijo',
+        amount_value: result.marketing_fixed_value,
+      });
+    }
+    
+    if (result.financial_discount_perc > 0) {
+      mappedFunds.push({
+        id: crypto.randomUUID(),
+        concept: 'Pronto Pago',
+        amount_type: 'porcentaje',
+        amount_value: result.financial_discount_perc,
+      });
+    }
 
     setFunds(mappedFunds);
-    toast.success('Datos extraídos del contrato. Revisa y ajusta si es necesario.');
+    toast.success(`Datos extraídos: ${result.brand_name} - Margen Total: ${result.total_margin_perc}%`);
   }, [laboratories, currentYear]);
 
   const addFund = () => {
