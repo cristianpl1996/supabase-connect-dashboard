@@ -69,10 +69,18 @@ Si encuentras tablas de bonificaciones, mapealas al array 'funds'. Normaliza los
   const mimeType = file.type || "application/pdf";
 
   try {
-    console.log(`Intentando análisis con modelo principal: ${PRIMARY_MODEL}`);
+    console.log(`🔍 Intentando análisis con modelo: ${PRIMARY_MODEL}`);
     text = await tryAnalyzeWithModel(PRIMARY_MODEL, base64Data, mimeType, prompt);
+    console.log(`✅ Éxito con modelo: ${PRIMARY_MODEL}`);
   } catch (primaryError: any) {
-    console.warn(`Error con ${PRIMARY_MODEL}:`, primaryError?.message || primaryError);
+    // Log detailed error for debugging
+    console.error(`❌ Error con ${PRIMARY_MODEL}:`, {
+      message: primaryError?.message,
+      status: primaryError?.status,
+      statusText: primaryError?.statusText,
+      errorDetails: primaryError?.errorDetails,
+      fullError: JSON.stringify(primaryError, null, 2)
+    });
 
     // Check for quota exceeded (429)
     if (primaryError?.message?.includes("429") || primaryError?.status === 429) {
@@ -81,12 +89,22 @@ Si encuentras tablas de bonificaciones, mapealas al array 'funds'. Normaliza los
       );
     }
 
+    // Check for model not found (404)
+    if (primaryError?.message?.includes("404") || primaryError?.message?.includes("not found")) {
+      console.error(`⚠️ Modelo ${PRIMARY_MODEL} no encontrado. Error exacto: ${primaryError?.message}`);
+    }
+
     // Try fallback model
     try {
-      console.log(`Intentando con modelo de respaldo: ${FALLBACK_MODEL}`);
+      console.log(`🔄 Intentando con modelo de respaldo: ${FALLBACK_MODEL}`);
       text = await tryAnalyzeWithModel(FALLBACK_MODEL, base64Data, mimeType, prompt);
+      console.log(`✅ Éxito con modelo fallback: ${FALLBACK_MODEL}`);
     } catch (fallbackError: any) {
-      console.error(`Error con ${FALLBACK_MODEL}:`, fallbackError?.message || fallbackError);
+      console.error(`❌ Error con ${FALLBACK_MODEL}:`, {
+        message: fallbackError?.message,
+        status: fallbackError?.status,
+        fullError: JSON.stringify(fallbackError, null, 2)
+      });
 
       if (fallbackError?.message?.includes("429") || fallbackError?.status === 429) {
         throw new Error(
@@ -94,8 +112,10 @@ Si encuentras tablas de bonificaciones, mapealas al array 'funds'. Normaliza los
         );
       }
 
+      // Provide detailed error message for debugging
+      const errorMsg = primaryError?.message || fallbackError?.message || "Error desconocido";
       throw new Error(
-        "No se pudo conectar con el servicio de IA. Verifica tu conexión o intenta más tarde."
+        `Error de IA: ${errorMsg}. Verifica que el modelo "${PRIMARY_MODEL}" esté habilitado en tu proyecto de Google Cloud.`
       );
     }
   }
