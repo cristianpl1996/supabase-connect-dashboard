@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Laboratory } from '@/types/database';
 import {
@@ -21,6 +21,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContractDropzone } from './ContractDropzone';
 
 interface PlanFundInput {
   id: string;
@@ -50,6 +51,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
   
   // Form state
   const [labId, setLabId] = useState('');
+  const [labNameFromAI, setLabNameFromAI] = useState('');
   const [year, setYear] = useState(currentYear + 1);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
@@ -64,6 +66,50 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
       return sum + (purchaseGoal * fund.amount_value / 100);
     }
   }, 0);
+
+  // Handle AI analysis results
+  const handleContractAnalyzed = useCallback((result: {
+    labName: string;
+    year: number;
+    totalGoal: number;
+    funds: Array<{ concept: string; type: 'percentage' | 'fixed'; value: number }>;
+  }) => {
+    // Try to match lab by name
+    const matchedLab = laboratories.find(
+      (lab) => lab.name.toLowerCase().includes(result.labName.toLowerCase()) ||
+               result.labName.toLowerCase().includes(lab.name.toLowerCase())
+    );
+    
+    if (matchedLab) {
+      setLabId(matchedLab.id);
+      setLabNameFromAI('');
+    } else {
+      setLabId('');
+      setLabNameFromAI(result.labName);
+    }
+
+    setYear(result.year || currentYear + 1);
+    setPurchaseGoal(result.totalGoal || 0);
+
+    // Map funds from AI
+    const mappedFunds: PlanFundInput[] = result.funds.map((f) => {
+      // Try to match concept to our predefined list
+      const matchedConcept = FUND_CONCEPTS.find(
+        (c) => c.toLowerCase().includes(f.concept.toLowerCase()) ||
+               f.concept.toLowerCase().includes(c.toLowerCase())
+      ) || 'Otro';
+
+      return {
+        id: crypto.randomUUID(),
+        concept: matchedConcept,
+        amount_type: f.type === 'percentage' ? 'porcentaje' : 'fijo',
+        amount_value: f.value,
+      };
+    });
+
+    setFunds(mappedFunds);
+    toast.success('Datos extraídos del contrato. Revisa y ajusta si es necesario.');
+  }, [laboratories, currentYear]);
 
   const addFund = () => {
     setFunds([
@@ -91,6 +137,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
 
   const resetForm = () => {
     setLabId('');
+    setLabNameFromAI('');
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
@@ -190,6 +237,19 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* AI Contract Analysis */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+              Análisis Inteligente
+            </h3>
+            <ContractDropzone 
+              onFileAnalyzed={handleContractAnalyzed}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <Separator />
+
           {/* SECTION A: General Data */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
@@ -198,9 +258,9 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
 
             <div className="space-y-2">
               <Label htmlFor="laboratory">Laboratorio</Label>
-              <Select value={labId} onValueChange={setLabId}>
+              <Select value={labId} onValueChange={(v) => { setLabId(v); setLabNameFromAI(''); }}>
                 <SelectTrigger id="laboratory">
-                  <SelectValue placeholder="Selecciona un laboratorio" />
+                  <SelectValue placeholder={labNameFromAI || "Selecciona un laboratorio"} />
                 </SelectTrigger>
                 <SelectContent>
                   {laboratories.length === 0 ? (
@@ -216,6 +276,11 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
                   )}
                 </SelectContent>
               </Select>
+              {labNameFromAI && !labId && (
+                <p className="text-xs text-amber-600">
+                  ⚠️ La IA detectó "{labNameFromAI}" pero no coincide con ningún laboratorio. Selecciona uno manualmente.
+                </p>
+              )}
               {laboratories.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Primero debes crear laboratorios en la base de datos
