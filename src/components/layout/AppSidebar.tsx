@@ -1,5 +1,6 @@
-import { LayoutDashboard, FileText, Tag, Image, Wallet, Settings, LogOut, ChevronLeft, Menu } from "lucide-react";
+import { LayoutDashboard, FileText, Tag, Image, Wallet, Settings, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
   Sidebar,
@@ -12,10 +13,9 @@ import {
   SidebarMenuItem,
   SidebarFooter,
   SidebarHeader,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
 const mainNavItems = [
   { title: "Inicio", url: "/", icon: LayoutDashboard },
@@ -31,7 +31,15 @@ const footerNavItems = [
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { signOut, profile, isRepresentative, isAdmin } = useAuth();
   const isCollapsed = state === "collapsed";
+
+  // Filter nav items based on role
+  const visibleNavItems = mainNavItems.filter(item => {
+    // Representatives can't see Wallet (full view)
+    if (isRepresentative && item.url === '/wallet') return false;
+    return true;
+  });
 
   return (
     <Sidebar 
@@ -46,7 +54,14 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="flex flex-col">
               <span className="font-semibold text-sidebar-foreground">PromoManager</span>
-              <span className="text-xs text-muted-foreground">Panel de Control</span>
+              <span className="text-xs text-muted-foreground">
+                {profile?.full_name || (isAdmin ? 'Admin' : 'Usuario')}
+              </span>
+              {isRepresentative && profile?.laboratory_name && (
+                <Badge variant="secondary" className="mt-1 text-xs w-fit">
+                  {profile.laboratory_name}
+                </Badge>
+              )}
             </div>
           )}
         </div>
@@ -61,7 +76,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink 
@@ -102,7 +117,7 @@ export function AppSidebar() {
             <SidebarMenuButton asChild tooltip="Cerrar Sesión">
               <button 
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-colors hover:bg-destructive/10"
-                onClick={() => console.log("Logout clicked")}
+                onClick={() => signOut()}
               >
                 <LogOut className="h-5 w-5 shrink-0" />
                 {!isCollapsed && <span>Cerrar Sesión</span>}

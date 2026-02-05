@@ -29,12 +29,14 @@ import { Loader2, FileText, Zap, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-interface PromotionFormSheetProps {
+export interface PromotionFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   laboratories: Laboratory[];
   onSuccess: () => void;
   editingPromo?: Promotion | null;
+  forceStatus?: string;
+  submitLabel?: string;
 }
 
 const SEGMENT_OPTIONS = [
@@ -66,7 +68,9 @@ export function PromotionFormSheet({
   onOpenChange, 
   laboratories, 
   onSuccess, 
-  editingPromo 
+  editingPromo,
+  forceStatus,
+  submitLabel
 }: PromotionFormSheetProps) {
   const isEditing = !!editingPromo;
   
@@ -230,7 +234,7 @@ export function PromotionFormSheet({
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: 'distribuidor' as const,
-        status: 'borrador' as const,
+        status: (forceStatus || 'borrador') as 'borrador' | 'pendiente_aprobacion',
       };
 
       const mechanicData = {
@@ -601,7 +605,7 @@ export function PromotionFormSheet({
                     {isEditing ? 'Actualizando...' : 'Guardando...'}
                   </>
                 ) : (
-                  isEditing ? 'Actualizar Promoción' : 'Guardar Promoción'
+                  submitLabel || (isEditing ? 'Actualizar Promoción' : 'Guardar Promoción')
                 )}
               </Button>
             </div>
