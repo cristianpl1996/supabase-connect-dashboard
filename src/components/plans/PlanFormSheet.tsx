@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Laboratory } from '@/types/database';
+import { Laboratory, AnnualPlan, PlanFund } from '@/types/database';
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,7 @@ import { ContractDropzone } from './ContractDropzone';
 
 interface PlanFundInput {
   id: string;
+  dbId?: string; // ID from database for existing funds
   concept: string;
   amount_type: 'fijo' | 'porcentaje';
   amount_value: number;
@@ -35,6 +36,7 @@ interface PlanFormSheetProps {
   onOpenChange: (open: boolean) => void;
   laboratories: Laboratory[];
   onSuccess: () => void;
+  editingPlan?: AnnualPlan | null;
 }
 
 const FUND_CONCEPTS = [
@@ -46,8 +48,9 @@ const FUND_CONCEPTS = [
   'Otro',
 ];
 
-export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: PlanFormSheetProps) {
+export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, editingPlan }: PlanFormSheetProps) {
   const currentYear = new Date().getFullYear();
+  const isEditing = !!editingPlan;
   
   // Form state
   const [labId, setLabId] = useState('');
@@ -55,7 +58,52 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
   const [year, setYear] = useState(currentYear + 1);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
+  const [originalFundIds, setOriginalFundIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingFunds, setIsLoadingFunds] = useState(false);
+
+  // Load existing data when editing
+  useEffect(() => {
+    if (open && editingPlan) {
+      setLabId(editingPlan.lab_id);
+      setLabNameFromAI('');
+      setYear(editingPlan.year);
+      setPurchaseGoal(editingPlan.total_purchase_goal || 0);
+      
+      // Fetch existing funds
+      const fetchFunds = async () => {
+        setIsLoadingFunds(true);
+        try {
+          const { data, error } = await supabase
+            .from('plan_funds')
+            .select('*')
+            .eq('plan_id', editingPlan.id);
+
+          if (error) throw error;
+
+          const mappedFunds: PlanFundInput[] = (data || []).map((fund: PlanFund) => ({
+            id: crypto.randomUUID(),
+            dbId: fund.id,
+            concept: fund.concept,
+            amount_type: fund.amount_type as 'fijo' | 'porcentaje',
+            amount_value: fund.amount_value || 0,
+          }));
+
+          setFunds(mappedFunds);
+          setOriginalFundIds(mappedFunds.map(f => f.dbId!).filter(Boolean));
+        } catch (err) {
+          console.error('Error loading funds:', err);
+          toast.error('Error al cargar los fondos del plan');
+        } finally {
+          setIsLoadingFunds(false);
+        }
+      };
+
+      fetchFunds();
+    } else if (open && !editingPlan) {
+      resetForm();
+    }
+  }, [open, editingPlan]);
 
   // Calculate total budget from funds
   const totalBudget = funds.reduce((sum, fund) => {
@@ -141,6 +189,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
+    setOriginalFundIds([]);
   };
 
   const handleSubmit = async () => {
@@ -161,52 +210,120 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
     setIsSubmitting(true);
 
     try {
-      // Get laboratory name for plan title
       const lab = laboratories.find((l) => l.id === labId);
       const planName = `Plan Comercial ${lab?.name || 'Lab'} ${year}`;
 
-      // 1. Insert annual_plan
-      const { data: planData, error: planError } = await supabase
-        .from('annual_plans')
-        .insert({
-          lab_id: labId,
-          year: year,
-          name: planName,
-          status: 'activo',
-          total_purchase_goal: purchaseGoal,
-          total_budget_allocated: totalBudget,
-        })
-        .select('id')
-        .single();
+      if (isEditing && editingPlan) {
+        // UPDATE MODE
+        const { error: planError } = await supabase
+          .from('annual_plans')
+          .update({
+            lab_id: labId,
+            year: year,
+            name: planName,
+            total_purchase_goal: purchaseGoal,
+            total_budget_allocated: totalBudget,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingPlan.id);
 
-      if (planError) {
-        throw new Error(`Error al crear plan: ${planError.message}`);
-      }
-
-      // 2. Insert plan_funds if any
-      if (funds.length > 0) {
-        const fundsToInsert = funds.map((fund) => ({
-          plan_id: planData.id,
-          concept: fund.concept,
-          amount_type: fund.amount_type,
-          amount_value: fund.amount_value,
-          current_balance: fund.amount_type === 'fijo' 
-            ? fund.amount_value 
-            : (purchaseGoal * fund.amount_value / 100),
-        }));
-
-        const { error: fundsError } = await supabase
-          .from('plan_funds')
-          .insert(fundsToInsert);
-
-        if (fundsError) {
-          // Rollback: delete the plan if funds fail
-          await supabase.from('annual_plans').delete().eq('id', planData.id);
-          throw new Error(`Error al crear fondos: ${fundsError.message}`);
+        if (planError) {
+          throw new Error(`Error al actualizar plan: ${planError.message}`);
         }
+
+        // Handle funds: delete removed, update existing, insert new
+        const currentFundDbIds = funds.map(f => f.dbId).filter(Boolean) as string[];
+        const fundsToDelete = originalFundIds.filter(id => !currentFundDbIds.includes(id));
+        const fundsToUpdate = funds.filter(f => f.dbId);
+        const fundsToInsert = funds.filter(f => !f.dbId);
+
+        // Delete removed funds
+        if (fundsToDelete.length > 0) {
+          const { error } = await supabase
+            .from('plan_funds')
+            .delete()
+            .in('id', fundsToDelete);
+          if (error) throw new Error(`Error al eliminar fondos: ${error.message}`);
+        }
+
+        // Update existing funds
+        for (const fund of fundsToUpdate) {
+          const { error } = await supabase
+            .from('plan_funds')
+            .update({
+              concept: fund.concept,
+              amount_type: fund.amount_type,
+              amount_value: fund.amount_value,
+              current_balance: fund.amount_type === 'fijo' 
+                ? fund.amount_value 
+                : (purchaseGoal * fund.amount_value / 100),
+            })
+            .eq('id', fund.dbId);
+          if (error) throw new Error(`Error al actualizar fondo: ${error.message}`);
+        }
+
+        // Insert new funds
+        if (fundsToInsert.length > 0) {
+          const newFunds = fundsToInsert.map((fund) => ({
+            plan_id: editingPlan.id,
+            concept: fund.concept,
+            amount_type: fund.amount_type,
+            amount_value: fund.amount_value,
+            current_balance: fund.amount_type === 'fijo' 
+              ? fund.amount_value 
+              : (purchaseGoal * fund.amount_value / 100),
+          }));
+
+          const { error } = await supabase
+            .from('plan_funds')
+            .insert(newFunds);
+          if (error) throw new Error(`Error al crear nuevos fondos: ${error.message}`);
+        }
+
+        toast.success('Plan actualizado exitosamente');
+      } else {
+        // CREATE MODE
+        const { data: planData, error: planError } = await supabase
+          .from('annual_plans')
+          .insert({
+            lab_id: labId,
+            year: year,
+            name: planName,
+            status: 'activo',
+            total_purchase_goal: purchaseGoal,
+            total_budget_allocated: totalBudget,
+          })
+          .select('id')
+          .single();
+
+        if (planError) {
+          throw new Error(`Error al crear plan: ${planError.message}`);
+        }
+
+        if (funds.length > 0) {
+          const fundsToInsert = funds.map((fund) => ({
+            plan_id: planData.id,
+            concept: fund.concept,
+            amount_type: fund.amount_type,
+            amount_value: fund.amount_value,
+            current_balance: fund.amount_type === 'fijo' 
+              ? fund.amount_value 
+              : (purchaseGoal * fund.amount_value / 100),
+          }));
+
+          const { error: fundsError } = await supabase
+            .from('plan_funds')
+            .insert(fundsToInsert);
+
+          if (fundsError) {
+            await supabase.from('annual_plans').delete().eq('id', planData.id);
+            throw new Error(`Error al crear fondos: ${fundsError.message}`);
+          }
+        }
+
+        toast.success('Plan creado exitosamente');
       }
 
-      // Success
       resetForm();
       onSuccess();
     } catch (err) {
@@ -230,25 +347,35 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Nuevo Plan Año</SheetTitle>
+          <SheetTitle>{isEditing ? 'Editar Plan' : 'Nuevo Plan Año'}</SheetTitle>
           <SheetDescription>
-            Crea un nuevo acuerdo comercial con un laboratorio
+            {isEditing ? 'Modifica los datos del acuerdo comercial' : 'Crea un nuevo acuerdo comercial con un laboratorio'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {/* AI Contract Analysis */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-              Análisis Inteligente
-            </h3>
-            <ContractDropzone 
-              onFileAnalyzed={handleContractAnalyzed}
-              disabled={isSubmitting}
-            />
-          </div>
+          {/* AI Contract Analysis - Only show for new plans */}
+          {!isEditing && (
+            <>
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                  Análisis Inteligente
+                </h3>
+                <ContractDropzone 
+                  onFileAnalyzed={handleContractAnalyzed}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <Separator />
+            </>
+          )}
 
-          <Separator />
+          {isLoadingFunds && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Cargando datos...</span>
+            </div>
+          )}
 
           {/* SECTION A: General Data */}
           <div className="space-y-4">
@@ -432,15 +559,15 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess }: P
             <Button
               className="flex-1"
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingFunds}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
+                  {isEditing ? 'Actualizando...' : 'Guardando...'}
                 </>
               ) : (
-                'Guardar Plan'
+                isEditing ? 'Actualizar Plan' : 'Guardar Plan'
               )}
             </Button>
           </div>

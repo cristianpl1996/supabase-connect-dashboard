@@ -4,9 +4,19 @@ import { AnnualPlan, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, TrendingUp, FileText, Plus, DollarSign } from 'lucide-react';
+import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2 } from 'lucide-react';
 import { PlanFormSheet } from '@/components/plans/PlanFormSheet';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const Plans = () => {
   const [plans, setPlans] = useState<AnnualPlan[]>([]);
@@ -14,6 +24,10 @@ const Plans = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<AnnualPlan | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<AnnualPlan | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -46,10 +60,49 @@ const Plans = () => {
     fetchData();
   }, [fetchData]);
 
-  const handlePlanCreated = () => {
+  const handlePlanSaved = () => {
     setSheetOpen(false);
+    setEditingPlan(null);
     fetchData();
-    toast.success('Plan creado exitosamente');
+  };
+
+  const handleEditPlan = (plan: AnnualPlan) => {
+    setEditingPlan(plan);
+    setSheetOpen(true);
+  };
+
+  const handleOpenCreate = () => {
+    setEditingPlan(null);
+    setSheetOpen(true);
+  };
+
+  const handleDeleteClick = (plan: AnnualPlan) => {
+    setPlanToDelete(plan);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!planToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('annual_plans')
+        .delete()
+        .eq('id', planToDelete.id);
+
+      if (error) throw error;
+
+      toast.success('Plan eliminado exitosamente');
+      fetchData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`Error al eliminar: ${errorMessage}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setPlanToDelete(null);
+    }
   };
 
   const totalPurchaseGoal = plans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
@@ -73,7 +126,7 @@ const Plans = () => {
             <h1 className="text-3xl font-bold text-foreground">Bóveda de Acuerdos</h1>
             <p className="text-muted-foreground mt-1">Gestión de Planes Anuales por Laboratorio</p>
           </div>
-          <Button onClick={() => setSheetOpen(true)} className="gap-2">
+          <Button onClick={handleOpenCreate} className="gap-2">
             <Plus className="h-4 w-4" />
             Nuevo Plan Año
           </Button>
@@ -152,7 +205,7 @@ const Plans = () => {
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-muted-foreground">No hay planes anuales registrados</p>
-                <Button variant="outline" className="mt-4" onClick={() => setSheetOpen(true)}>
+                <Button variant="outline" className="mt-4" onClick={handleOpenCreate}>
                   <Plus className="h-4 w-4 mr-2" />
                   Crear primer plan
                 </Button>
@@ -166,6 +219,7 @@ const Plans = () => {
                     <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Meta de Compra</TableHead>
                     <TableHead className="text-right">Presupuesto</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -184,6 +238,26 @@ const Plans = () => {
                       <TableCell className="text-right font-mono">
                         {formatCurrency(plan.total_budget_allocated || 0)}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEditPlan(plan)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteClick(plan)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -196,10 +270,36 @@ const Plans = () => {
       {/* Form Sheet */}
       <PlanFormSheet 
         open={sheetOpen} 
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditingPlan(null);
+        }}
         laboratories={laboratories}
-        onSuccess={handlePlanCreated}
+        onSuccess={handlePlanSaved}
+        editingPlan={editingPlan}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esto eliminará el plan "{planToDelete?.name}" y todos sus fondos asignados. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
