@@ -47,14 +47,8 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          {/* Icono I */}
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0">
-            I
-          </div>
-
-          {/* Logo IVANagro */}
-          <img src={logoIco} alt="IVANagro" className="h-8 object-contain" />
+        <div className="flex items-center gap-3 flex-nowrap">
+          <img src={logoIco} alt="IVANagro" className="h-12 w-auto shrink-0 object-contain" />
         </div>
       </SidebarHeader>
 
