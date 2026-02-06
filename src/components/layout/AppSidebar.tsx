@@ -48,7 +48,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3 flex-nowrap">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0 mt-1">
             I
           </div>
           <img src={logoIco} alt="IVANagro" className="h-14 w-auto shrink-0 object-contain" />
