@@ -47,15 +47,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className={isCollapsed ? "h-16 flex items-center justify-center" : "h-20 px-4 flex items-center"}>
-        <div className={`flex items-center flex-nowrap ${isCollapsed ? "justify-center" : "gap-3"}`}>
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} flex-nowrap`}>
           {/* Isotipo */}
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0 font-serif">
             I
           </div>
 
-          {/* Logotipo */}
+          {/* Logo */}
           {!isCollapsed && (
-            <img src={logoIco} alt="IVANagro" className="block h-7 max-w-[140px] w-auto object-contain shrink-0" />
+            <img src={logoIco} alt="IVANagro" className="h-7 max-w-[140px] w-auto shrink-0 object-contain block" />
           )}
         </div>
       </SidebarHeader>
