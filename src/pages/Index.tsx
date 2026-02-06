@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { AnnualPlan, Promotion, Laboratory } from "@/types/database";
+import { AnnualPlan, Promotion, Laboratory, PlanFund } from "@/types/database";
+import { fetchBudgetRulesConfig, isFundSpendable, BudgetRulesConfig } from "@/hooks/useBudgetRules";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,9 @@ const Index = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<WalletLedgerEntry[]>([]);
+  const [planFunds, setPlanFunds] = useState<PlanFund[]>([]);
+  const [budgetRules, setBudgetRules] = useState<BudgetRulesConfig>({});
+  const [spendableBudget, setSpendableBudget] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,21 +58,44 @@ const Index = () => {
       setLoading(true);
       setError(null);
 
-      const [plansRes, promosRes, labsRes, ledgerRes] = await Promise.all([
+      const [plansRes, promosRes, labsRes, ledgerRes, fundsRes, rulesConfig] = await Promise.all([
         supabase.from("annual_plans").select("*"),
         supabase.from("promotions").select("*"),
         supabase.from("laboratories").select("*"),
         supabase.from("wallet_ledger").select("*"),
+        supabase.from("plan_funds").select("*"),
+        fetchBudgetRulesConfig(),
       ]);
 
       if (plansRes.error) throw plansRes.error;
       if (promosRes.error) throw promosRes.error;
       if (labsRes.error) throw labsRes.error;
 
-      setPlans(plansRes.data || []);
+      const allPlans = plansRes.data || [];
+      const allFunds = fundsRes.data || [];
+
+      setPlans(allPlans);
       setPromotions(promosRes.data || []);
       setLaboratories(labsRes.data || []);
       setLedgerEntries(ledgerRes.data || []);
+      setPlanFunds(allFunds);
+      setBudgetRules(rulesConfig);
+
+      // Calculate global spendable budget
+      const purchaseGoals: Record<string, number> = {};
+      allPlans.forEach((p) => { purchaseGoals[p.id] = p.total_purchase_goal || 0; });
+
+      let totalSpendable = 0;
+      allFunds.forEach((fund: PlanFund) => {
+        if (isFundSpendable(rulesConfig, fund.concept, fund.amount_type)) {
+          if (fund.amount_type === 'fijo') {
+            totalSpendable += fund.amount_value || 0;
+          } else {
+            totalSpendable += ((purchaseGoals[fund.plan_id] || 0) * (fund.amount_value || 0)) / 100;
+          }
+        }
+      });
+      setSpendableBudget(totalSpendable);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido";
       setError(errorMessage);
@@ -90,8 +117,8 @@ const Index = () => {
     }).format(value);
   };
 
-  // KPI Calculations
-  const totalBudget = plans.reduce((sum, plan) => sum + (plan.total_budget_allocated || 0), 0);
+  // KPI Calculations — use spendable budget from budget_rules
+  const totalBudget = spendableBudget;
 
   const activePromos = promotions.filter((p) => p.status === "activa");
   const activePromosCount = activePromos.length;
@@ -120,12 +147,28 @@ const Index = () => {
 
   uniqueLabIds.forEach((labId) => {
     const labPlans = plans.filter((p) => p.lab_id === labId);
+    const labPlanIds = labPlans.map((p) => p.id);
+    const labFunds = planFunds.filter((f) => labPlanIds.includes(f.plan_id));
     const labPromos = promotions.filter(
       (p) => p.lab_id === labId && (p.status === "activa" || p.status === "borrador"),
     );
     const labLedger = ledgerEntries.filter((e) => e.lab_id === labId);
 
-    const budget = labPlans.reduce((sum, p) => sum + (p.total_budget_allocated || 0), 0);
+    // Calculate spendable budget for this lab using budget_rules
+    const purchaseGoals: Record<string, number> = {};
+    labPlans.forEach((p) => { purchaseGoals[p.id] = p.total_purchase_goal || 0; });
+
+    let budget = 0;
+    labFunds.forEach((fund) => {
+      if (isFundSpendable(budgetRules, fund.concept, fund.amount_type)) {
+        if (fund.amount_type === 'fijo') {
+          budget += fund.amount_value || 0;
+        } else {
+          budget += ((purchaseGoals[fund.plan_id] || 0) * (fund.amount_value || 0)) / 100;
+        }
+      }
+    });
+
     const committed = labPromos.reduce((sum, p) => sum + (p.estimated_cost || 0), 0);
     const adjustments = labLedger.reduce((sum, e) => {
       return e.type === "ingreso" ? sum + e.amount : sum - e.amount;
@@ -380,3 +423,4 @@ const Index = () => {
 };
 
 export default Index;
+

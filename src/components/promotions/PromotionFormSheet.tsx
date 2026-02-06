@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, FileText, Zap, DollarSign, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
+import { fetchBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
 
 interface PromotionFormSheetProps {
   open: boolean;
@@ -170,7 +170,7 @@ export function PromotionFormSheet({
 
     const checkBudget = async () => {
       try {
-        const budgetRules = getBudgetRulesConfig();
+        const budgetRules = await fetchBudgetRulesConfig();
 
         // Fetch plans for this lab
         const { data: plans } = await supabase
