@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Laboratory, WalletLedger } from '@/types/database';
+import { Laboratory, WalletLedger, PlanFund } from '@/types/database';
+import { getBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -91,6 +92,17 @@ export default function WalletPage() {
         .select('*')
         .eq('lab_id', labId);
 
+      // Fetch plan_funds for spendable budget calculation
+      const planIds = (plans || []).map(p => p.id);
+      let planFunds: PlanFund[] = [];
+      if (planIds.length > 0) {
+        const { data: fundsData } = await supabase
+          .from('plan_funds')
+          .select('*')
+          .in('plan_id', planIds);
+        planFunds = fundsData || [];
+      }
+
       // Fetch promotions for committed amount
       const { data: promos } = await supabase
         .from('promotions')
@@ -106,12 +118,29 @@ export default function WalletPage() {
         .eq('transaction_type', 'ajuste_manual')
         .order('transaction_date', { ascending: false });
 
-      // Calculate totals
-      const totalBudget = (plans || []).reduce(
-        (sum, plan) => sum + (plan.total_budget_allocated || 0), 
-        0
-      );
-      
+      // Get budget rules configuration
+      const budgetRules = getBudgetRulesConfig();
+
+      // Calculate SPENDABLE budget: only sum funds whose concepts are marked as spendable
+      let spendableBudget = 0;
+      const planPurchaseGoals: Record<string, number> = {};
+      (plans || []).forEach(p => {
+        planPurchaseGoals[p.id] = p.total_purchase_goal || 0;
+      });
+
+      planFunds.forEach(fund => {
+        const isSpendable = isFundSpendable(budgetRules, fund.concept, fund.amount_type);
+        if (isSpendable) {
+          if (fund.amount_type === 'fijo') {
+            spendableBudget += fund.amount_value || 0;
+          } else {
+            // Percentage: calculate from the plan's purchase goal
+            const purchaseGoal = planPurchaseGoals[fund.plan_id] || 0;
+            spendableBudget += (purchaseGoal * (fund.amount_value || 0)) / 100;
+          }
+        }
+      });
+
       const totalCommitted = (promos || []).reduce(
         (sum, promo) => sum + (promo.estimated_cost || 0), 
         0
@@ -128,7 +157,7 @@ export default function WalletPage() {
         }
       });
 
-      setAnnualBudget(totalBudget);
+      setAnnualBudget(spendableBudget);
       setCommittedAmount(totalCommitted);
       setAdjustmentsPositive(positiveAdj);
       setAdjustmentsNegative(negativeAdj);
@@ -558,11 +587,11 @@ export default function WalletPage() {
           <>
             {/* KPI Cards */}
             <div className="grid md:grid-cols-3 gap-4">
-              {/* Card 1: Annual Budget + Positive Adjustments */}
+              {/* Card 1: Spendable Budget + Positive Adjustments */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Presupuesto Total
+                    Presupuesto Gastable
                   </CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -571,7 +600,7 @@ export default function WalletPage() {
                     {formatCurrency(totalIncome)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Planes: {formatCurrency(annualBudget)}
+                    Fondos gastables: {formatCurrency(annualBudget)}
                     {adjustmentsPositive > 0 && ` + Ajustes: ${formatCurrency(adjustmentsPositive)}`}
                   </p>
                 </CardContent>

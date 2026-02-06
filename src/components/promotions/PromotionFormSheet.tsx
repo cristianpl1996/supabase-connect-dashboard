@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Laboratory, Promotion, PromoMechanic } from '@/types/database';
+import { Laboratory, Promotion, PromoMechanic, PlanFund } from '@/types/database';
 import {
   Sheet,
   SheetContent,
@@ -25,9 +25,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, FileText, Zap, DollarSign } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, FileText, Zap, DollarSign, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { getBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
 
 interface PromotionFormSheetProps {
   open: boolean;
@@ -93,6 +95,10 @@ export function PromotionFormSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
   const [existingMechanicId, setExistingMechanicId] = useState<string | null>(null);
+  
+  // Overdraft protection
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [spendableBalance, setSpendableBalance] = useState<number | null>(null);
 
   // Load existing data when editing
   useEffect(() => {
@@ -154,6 +160,94 @@ export function PromotionFormSheet({
     }
   }, [open, editingPromo]);
 
+  // Overdraft protection: check spendable budget when lab or cost changes
+  useEffect(() => {
+    if (!labId || !open) {
+      setBudgetError(null);
+      setSpendableBalance(null);
+      return;
+    }
+
+    const checkBudget = async () => {
+      try {
+        const budgetRules = getBudgetRulesConfig();
+
+        // Fetch plans for this lab
+        const { data: plans } = await supabase
+          .from('annual_plans')
+          .select('id, total_purchase_goal')
+          .eq('lab_id', labId);
+
+        const planIds = (plans || []).map(p => p.id);
+        let spendable = 0;
+
+        if (planIds.length > 0) {
+          const { data: funds } = await supabase
+            .from('plan_funds')
+            .select('*')
+            .in('plan_id', planIds);
+
+          const purchaseGoals: Record<string, number> = {};
+          (plans || []).forEach(p => { purchaseGoals[p.id] = p.total_purchase_goal || 0; });
+
+          (funds || []).forEach((fund: PlanFund) => {
+            if (isFundSpendable(budgetRules, fund.concept, fund.amount_type)) {
+              if (fund.amount_type === 'fijo') {
+                spendable += fund.amount_value || 0;
+              } else {
+                spendable += ((purchaseGoals[fund.plan_id] || 0) * (fund.amount_value || 0)) / 100;
+              }
+            }
+          });
+        }
+
+        // Fetch existing committed promos (exclude current promo if editing)
+        const query = supabase
+          .from('promotions')
+          .select('estimated_cost')
+          .eq('lab_id', labId)
+          .in('status', ['activa', 'borrador', 'revision', 'aprobada']);
+
+        const { data: promos } = editingPromo
+          ? await query.neq('id', editingPromo.id)
+          : await query;
+
+        const committed = (promos || []).reduce(
+          (sum, p) => sum + (p.estimated_cost || 0), 0
+        );
+
+        // Fetch adjustments
+        const { data: adjustments } = await supabase
+          .from('wallet_ledger')
+          .select('amount')
+          .eq('lab_id', labId)
+          .eq('transaction_type', 'ajuste_manual');
+
+        let positiveAdj = 0;
+        let negativeAdj = 0;
+        (adjustments || []).forEach(adj => {
+          if (adj.amount > 0) positiveAdj += adj.amount;
+          else negativeAdj += Math.abs(adj.amount);
+        });
+
+        const available = (spendable + positiveAdj) - (committed + negativeAdj);
+        setSpendableBalance(available);
+
+        if (estimatedCost > 0 && estimatedCost > available) {
+          setBudgetError(
+            `⛔ Error: No puedes crear esta promoción. Estás excediendo el presupuesto de Marketing asignado (No toques el margen del distribuidor). Saldo gastable disponible: ${formatCurrency(available)}`
+          );
+        } else {
+          setBudgetError(null);
+        }
+      } catch (err) {
+        console.error('Error checking budget:', err);
+      }
+    };
+
+    checkBudget();
+  }, [labId, estimatedCost, open, editingPromo]);
+
   const resetForm = () => {
     setLabId('');
     setTitle('');
@@ -170,6 +264,8 @@ export function PromotionFormSheet({
     setAccountingTreatment('descuento_pie');
     setMaxRedemptions('');
     setExistingMechanicId(null);
+    setBudgetError(null);
+    setSpendableBalance(null);
   };
 
   const buildConditionConfig = () => {
@@ -214,6 +310,12 @@ export function PromotionFormSheet({
     }
     if (new Date(startDate) > new Date(endDate)) {
       toast.error('La fecha de inicio debe ser anterior a la de fin');
+      return;
+    }
+
+    // Overdraft protection: block if exceeds spendable budget
+    if (budgetError) {
+      toast.error('No puedes guardar: el costo estimado supera el presupuesto gastable disponible.');
       return;
     }
 
@@ -566,7 +668,7 @@ export function PromotionFormSheet({
                     </p>
                   </div>
 
-                  {estimatedCost > 0 && (
+                  {estimatedCost > 0 && !budgetError && (
                     <div className="p-3 bg-primary/10 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Costo Estimado</span>
@@ -574,7 +676,22 @@ export function PromotionFormSheet({
                           {formatCurrency(estimatedCost)}
                         </span>
                       </div>
+                      {spendableBalance !== null && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Saldo gastable disponible: {formatCurrency(spendableBalance)}
+                        </p>
+                      )}
                     </div>
+                  )}
+
+                  {/* Overdraft blocking error */}
+                  {budgetError && (
+                    <Alert variant="destructive" className="border-destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="font-medium">
+                        {budgetError}
+                      </AlertDescription>
+                    </Alert>
                   )}
                 </AccordionContent>
               </AccordionItem>
@@ -593,7 +710,7 @@ export function PromotionFormSheet({
               <Button
                 className="flex-1"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!budgetError}
               >
                 {isSubmitting ? (
                   <>
