@@ -413,8 +413,7 @@ const Promotions = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -687,7 +686,6 @@ const Promotions = () => {
             )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Form Sheet */}
       <PromotionFormSheet 

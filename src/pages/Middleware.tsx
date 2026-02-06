@@ -257,8 +257,7 @@ export default function Middleware() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+    <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
@@ -420,7 +419,6 @@ export default function Middleware() {
             )}
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }

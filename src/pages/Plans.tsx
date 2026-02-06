@@ -226,8 +226,7 @@ const Plans = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -509,7 +508,6 @@ const Plans = () => {
             )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Form Sheet */}
       <PlanFormSheet
