@@ -1,4 +1,5 @@
 import { LayoutDashboard, FileText, Tag, CalendarDays, Image, Wallet, Settings, LogOut, ChevronLeft, Menu } from "lucide-react";
+import logoIco from "@/assets/logoico.png";
 import { NavLink } from "@/components/NavLink";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
@@ -41,12 +42,10 @@ export function AppSidebar() {
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
-            P
-          </div>
+          <img src={logoIco} alt="IVANagro" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">PromoManager</span>
+              <span className="font-semibold text-sidebar-foreground">IVANagro</span>
               <span className="text-xs text-muted-foreground">Panel de Control</span>
             </div>
           )}
