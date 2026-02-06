@@ -84,7 +84,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className={isCollapsed ? "p-1" : "p-2"}>
         <Separator className="mb-2" />
         <SidebarMenu>
           {footerNavItems.map((item) => (
@@ -92,7 +92,7 @@ export function AppSidebar() {
               <SidebarMenuButton asChild tooltip={item.title}>
                 <NavLink
                   to={item.url}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  className={`flex items-center rounded-lg py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
                   activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
@@ -104,7 +104,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Cerrar Sesión">
               <button
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-colors hover:bg-destructive/10"
+                className={`flex w-full items-center rounded-lg py-2 text-destructive transition-colors hover:bg-destructive/10 ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
                 onClick={() => console.log("Logout clicked")}
               >
                 <LogOut className="h-5 w-5 shrink-0" />
