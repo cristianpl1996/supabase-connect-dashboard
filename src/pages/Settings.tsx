@@ -4,45 +4,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Settings as SettingsIcon, ShieldCheck, Users, Plus, Trash2, Info, Loader2, FlaskConical } from 'lucide-react';
 import { useBudgetRules } from '@/hooks/useBudgetRules';
 import { LaboratoriesTab } from '@/components/settings/LaboratoriesTab';
+import { UserFormDialog, type InvitedUser, type UserRole } from '@/components/settings/UserFormDialog';
 import { toast } from 'sonner';
 
-interface InvitedUser {
-  id: string;
-  email: string;
-  role: 'admin' | 'viewer';
-}
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  sales_rep: 'Sales Rep',
+  promotor: 'Promotor',
+};
 
 const Settings = () => {
   const { rules, config, isLoading, toggleRule } = useBudgetRules();
 
   // Users tab state
   const [users, setUsers] = useState<InvitedUser[]>([]);
-  const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer');
+  const [userFormOpen, setUserFormOpen] = useState(false);
 
-  const handleAddUser = () => {
-    const trimmed = newEmail.trim();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      toast.error('Ingresa un correo electrónico válido');
-      return;
-    }
-    if (users.some((u) => u.email === trimmed)) {
-      toast.error('Este usuario ya fue invitado');
-      return;
-    }
-    setUsers((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), email: trimmed, role: newRole },
-    ]);
-    setNewEmail('');
-    toast.success(`Usuario ${trimmed} invitado como ${newRole === 'admin' ? 'Admin' : 'Viewer'}`);
+  const handleUserCreated = (user: InvitedUser) => {
+    setUsers((prev) => [...prev, user]);
   };
 
   const handleRemoveUser = (id: string) => {
@@ -204,39 +188,11 @@ const Settings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Invite Form */}
-              <div className="flex items-end gap-3">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="invite-email">Correo Electrónico</Label>
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    placeholder="usuario@empresa.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddUser()}
-                  />
-                </div>
-                <div className="w-36 space-y-2">
-                  <Label>Rol</Label>
-                  <Select
-                    value={newRole}
-                    onValueChange={(v) => setNewRole(v as 'admin' | 'viewer')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleAddUser} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Invitar
-                </Button>
-              </div>
+              {/* Invite Button */}
+              <Button onClick={() => setUserFormOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Invitar Usuario
+              </Button>
 
               {/* Users Table */}
               {users.length === 0 ? (
@@ -253,6 +209,8 @@ const Settings = () => {
                     <TableRow>
                       <TableHead>Correo</TableHead>
                       <TableHead>Rol</TableHead>
+                      <TableHead>Laboratorio</TableHead>
+                      <TableHead className="text-right">Cupo</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -265,8 +223,24 @@ const Settings = () => {
                           <Badge
                             variant={user.role === 'admin' ? 'default' : 'secondary'}
                           >
-                            {user.role === 'admin' ? 'Admin' : 'Viewer'}
+                            {ROLE_LABELS[user.role]}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.laboratory_name ? (
+                            <span className="text-sm">{user.laboratory_name}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {user.approval_limit != null ? (
+                            <span className="text-sm font-mono">
+                              ${user.approval_limit.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-amber-600 border-amber-300">
@@ -290,6 +264,14 @@ const Settings = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* User Form Dialog */}
+          <UserFormDialog
+            open={userFormOpen}
+            onOpenChange={setUserFormOpen}
+            onUserCreated={handleUserCreated}
+            existingEmails={users.map((u) => u.email)}
+          />
         </TabsContent>
       </Tabs>
     </div>
