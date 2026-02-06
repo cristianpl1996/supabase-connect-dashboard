@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Settings as SettingsIcon, ShieldCheck, Users, Plus, Trash2, Info, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, ShieldCheck, Users, Plus, Trash2, Info, Loader2, FlaskConical } from 'lucide-react';
 import { useBudgetRules } from '@/hooks/useBudgetRules';
+import { LaboratoriesTab } from '@/components/settings/LaboratoriesTab';
 import { toast } from 'sonner';
 
 interface InvitedUser {
@@ -70,10 +71,14 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="budget" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="budget" className="gap-2">
             <ShieldCheck className="h-4 w-4" />
             Reglas de Presupuesto
+          </TabsTrigger>
+          <TabsTrigger value="labs" className="gap-2">
+            <FlaskConical className="h-4 w-4" />
+            Laboratorios
           </TabsTrigger>
           <TabsTrigger value="users" className="gap-2">
             <Users className="h-4 w-4" />
@@ -181,8 +186,12 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* ==================== TAB 2: Laboratorios ==================== */}
+        <TabsContent value="labs">
+          <LaboratoriesTab />
+        </TabsContent>
 
-        {/* ==================== TAB 2: Users & Access ==================== */}
+        {/* ==================== TAB 3: Users & Access ==================== */}
         <TabsContent value="users" className="space-y-6">
           <Card>
             <CardHeader>
