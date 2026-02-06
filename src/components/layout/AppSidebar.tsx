@@ -51,7 +51,9 @@ export function AppSidebar() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0">
             I
           </div>
-          {!isCollapsed && <img src={logoIco} alt="IVANagro" className="h-14 w-auto shrink-0 object-contain" />}
+          {!isCollapsed && (
+            <img src={logoIco} alt="IVANagro" className="h-10 w-auto shrink-0 object-contain" />
+          )}
         </div>
       </SidebarHeader>
 
@@ -68,11 +70,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className={`flex items-center rounded-lg py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isCollapsed ? "justify-center px-0 gap-0" : "gap-3 px-3"}`}
+                      className={`flex items-center rounded-lg py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
-                      <span>{item.title}</span>
+                      {!isCollapsed && <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
