@@ -1,4 +1,15 @@
-import { LayoutDashboard, FileText, Tag, CalendarDays, Image, Wallet, Settings, LogOut, ChevronLeft, Menu } from "lucide-react";
+import {
+  LayoutDashboard,
+  FileText,
+  Tag,
+  CalendarDays,
+  Image,
+  Wallet,
+  Settings,
+  LogOut,
+  ChevronLeft,
+  Menu,
+} from "lucide-react";
 import logoIco from "@/assets/logoico.png";
 import { NavLink } from "@/components/NavLink";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -27,29 +38,23 @@ const mainNavItems = [
   { title: "Billetera & Conciliación", url: "/wallet", icon: Wallet },
 ];
 
-const footerNavItems = [
-  { title: "Configuración", url: "/settings", icon: Settings },
-];
+const footerNavItems = [{ title: "Configuración", url: "/settings", icon: Settings }];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar 
-      collapsible="icon"
-      className="border-r border-sidebar-border bg-sidebar"
-    >
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          {!isCollapsed ? (
-            <img src={logoIco} alt="IVANagro" className="h-10 shrink-0 object-contain" />
-          ) : (
-            <img src={logoIco} alt="IVANagro" className="h-8 w-8 shrink-0 rounded-lg object-contain" />
-          )}
-          {!isCollapsed && (
-            <span className="text-xs text-muted-foreground">Panel de Control</span>
-          )}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
+          P
+        </div>
+        <img src={logoIco} alt="IVANagro" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
+        <div className="flex flex-col">
+          <span className="font-semibold text-sidebar-foreground">PromoManager</span>
+          <span className="font-semibold text-sidebar-foreground">IVANagro</span>
+          <span className="text-xs text-muted-foreground">Panel de Control</span>
         </div>
       </SidebarHeader>
 
@@ -57,16 +62,14 @@ export function AppSidebar() {
 
       <SidebarContent className="px-2 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>
-            Módulos
-          </SidebarGroupLabel>
+          <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>Módulos</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink 
-                      to={item.url} 
+                    <NavLink
+                      to={item.url}
                       end={item.url === "/"}
                       className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
@@ -88,7 +91,7 @@ export function AppSidebar() {
           {footerNavItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild tooltip={item.title}>
-                <NavLink 
+                <NavLink
                   to={item.url}
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
@@ -101,7 +104,7 @@ export function AppSidebar() {
           ))}
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Cerrar Sesión">
-              <button 
+              <button
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-colors hover:bg-destructive/10"
                 onClick={() => console.log("Logout clicked")}
               >
