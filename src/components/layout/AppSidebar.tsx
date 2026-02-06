@@ -51,11 +51,6 @@ export function AppSidebar() {
           P
         </div>
         <img src={logoIco} alt="IVANagro" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
-        <div className="flex flex-col">
-          <span className="font-semibold text-sidebar-foreground">PromoManager</span>
-          <span className="font-semibold text-sidebar-foreground">IVANagro</span>
-          <span className="text-xs text-muted-foreground">Panel de Control</span>
-        </div>
       </SidebarHeader>
 
       <Separator className="mx-4 w-auto" />
