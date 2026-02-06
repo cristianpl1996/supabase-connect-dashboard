@@ -243,8 +243,7 @@ const Calendar = () => {
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10">
-      <div className="max-w-full mx-auto space-y-6">
+    <div className="max-w-full mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -547,7 +546,6 @@ const Calendar = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
 
       {/* Detail Sheet */}
       <PromotionDetailsSheet

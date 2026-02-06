@@ -158,7 +158,7 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="h-8 bg-muted animate-pulse rounded w-64" />
         <div className="grid gap-4 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -170,7 +170,7 @@ const Index = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Inicio - Dashboard</h1>

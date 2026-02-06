@@ -23,7 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </SidebarTrigger>
             <div className="flex-1" />
           </header>
-          <main className="flex-1 p-4 lg:p-6">
+          <main className="flex-1 p-6 md:p-10">
             {children}
           </main>
         </SidebarInset>

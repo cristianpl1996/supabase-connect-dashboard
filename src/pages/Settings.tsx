@@ -57,8 +57,7 @@ const Settings = () => {
   const spendableCount = Object.values(config).filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <SettingsIcon className="h-8 w-8 text-primary" />
@@ -289,7 +288,6 @@ const Settings = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   );
 };
