@@ -354,6 +354,10 @@ const Calendar = () => {
                     </div>
                   );
                 })}
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-8 rounded-sm border border-muted-foreground/40 bg-muted" style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, hsl(var(--muted-foreground) / 0.1) 4px, hsl(var(--muted-foreground) / 0.1) 8px)' }} />
+                  <span className="text-xs text-muted-foreground">Pendiente</span>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -461,17 +465,21 @@ const Calendar = () => {
                                     <div
                                       className={`
                                         h-9 border-y-2 cursor-pointer transition-all hover:opacity-80
-                                        ${row.colors.bg} ${row.colors.text}
-                                        ${row.hasConflict ? 'border-destructive' : row.colors.border}
+                                        ${row.status === 'revision' ? 'bg-muted text-muted-foreground' : row.colors.bg + ' ' + row.colors.text}
+                                        ${row.hasConflict ? 'border-destructive' : row.status === 'revision' ? 'border-muted-foreground/40' : row.colors.border}
                                         ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''}
                                         ${isBarEnd ? 'rounded-r-md border-r-2' : ''}
                                         flex items-center overflow-hidden
                                       `}
+                                      style={row.status === 'revision' ? {
+                                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, hsl(var(--muted-foreground) / 0.1) 4px, hsl(var(--muted-foreground) / 0.1) 8px)',
+                                      } : undefined}
                                       onClick={() => handlePromoClick(row.promotion)}
                                     >
                                       {isBarStart && (
                                         <span className="text-[11px] font-medium truncate leading-tight">
                                           {row.hasConflict && '⚠️ '}
+                                          {row.status === 'revision' && '🕐 '}
                                           {row.title}
                                         </span>
                                       )}
@@ -482,7 +490,9 @@ const Calendar = () => {
                                       <p className="font-semibold">{row.labName} — {row.title}</p>
                                       <div className="flex items-center gap-2">
                                         <Badge variant="outline" className="text-[10px]">{row.category}</Badge>
-                                        <Badge variant="outline" className="text-[10px]">{row.status}</Badge>
+                                        <Badge variant={row.status === 'revision' ? 'destructive' : 'outline'} className="text-[10px]">
+                                          {row.status === 'revision' ? '🕐 Pendiente Aprobación' : row.status}
+                                        </Badge>
                                       </div>
                                       <p className="text-xs text-muted-foreground">
                                         {format(row.startDate, 'dd MMM', { locale: es })} — {format(row.endDate, 'dd MMM yyyy', { locale: es })}
@@ -538,6 +548,10 @@ const Calendar = () => {
                     </div>
                   );
                 })}
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-8 rounded-sm border border-muted-foreground/40 bg-muted" style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, hsl(var(--muted-foreground) / 0.1) 4px, hsl(var(--muted-foreground) / 0.1) 8px)' }} />
+                  <span className="text-xs text-muted-foreground font-medium">Pendiente aprobación</span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <div className="h-3 w-8 rounded-sm border-2 border-destructive bg-destructive/10" />
                   <span className="text-xs text-destructive font-medium">Conflicto</span>
