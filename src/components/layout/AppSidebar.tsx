@@ -46,9 +46,9 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3 flex-nowrap">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0">
+      <SidebarHeader className={isCollapsed ? "p-2 flex items-center justify-center" : "p-4"}>
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} flex-nowrap`}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0">
             I
           </div>
           {!isCollapsed && (
