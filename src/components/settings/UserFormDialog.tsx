@@ -21,30 +21,20 @@ import { Loader2, UserPlus, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useLaboratories, type Laboratory } from '@/hooks/useLaboratories';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-
-export type UserRole = 'admin' | 'sales_rep' | 'promotor';
-
-export interface InvitedUser {
-  id: string;
-  email: string;
-  role: UserRole;
-  laboratory_id?: string;
-  laboratory_name?: string;
-  approval_limit?: number;
-}
-
-interface UserFormDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUserCreated: (user: InvitedUser) => void;
-  existingEmails: string[];
-}
+import type { UserRole } from '@/hooks/useUsers';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   sales_rep: 'Sales Rep',
   promotor: 'Promotor',
 };
+
+interface UserFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUserCreated: () => void;
+  existingEmails: string[];
+}
 
 export function UserFormDialog({
   open,
@@ -62,7 +52,6 @@ export function UserFormDialog({
 
   const isPromotor = role === 'promotor';
 
-  // Reset form when dialog opens/closes
   useEffect(() => {
     if (open) {
       setEmail('');
@@ -100,7 +89,7 @@ export function UserFormDialog({
       // 1. Create the user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail,
-        password: crypto.randomUUID(), // Temporary password — user resets via email
+        password: crypto.randomUUID(),
         options: {
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -111,7 +100,18 @@ export function UserFormDialog({
       const newUserId = authData.user?.id;
       if (!newUserId) throw new Error('No se pudo obtener el ID del usuario creado');
 
-      // 2. If Promotor, create the external_promoters record
+      // 2. Create profile record
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: newUserId,
+          email: trimmedEmail,
+          role: isPromotor ? 'promotor' : role,
+        });
+
+      if (profileError) throw profileError;
+
+      // 3. If Promotor, create the external_promoters record
       let selectedLab: Laboratory | undefined;
       if (isPromotor) {
         selectedLab = laboratories.find((l) => l.id === labId);
@@ -129,21 +129,14 @@ export function UserFormDialog({
         if (promoterError) throw promoterError;
       }
 
-      // 3. Notify parent
-      onUserCreated({
-        id: newUserId,
-        email: trimmedEmail,
-        role,
-        laboratory_id: isPromotor ? labId : undefined,
-        laboratory_name: selectedLab?.name,
-        approval_limit: isPromotor ? (parseFloat(approvalLimit) || 0) : undefined,
-      });
-
       toast.success(
         isPromotor
           ? `Promotor "${trimmedEmail}" creado y asignado a ${selectedLab?.name}`
           : `Usuario "${trimmedEmail}" invitado como ${ROLE_LABELS[role]}`
       );
+
+      // 4. Notify parent to refetch
+      onUserCreated();
       onOpenChange(false);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
