@@ -48,7 +48,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className={isCollapsed ? "p-2 py-5 flex items-center justify-center" : "p-4 py-0"}>
         <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} flex-nowrap`}>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base shrink-0 font-serif tracking-tight">
             I
           </div>
           {!isCollapsed && <img src={logoIco} alt="IVANagro" className="h-20 w-auto shrink-0 object-contain" />}
