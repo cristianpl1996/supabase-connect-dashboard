@@ -51,7 +51,7 @@ export function AppSidebar() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base shrink-0 font-serif tracking-tight">
             I
           </div>
-          {!isCollapsed && <img src={logoIco} alt="IVANagro" className="h-8 w-auto shrink-0 object-contain" />}
+          {!isCollapsed && <img src={logoIco} alt="IVANagro" className="h-6 w-auto shrink-0 object-contain" />}
         </div>
       </SidebarHeader>
 
