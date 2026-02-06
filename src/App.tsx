@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { PromoterProvider } from "@/contexts/PromoterContext";
+import { PromoterRouteGuard } from "@/components/layout/PromoterRouteGuard";
 import Index from "./pages/Index";
 import Plans from "./pages/Plans";
 import Promotions from "./pages/Promotions";
@@ -22,20 +24,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/plans" element={<Plans />} />
-            <Route path="/promotions" element={<Promotions />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/middleware" element={<Middleware />} />
-            <Route path="/marketing" element={<Marketing />} />
-            <Route path="/wallet" element={<Wallet />} />
-            <Route path="/settings" element={<Settings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AppLayout>
+        <PromoterProvider>
+          <AppLayout>
+            <Routes>
+              <Route path="/" element={<PromoterRouteGuard><Index /></PromoterRouteGuard>} />
+              <Route path="/plans" element={<Plans />} />
+              <Route path="/promotions" element={<Promotions />} />
+              <Route path="/calendar" element={<PromoterRouteGuard restricted><Calendar /></PromoterRouteGuard>} />
+              <Route path="/middleware" element={<Middleware />} />
+              <Route path="/marketing" element={<Marketing />} />
+              <Route path="/wallet" element={<PromoterRouteGuard restricted><Wallet /></PromoterRouteGuard>} />
+              <Route path="/settings" element={<PromoterRouteGuard restricted><Settings /></PromoterRouteGuard>} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AppLayout>
+        </PromoterProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -7,18 +7,17 @@ import {
   Wallet,
   Settings,
   LogOut,
-  ChevronLeft,
   Menu,
 } from "lucide-react";
 import logoIco from "@/assets/logoico.png";
 import { NavLink } from "@/components/NavLink";
 import { useSidebar } from "@/components/ui/sidebar";
+import { usePromoter } from "@/contexts/PromoterContext";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -29,20 +28,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-const mainNavItems = [
-  { title: "Inicio", url: "/", icon: LayoutDashboard },
-  { title: "Planes y Negociaciones", url: "/plans", icon: FileText },
-  { title: "Promociones", url: "/promotions", icon: Tag },
-  { title: "Calendario Comercial", url: "/calendar", icon: CalendarDays },
-  { title: "Marketing Kit", url: "/marketing", icon: Image },
-  { title: "Billetera & Conciliación", url: "/wallet", icon: Wallet },
+const allMainNavItems = [
+  { title: "Inicio", url: "/", icon: LayoutDashboard, promoterVisible: false },
+  { title: "Planes y Negociaciones", url: "/plans", icon: FileText, promoterVisible: false },
+  { title: "Promociones", url: "/promotions", icon: Tag, promoterVisible: true },
+  { title: "Calendario Comercial", url: "/calendar", icon: CalendarDays, promoterVisible: false },
+  { title: "Marketing Kit", url: "/marketing", icon: Image, promoterVisible: true },
+  { title: "Billetera & Conciliación", url: "/wallet", icon: Wallet, promoterVisible: false },
 ];
 
-const footerNavItems = [{ title: "Configuración", url: "/settings", icon: Settings }];
+const allFooterNavItems = [
+  { title: "Configuración", url: "/settings", icon: Settings, promoterVisible: false },
+];
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { isPromoter } = usePromoter();
   const isCollapsed = state === "collapsed";
+
+  const mainNavItems = isPromoter
+    ? allMainNavItems.filter((item) => item.promoterVisible)
+    : allMainNavItems;
+
+  const footerNavItems = isPromoter
+    ? allFooterNavItems.filter((item) => item.promoterVisible)
+    : allFooterNavItems;
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
