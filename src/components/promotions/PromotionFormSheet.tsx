@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { usePromoter } from '@/contexts/PromoterContext';
 import { Laboratory, Promotion, PromoMechanic, PlanFund } from '@/types/database';
 import {
   Sheet,
@@ -71,6 +72,10 @@ export function PromotionFormSheet({
   editingPromo 
 }: PromotionFormSheetProps) {
   const isEditing = !!editingPromo;
+  const { promoter, isPromoter } = usePromoter();
+  
+  // Approval limit warning
+  const [approvalWarning, setApprovalWarning] = useState<string | null>(null);
   
   // Section A: General Data
   const [labId, setLabId] = useState('');
@@ -157,8 +162,27 @@ export function PromotionFormSheet({
       fetchMechanic();
     } else if (open && !editingPromo) {
       resetForm();
+      // Auto-set lab for promoters
+      if (isPromoter && promoter) {
+        setLabId(promoter.laboratory_id);
+      }
     }
-  }, [open, editingPromo]);
+  }, [open, editingPromo, isPromoter, promoter]);
+
+  // Approval limit check for promoters
+  useEffect(() => {
+    if (!isPromoter || !promoter || !open) {
+      setApprovalWarning(null);
+      return;
+    }
+    if (promoter.approval_limit !== null && estimatedCost > 0 && estimatedCost > promoter.approval_limit) {
+      setApprovalWarning(
+        `⚠️ El costo estimado (${formatCurrency(estimatedCost)}) supera tu cupo de aprobación (${formatCurrency(promoter.approval_limit)}). La promoción se guardará como "Requiere Aprobación de Gerencia".`
+      );
+    } else {
+      setApprovalWarning(null);
+    }
+  }, [estimatedCost, isPromoter, promoter, open]);
 
   // Overdraft protection: check spendable budget when lab or cost changes
   useEffect(() => {
@@ -266,6 +290,7 @@ export function PromotionFormSheet({
     setExistingMechanicId(null);
     setBudgetError(null);
     setSpendableBalance(null);
+    setApprovalWarning(null);
   };
 
   const buildConditionConfig = () => {
@@ -322,6 +347,12 @@ export function PromotionFormSheet({
     setIsSubmitting(true);
 
     try {
+      // Determine status: if promoter exceeds approval limit → revision (pending approval)
+      let promoStatus: string = 'borrador';
+      if (isPromoter && promoter && promoter.approval_limit !== null && estimatedCost > promoter.approval_limit) {
+        promoStatus = 'revision';
+      }
+
       const promotionData = {
         lab_id: labId,
         title: title.trim(),
@@ -331,8 +362,8 @@ export function PromotionFormSheet({
         target_segment: { type: segment },
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
-        created_by_role: 'distribuidor' as const,
-        status: 'borrador' as const,
+        created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
+        status: promoStatus,
       };
 
       const mechanicData = {
@@ -390,7 +421,13 @@ export function PromotionFormSheet({
           throw new Error(`Error al crear mecánica: ${mechError.message}`);
         }
 
-        toast.success('Promoción creada exitosamente');
+        if (promoStatus === 'revision') {
+          toast.success('Promoción creada — Requiere Aprobación de Gerencia', {
+            description: 'El costo estimado supera tu cupo de aprobación.',
+          });
+        } else {
+          toast.success('Promoción creada exitosamente');
+        }
       }
 
       resetForm();
@@ -441,18 +478,27 @@ export function PromotionFormSheet({
                 <AccordionContent className="space-y-4 pt-4">
                   <div className="space-y-2">
                     <Label htmlFor="laboratory">Laboratorio</Label>
-                    <Select value={labId} onValueChange={setLabId}>
-                      <SelectTrigger id="laboratory">
-                        <SelectValue placeholder="Selecciona un laboratorio" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {laboratories.map((lab) => (
-                          <SelectItem key={lab.id} value={lab.id}>
-                            {lab.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isPromoter ? (
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md border">
+                        <span className="text-sm font-medium">
+                          {laboratories.find(l => l.id === labId)?.name || 'Laboratorio asignado'}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto">🔒 Asignado</span>
+                      </div>
+                    ) : (
+                      <Select value={labId} onValueChange={setLabId}>
+                        <SelectTrigger id="laboratory">
+                          <SelectValue placeholder="Selecciona un laboratorio" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {laboratories.map((lab) => (
+                            <SelectItem key={lab.id} value={lab.id}>
+                              {lab.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -690,6 +736,16 @@ export function PromotionFormSheet({
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="font-medium">
                         {budgetError}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Approval limit warning for promoters */}
+                  {approvalWarning && !budgetError && (
+                    <Alert className="border-amber-300 bg-amber-50">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="font-medium text-amber-800">
+                        {approvalWarning}
                       </AlertDescription>
                     </Alert>
                   )}
