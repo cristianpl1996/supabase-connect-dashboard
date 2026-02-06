@@ -59,7 +59,6 @@ export function AppSidebar() {
 
       <SidebarContent className={isCollapsed ? "px-1 py-4" : "px-2 py-4"}>
         <SidebarGroup>
-          <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>Módulos</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
