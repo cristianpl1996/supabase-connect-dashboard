@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Laboratory, WalletLedger, PlanFund } from '@/types/database';
-import { getBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
+import { fetchBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -118,8 +118,8 @@ export default function WalletPage() {
         .eq('transaction_type', 'ajuste_manual')
         .order('transaction_date', { ascending: false });
 
-      // Get budget rules configuration
-      const budgetRules = getBudgetRulesConfig();
+      // Get budget rules configuration from Supabase
+      const budgetRules = await fetchBudgetRulesConfig();
 
       // Calculate SPENDABLE budget: only sum funds whose concepts are marked as spendable
       let spendableBudget = 0;

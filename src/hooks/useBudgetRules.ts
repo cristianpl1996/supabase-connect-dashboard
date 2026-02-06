@@ -1,98 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 
-export interface BudgetRuleConcept {
-  key: string;
+export interface BudgetRule {
+  id: string;
+  concept_key: string;
   label: string;
-  description: string;
-  defaultSpendable: boolean;
+  is_budget_source: boolean;
+  created_at: string;
 }
-
-/**
- * Fixed list of fund concepts extracted from annual plans.
- * Each maps to how plan_funds records are categorized.
- */
-export const BUDGET_RULE_CONCEPTS: BudgetRuleConcept[] = [
-  {
-    key: 'descuento_pie_factura',
-    label: 'Descuento Pie de Factura',
-    description: 'Descuento aplicado directamente en la factura de compra',
-    defaultSpendable: false,
-  },
-  {
-    key: 'rebate_sell_in',
-    label: 'Rebate Sell-In',
-    description: 'Rebate por cumplimiento de meta de compra',
-    defaultSpendable: false,
-  },
-  {
-    key: 'rebate_sell_out',
-    label: 'Rebate Sell-Out',
-    description: 'Rebate por cumplimiento de meta de venta al cliente final',
-    defaultSpendable: false,
-  },
-  {
-    key: 'marketing_pct',
-    label: 'Marketing (%)',
-    description: 'Porcentaje destinado a actividades de marketing',
-    defaultSpendable: true,
-  },
-  {
-    key: 'marketing_fijo',
-    label: 'Marketing (Valor Fijo)',
-    description: 'Monto fijo destinado a actividades de marketing',
-    defaultSpendable: true,
-  },
-  {
-    key: 'descuento_financiero',
-    label: 'Descuento Financiero / Pronto Pago',
-    description: 'Incentivo por pago anticipado o pronto pago',
-    defaultSpendable: false,
-  },
-];
-
-const STORAGE_KEY = 'ivanagro_budget_rules';
 
 export type BudgetRulesConfig = Record<string, boolean>;
 
-function getDefaultConfig(): BudgetRulesConfig {
-  const config: BudgetRulesConfig = {};
-  BUDGET_RULE_CONCEPTS.forEach((c) => {
-    config[c.key] = c.defaultSpendable;
-  });
-  return config;
-}
-
-function loadConfig(): BudgetRulesConfig {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as BudgetRulesConfig;
-      // Merge with defaults to handle new concepts added later
-      const defaults = getDefaultConfig();
-      return { ...defaults, ...parsed };
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return getDefaultConfig();
-}
-
 /**
- * Maps a plan_fund record (concept + amount_type) to a budget rule key.
+ * Maps a plan_fund record (concept + amount_type) to a budget_rules concept_key.
  */
 export function mapFundToBudgetRuleKey(concept: string, amountType: string): string {
   const normalized = concept.toLowerCase().trim();
 
-  if (normalized === 'rebate sell-in') return 'rebate_sell_in';
-  if (normalized === 'rebate sell-out') return 'rebate_sell_out';
-  if (normalized === 'pronto pago') return 'descuento_financiero';
-  if (normalized === 'marketing' && amountType === 'porcentaje') return 'marketing_pct';
-  if (normalized === 'marketing' && amountType === 'fijo') return 'marketing_fijo';
-  if (normalized === 'coop') return 'marketing_fijo'; // Coop treated as marketing fixed
-  if (normalized === 'otro') return 'descuento_pie_factura';
+  if (normalized === 'rebate sell-in') return 'rebate_sell_in_perc';
+  if (normalized === 'rebate sell-out') return 'rebate_sell_out_perc';
+  if (normalized === 'pronto pago') return 'invoice_discount_perc'; // financial discount
+  if (normalized === 'marketing' && amountType === 'porcentaje') return 'marketing_perc';
+  if (normalized === 'marketing' && amountType === 'fijo') return 'marketing_fixed_value';
+  if (normalized === 'coop') return 'marketing_fixed_value';
+  if (normalized === 'otro') return 'invoice_discount_perc';
 
-  // Fallback: not spendable by default
-  return 'descuento_pie_factura';
+  return 'invoice_discount_perc';
 }
 
 /**
@@ -108,39 +41,94 @@ export function isFundSpendable(
 }
 
 /**
- * Hook to manage budget rules configuration with localStorage persistence.
+ * Fetch budget rules from Supabase (for use in async/non-hook contexts).
  */
-export function useBudgetRules() {
-  const [config, setConfig] = useState<BudgetRulesConfig>(loadConfig);
+export async function fetchBudgetRulesConfig(): Promise<BudgetRulesConfig> {
+  const { data, error } = await supabase
+    .from('budget_rules')
+    .select('concept_key, is_budget_source');
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  }, [config]);
+  if (error) {
+    console.error('Error fetching budget_rules:', error);
+    return {};
+  }
 
-  const toggleRule = useCallback((key: string) => {
-    setConfig((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
-  const setRule = useCallback((key: string, value: boolean) => {
-    setConfig((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const resetToDefaults = useCallback(() => {
-    setConfig(getDefaultConfig());
-  }, []);
-
-  return {
-    config,
-    concepts: BUDGET_RULE_CONCEPTS,
-    toggleRule,
-    setRule,
-    resetToDefaults,
-  };
+  const config: BudgetRulesConfig = {};
+  (data || []).forEach((rule) => {
+    config[rule.concept_key] = rule.is_budget_source;
+  });
+  return config;
 }
 
 /**
- * Static function to get budget rules without hook (for use in async functions).
+ * Hook to manage budget rules configuration with Supabase persistence.
  */
-export function getBudgetRulesConfig(): BudgetRulesConfig {
-  return loadConfig();
+export function useBudgetRules() {
+  const [rules, setRules] = useState<BudgetRule[]>([]);
+  const [config, setConfig] = useState<BudgetRulesConfig>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRules = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('budget_rules')
+      .select('*')
+      .order('created_at');
+
+    if (error) {
+      console.error('Error fetching budget_rules:', error);
+    } else {
+      setRules(data || []);
+      const newConfig: BudgetRulesConfig = {};
+      (data || []).forEach((rule) => {
+        newConfig[rule.concept_key] = rule.is_budget_source;
+      });
+      setConfig(newConfig);
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
+  const toggleRule = useCallback(async (conceptKey: string) => {
+    // Optimistic update
+    setConfig((prev) => ({ ...prev, [conceptKey]: !prev[conceptKey] }));
+    setRules((prev) =>
+      prev.map((r) =>
+        r.concept_key === conceptKey
+          ? { ...r, is_budget_source: !r.is_budget_source }
+          : r
+      )
+    );
+
+    const newValue = !config[conceptKey];
+
+    const { error } = await supabase
+      .from('budget_rules')
+      .update({ is_budget_source: newValue })
+      .eq('concept_key', conceptKey);
+
+    if (error) {
+      console.error('Error updating budget_rule:', error);
+      // Rollback on error
+      setConfig((prev) => ({ ...prev, [conceptKey]: !newValue }));
+      setRules((prev) =>
+        prev.map((r) =>
+          r.concept_key === conceptKey
+            ? { ...r, is_budget_source: !newValue }
+            : r
+        )
+      );
+    }
+  }, [config]);
+
+  return {
+    rules,
+    config,
+    isLoading,
+    toggleRule,
+    refetch: fetchRules,
+  };
 }
