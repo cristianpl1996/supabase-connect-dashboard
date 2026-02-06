@@ -101,7 +101,9 @@ const Plans = () => {
       const labName = labMap[plan.lab_id] || '';
       return (
         labName.toLowerCase().includes(query) ||
-        plan.name.toLowerCase().includes(query)
+        plan.name.toLowerCase().includes(query) ||
+        String(plan.year).includes(query) ||
+        (plan.status && plan.status.toLowerCase().includes(query))
       );
     });
   }, [plans, searchQuery, labMap]);
@@ -215,15 +217,26 @@ const Plans = () => {
     <div className="min-h-screen bg-background p-6 md:p-10">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Bóveda de Acuerdos</h1>
             <p className="text-muted-foreground mt-1">Gestión de Planes Anuales por Laboratorio</p>
           </div>
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo Plan Año
-          </Button>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar plan, laboratorio, año..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={handleOpenCreate} className="gap-2 shrink-0">
+              <Plus className="h-4 w-4" />
+              Nuevo Plan Año
+            </Button>
+          </div>
         </div>
 
         {/* Error Display */}
@@ -312,15 +325,6 @@ const Plans = () => {
                     </DropdownMenuCheckboxItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar laboratorio..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
               </div>
             </div>
           </CardHeader>
