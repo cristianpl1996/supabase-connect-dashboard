@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "./pages/Index";
 import Plans from "./pages/Plans";
 import Promotions from "./pages/Promotions";
+import Calendar from "./pages/Calendar";
 import Middleware from "./pages/Middleware";
 import Marketing from "./pages/Marketing";
 import Wallet from "./pages/Wallet";
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/promotions" element={<Promotions />} />
+            <Route path="/calendar" element={<Calendar />} />
             <Route path="/middleware" element={<Middleware />} />
             <Route path="/marketing" element={<Marketing />} />
             <Route path="/wallet" element={<Wallet />} />

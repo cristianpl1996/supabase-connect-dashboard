@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Tag, Image, Wallet, Settings, LogOut, ChevronLeft, Menu } from "lucide-react";
+import { LayoutDashboard, FileText, Tag, CalendarDays, Image, Wallet, Settings, LogOut, ChevronLeft, Menu } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
@@ -21,6 +21,7 @@ const mainNavItems = [
   { title: "Inicio", url: "/", icon: LayoutDashboard },
   { title: "Planes y Contratos", url: "/plans", icon: FileText },
   { title: "Promociones", url: "/promotions", icon: Tag },
+  { title: "Calendario Comercial", url: "/calendar", icon: CalendarDays },
   { title: "Marketing Kit", url: "/marketing", icon: Image },
   { title: "Billetera & Conciliación", url: "/wallet", icon: Wallet },
 ];
