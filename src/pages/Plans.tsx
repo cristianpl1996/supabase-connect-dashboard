@@ -1,16 +1,28 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { AnnualPlan, Laboratory } from '@/types/database';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2, Eye, EyeOff, Search, Columns3 } from 'lucide-react';
-import { PlanFormSheet } from '@/components/plans/PlanFormSheet';
-import { PlanDetailsSheet } from '@/components/plans/PlanDetailsSheet';
-import { toast } from 'sonner';
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
+import { AnnualPlan, Laboratory } from "@/types/database";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertCircle,
+  TrendingUp,
+  FileText,
+  Plus,
+  DollarSign,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  Search,
+  Columns3,
+} from "lucide-react";
+import { PlanFormSheet } from "@/components/plans/PlanFormSheet";
+import { PlanDetailsSheet } from "@/components/plans/PlanDetailsSheet";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,18 +32,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  activo: { label: 'Activo', variant: 'default' },
-  negociacion: { label: 'En Negociación', variant: 'secondary' },
-  cerrado: { label: 'Cerrado', variant: 'outline' },
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  activo: { label: "Activo", variant: "default" },
+  negociacion: { label: "En Negociación", variant: "secondary" },
+  cerrado: { label: "Cerrado", variant: "outline" },
 };
 
 const Plans = () => {
@@ -44,7 +56,7 @@ const Plans = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<AnnualPlan | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPlan, setViewingPlan] = useState<AnnualPlan | null>(null);
 
@@ -63,10 +75,10 @@ const Plans = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [plansRes, labsRes] = await Promise.all([
-        supabase.from('annual_plans').select('*').order('year', { ascending: false }),
-        supabase.from('laboratories').select('*').order('name')
+        supabase.from("annual_plans").select("*").order("year", { ascending: false }),
+        supabase.from("laboratories").select("*").order("name"),
       ]);
 
       if (plansRes.error) throw new Error(`Planes: ${plansRes.error.message}`);
@@ -75,8 +87,8 @@ const Plans = () => {
       setPlans(plansRes.data || []);
       setLaboratories(labsRes.data || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
         setError(`Error de red/CORS: No se pudo conectar a Supabase. Detalles: ${errorMessage}`);
       } else {
         setError(errorMessage);
@@ -87,18 +99,21 @@ const Plans = () => {
   }, []);
 
   const labMap = useMemo(() => {
-    return laboratories.reduce((acc, lab) => {
-      acc[lab.id] = lab.name;
-      return acc;
-    }, {} as Record<string, string>);
+    return laboratories.reduce(
+      (acc, lab) => {
+        acc[lab.id] = lab.name;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
   }, [laboratories]);
 
   const filteredPlans = useMemo(() => {
     if (!searchQuery.trim()) return plans;
-    
+
     const query = searchQuery.toLowerCase();
     return plans.filter((plan) => {
-      const labName = labMap[plan.lab_id] || '';
+      const labName = labMap[plan.lab_id] || "";
       return (
         labName.toLowerCase().includes(query) ||
         plan.name.toLowerCase().includes(query) ||
@@ -135,20 +150,17 @@ const Plans = () => {
 
   const handleConfirmDelete = async () => {
     if (!planToDelete) return;
-    
+
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('annual_plans')
-        .delete()
-        .eq('id', planToDelete.id);
+      const { error } = await supabase.from("annual_plans").delete().eq("id", planToDelete.id);
 
       if (error) throw error;
 
-      toast.success('Plan eliminado exitosamente');
+      toast.success("Plan eliminado exitosamente");
       fetchData();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
       toast.error(`Error al eliminar: ${errorMessage}`);
     } finally {
       setIsDeleting(false);
@@ -163,20 +175,20 @@ const Plans = () => {
   };
 
   const handleToggleStatus = async (plan: AnnualPlan) => {
-    const newStatus = plan.status === 'activo' ? 'cerrado' : 'activo';
+    const newStatus = plan.status === "activo" ? "cerrado" : "activo";
     setTogglingStatusId(plan.id);
     try {
       const { error } = await supabase
-        .from('annual_plans')
+        .from("annual_plans")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', plan.id);
+        .eq("id", plan.id);
 
       if (error) throw error;
 
-      setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p));
-      toast.success(`Plan ${newStatus === 'activo' ? 'activado' : 'desactivado'}`);
+      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)));
+      toast.success(`Plan ${newStatus === "activo" ? "activado" : "desactivado"}`);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
       toast.error(`Error al cambiar estado: ${errorMessage}`);
     } finally {
       setTogglingStatusId(null);
@@ -184,7 +196,7 @@ const Plans = () => {
   };
 
   const toggleRowGoalHidden = (planId: string) => {
-    setHiddenGoalRows(prev => {
+    setHiddenGoalRows((prev) => {
       const next = new Set(prev);
       if (next.has(planId)) next.delete(planId);
       else next.add(planId);
@@ -193,7 +205,7 @@ const Plans = () => {
   };
 
   const toggleRowBudgetHidden = (planId: string) => {
-    setHiddenBudgetRows(prev => {
+    setHiddenBudgetRows((prev) => {
       const next = new Set(prev);
       if (next.has(planId)) next.delete(planId);
       else next.add(planId);
@@ -205,9 +217,9 @@ const Plans = () => {
   const totalBudget = plans.reduce((sum, plan) => sum + (plan.total_budget_allocated || 0), 0);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -219,8 +231,8 @@ const Plans = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Bóveda de Acuerdos</h1>
-            <p className="text-muted-foreground mt-1">Gestión de Planes Anuales por Laboratorio</p>
+            <h1 className="text-3xl font-bold text-foreground">Planes y Negociaciones</h1>
+            <p className="text-muted-foreground mt-1">Gestión de Negociaciones Anuales por Laboratorio</p>
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:w-72">
@@ -258,36 +270,28 @@ const Plans = () => {
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Meta Total de Compras
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total de Compras</CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
-                <p className="text-2xl font-bold text-foreground">
-                  {formatCurrency(totalPurchaseGoal)}
-                </p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalPurchaseGoal)}</p>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Presupuesto Total Asignado
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Total Asignado</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
-                <p className="text-2xl font-bold text-foreground">
-                  {formatCurrency(totalBudget)}
-                </p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalBudget)}</p>
               )}
             </CardContent>
           </Card>
@@ -311,16 +315,10 @@ const Plans = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md z-50">
-                    <DropdownMenuCheckboxItem
-                      checked={showGoalColumn}
-                      onCheckedChange={setShowGoalColumn}
-                    >
+                    <DropdownMenuCheckboxItem checked={showGoalColumn} onCheckedChange={setShowGoalColumn}>
                       Meta de Compra
                     </DropdownMenuCheckboxItem>
-                    <DropdownMenuCheckboxItem
-                      checked={showBudgetColumn}
-                      onCheckedChange={setShowBudgetColumn}
-                    >
+                    <DropdownMenuCheckboxItem checked={showBudgetColumn} onCheckedChange={setShowBudgetColumn}>
                       Presupuesto
                     </DropdownMenuCheckboxItem>
                   </DropdownMenuContent>
@@ -339,7 +337,7 @@ const Plans = () => {
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-muted-foreground">
-                  {searchQuery ? 'No se encontraron planes con ese criterio' : 'No hay planes anuales registrados'}
+                  {searchQuery ? "No se encontraron planes con ese criterio" : "No hay planes anuales registrados"}
                 </p>
                 {!searchQuery && (
                   <Button variant="outline" className="mt-4" onClick={handleOpenCreate}>
@@ -365,12 +363,16 @@ const Plans = () => {
                             size="icon"
                             className="h-6 w-6"
                             onClick={() => {
-                              setAllGoalsHidden(prev => !prev);
+                              setAllGoalsHidden((prev) => !prev);
                               setHiddenGoalRows(new Set());
                             }}
-                            title={allGoalsHidden ? 'Mostrar todos' : 'Ocultar todos'}
+                            title={allGoalsHidden ? "Mostrar todos" : "Ocultar todos"}
                           >
-                            {allGoalsHidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-muted-foreground" />}
+                            {allGoalsHidden ? (
+                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
                           </Button>
                         </div>
                       </TableHead>
@@ -384,12 +386,16 @@ const Plans = () => {
                             size="icon"
                             className="h-6 w-6"
                             onClick={() => {
-                              setAllBudgetsHidden(prev => !prev);
+                              setAllBudgetsHidden((prev) => !prev);
                               setHiddenBudgetRows(new Set());
                             }}
-                            title={allBudgetsHidden ? 'Mostrar todos' : 'Ocultar todos'}
+                            title={allBudgetsHidden ? "Mostrar todos" : "Ocultar todos"}
                           >
-                            {allBudgetsHidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-muted-foreground" />}
+                            {allBudgetsHidden ? (
+                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
                           </Button>
                         </div>
                       </TableHead>
@@ -401,39 +407,43 @@ const Plans = () => {
                   {filteredPlans.map((plan) => {
                     const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
                     const isGoalHidden = allGoalsHidden ? !hiddenGoalRows.has(plan.id) : hiddenGoalRows.has(plan.id);
-                    const isBudgetHidden = allBudgetsHidden ? !hiddenBudgetRows.has(plan.id) : hiddenBudgetRows.has(plan.id);
-                    
+                    const isBudgetHidden = allBudgetsHidden
+                      ? !hiddenBudgetRows.has(plan.id)
+                      : hiddenBudgetRows.has(plan.id);
+
                     return (
                       <TableRow key={plan.id}>
                         <TableCell>
                           <Switch
-                            checked={plan.status === 'activo'}
+                            checked={plan.status === "activo"}
                             onCheckedChange={() => handleToggleStatus(plan)}
                             disabled={togglingStatusId === plan.id}
-                            aria-label={`${plan.status === 'activo' ? 'Desactivar' : 'Activar'} plan`}
+                            aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{plan.name}</TableCell>
                         <TableCell>{plan.year}</TableCell>
                         <TableCell>
-                          <Badge variant={statusConfig.variant}>
-                            {statusConfig.label}
-                          </Badge>
+                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
                         </TableCell>
                         {showGoalColumn && (
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <span className="font-mono">
-                                {isGoalHidden ? '••••••' : formatCurrency(plan.total_purchase_goal || 0)}
+                                {isGoalHidden ? "••••••" : formatCurrency(plan.total_purchase_goal || 0)}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
                                 onClick={() => toggleRowGoalHidden(plan.id)}
-                                title={isGoalHidden ? 'Mostrar valor' : 'Ocultar valor'}
+                                title={isGoalHidden ? "Mostrar valor" : "Ocultar valor"}
                               >
-                                {isGoalHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                                {isGoalHidden ? (
+                                  <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                ) : (
+                                  <Eye className="h-3 w-3 text-muted-foreground" />
+                                )}
                               </Button>
                             </div>
                           </TableCell>
@@ -442,16 +452,20 @@ const Plans = () => {
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <span className="font-mono">
-                                {isBudgetHidden ? '••••••' : formatCurrency(plan.total_budget_allocated || 0)}
+                                {isBudgetHidden ? "••••••" : formatCurrency(plan.total_budget_allocated || 0)}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
                                 onClick={() => toggleRowBudgetHidden(plan.id)}
-                                title={isBudgetHidden ? 'Mostrar valor' : 'Ocultar valor'}
+                                title={isBudgetHidden ? "Mostrar valor" : "Ocultar valor"}
                               >
-                                {isBudgetHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                                {isBudgetHidden ? (
+                                  <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                ) : (
+                                  <Eye className="h-3 w-3 text-muted-foreground" />
+                                )}
                               </Button>
                             </div>
                           </TableCell>
@@ -498,8 +512,8 @@ const Plans = () => {
       </div>
 
       {/* Form Sheet */}
-      <PlanFormSheet 
-        open={sheetOpen} 
+      <PlanFormSheet
+        open={sheetOpen}
         onOpenChange={(open) => {
           setSheetOpen(open);
           if (!open) setEditingPlan(null);
@@ -523,7 +537,8 @@ const Plans = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esto eliminará el plan "{planToDelete?.name}" y todos sus fondos asignados. Esta acción no se puede deshacer.
+              Esto eliminará el plan "{planToDelete?.name}" y todos sus fondos asignados. Esta acción no se puede
+              deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -533,7 +548,7 @@ const Plans = () => {
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              {isDeleting ? "Eliminando..." : "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
