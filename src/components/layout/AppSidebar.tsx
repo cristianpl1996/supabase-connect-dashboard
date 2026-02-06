@@ -46,7 +46,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className={isCollapsed ? "px-2 py-3" : "p-4"}>
+      <SidebarHeader className={isCollapsed ? "p-2 flex items-center justify-center" : "p-4"}>
         <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} flex-nowrap`}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm shrink-0">
             I
@@ -57,9 +57,9 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <Separator className={isCollapsed ? "mx-2 w-auto" : "mx-4 w-auto"} />
+      <Separator className="mx-4 w-auto" />
 
-      <SidebarContent className={isCollapsed ? "px-2 py-4" : "px-2 py-4"}>
+      <SidebarContent className={isCollapsed ? "px-1 py-4" : "px-2 py-4"}>
         <SidebarGroup>
           <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>Módulos</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -84,7 +84,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className={isCollapsed ? "px-2 py-2" : "p-2"}>
+      <SidebarFooter className="p-2">
         <Separator className="mb-2" />
         <SidebarMenu>
           {footerNavItems.map((item) => (
@@ -92,7 +92,7 @@ export function AppSidebar() {
               <SidebarMenuButton asChild tooltip={item.title}>
                 <NavLink
                   to={item.url}
-                  className={`flex items-center rounded-lg py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
@@ -104,7 +104,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Cerrar Sesión">
               <button
-                className={`flex w-full items-center rounded-lg py-2 text-destructive transition-colors hover:bg-destructive/10 ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-destructive transition-colors hover:bg-destructive/10"
                 onClick={() => console.log("Logout clicked")}
               >
                 <LogOut className="h-5 w-5 shrink-0" />
