@@ -51,6 +51,8 @@ const Plans = () => {
   // Column visibility & row-level hiding
   const [showGoalColumn, setShowGoalColumn] = useState(true);
   const [showBudgetColumn, setShowBudgetColumn] = useState(true);
+  const [allGoalsHidden, setAllGoalsHidden] = useState(false);
+  const [allBudgetsHidden, setAllBudgetsHidden] = useState(false);
   const [hiddenGoalRows, setHiddenGoalRows] = useState<Set<string>>(new Set());
   const [hiddenBudgetRows, setHiddenBudgetRows] = useState<Set<string>>(new Set());
 
@@ -350,16 +352,52 @@ const Plans = () => {
                     <TableHead>Nombre del Plan</TableHead>
                     <TableHead>Año</TableHead>
                     <TableHead>Estado</TableHead>
-                    {showGoalColumn && <TableHead className="text-right">Meta de Compra</TableHead>}
-                    {showBudgetColumn && <TableHead className="text-right">Presupuesto</TableHead>}
+                    {showGoalColumn && (
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>Meta de Compra</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setAllGoalsHidden(prev => !prev);
+                              setHiddenGoalRows(new Set());
+                            }}
+                            title={allGoalsHidden ? 'Mostrar todos' : 'Ocultar todos'}
+                          >
+                            {allGoalsHidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-muted-foreground" />}
+                          </Button>
+                        </div>
+                      </TableHead>
+                    )}
+                    {showBudgetColumn && (
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>Presupuesto</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setAllBudgetsHidden(prev => !prev);
+                              setHiddenBudgetRows(new Set());
+                            }}
+                            title={allBudgetsHidden ? 'Mostrar todos' : 'Ocultar todos'}
+                          >
+                            {allBudgetsHidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-muted-foreground" />}
+                          </Button>
+                        </div>
+                      </TableHead>
+                    )}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPlans.map((plan) => {
                     const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
-                    const isGoalHidden = hiddenGoalRows.has(plan.id);
-                    const isBudgetHidden = hiddenBudgetRows.has(plan.id);
+                    const isGoalHidden = allGoalsHidden ? !hiddenGoalRows.has(plan.id) : hiddenGoalRows.has(plan.id);
+                    const isBudgetHidden = allBudgetsHidden ? !hiddenBudgetRows.has(plan.id) : hiddenBudgetRows.has(plan.id);
                     
                     return (
                       <TableRow key={plan.id}>
