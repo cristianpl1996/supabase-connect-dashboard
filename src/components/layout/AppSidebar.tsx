@@ -46,16 +46,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className={isCollapsed ? "p-2 py-5 flex items-center justify-center" : "p-4 py-0"}>
+      <SidebarHeader className={isCollapsed ? "h-16 flex items-center justify-center" : "h-20 px-4 flex items-center"}>
         <div className={`flex items-center flex-nowrap ${isCollapsed ? "justify-center" : "gap-3"}`}>
-          {/* Icono */}
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base shrink-0 font-serif tracking-tight">
+          {/* Isotipo */}
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shrink-0 font-serif">
             I
           </div>
 
-          {/* Logo */}
+          {/* Logotipo */}
           {!isCollapsed && (
-            <img src={logoIco} alt="IVANagro" className="block h-6 max-w-[120px] w-auto shrink-0 object-contain" />
+            <img src={logoIco} alt="IVANagro" className="block h-7 max-w-[140px] w-auto object-contain shrink-0" />
           )}
         </div>
       </SidebarHeader>
