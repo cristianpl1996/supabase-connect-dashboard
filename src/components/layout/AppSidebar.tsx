@@ -54,7 +54,7 @@ export function AppSidebar() {
             </div>
           )}
           {!isCollapsed && (
-            <img src={logoIco} alt="IVANagro" className="h-16 mt-2 mb-2 w-auto shrink-0 object-contain" />
+            <img src={logoIco} alt="IVANagro" className="h-20 mt-3 mb-3 w-auto shrink-0 object-contain" />
           )}
         </div>
       </SidebarHeader>
