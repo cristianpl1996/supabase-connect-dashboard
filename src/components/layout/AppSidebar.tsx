@@ -49,7 +49,7 @@ export function AppSidebar() {
       <SidebarHeader className={isCollapsed ? "p-2 py-5 flex items-center justify-center" : "p-4 py-0"}>
         <div className="flex items-center justify-center flex-nowrap">
           {isCollapsed && (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base shrink-0 font-serif tracking-tight">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-black font-extrabold shrink-0 font-serif tracking-tight">
               I
             </div>
           )}
