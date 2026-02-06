@@ -42,12 +42,13 @@ export function AppSidebar() {
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <img src={logoIco} alt="IVANagro" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
+          {!isCollapsed ? (
+            <img src={logoIco} alt="IVANagro" className="h-10 shrink-0 object-contain" />
+          ) : (
+            <img src={logoIco} alt="IVANagro" className="h-8 w-8 shrink-0 rounded-lg object-contain" />
+          )}
           {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">IVANagro</span>
-              <span className="text-xs text-muted-foreground">Panel de Control</span>
-            </div>
+            <span className="text-xs text-muted-foreground">Panel de Control</span>
           )}
         </div>
       </SidebarHeader>
