@@ -31,7 +31,7 @@ import { Separator } from "@/components/ui/separator";
 
 const mainNavItems = [
   { title: "Inicio", url: "/", icon: LayoutDashboard },
-  { title: "Planes y Contratos", url: "/plans", icon: FileText },
+  { title: "Planes y Negociaciones", url: "/plans", icon: FileText },
   { title: "Promociones", url: "/promotions", icon: Tag },
   { title: "Calendario Comercial", url: "/calendar", icon: CalendarDays },
   { title: "Marketing Kit", url: "/marketing", icon: Image },
