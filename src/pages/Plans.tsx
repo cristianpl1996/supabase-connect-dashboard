@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2, Eye, Search } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { AlertCircle, TrendingUp, FileText, Plus, DollarSign, Pencil, Trash2, Eye, EyeOff, Search, Columns3 } from 'lucide-react';
 import { PlanFormSheet } from '@/components/plans/PlanFormSheet';
 import { PlanDetailsSheet } from '@/components/plans/PlanDetailsSheet';
 import { toast } from 'sonner';
@@ -20,6 +21,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
   activo: { label: 'Activo', variant: 'default' },
@@ -40,6 +47,15 @@ const Plans = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPlan, setViewingPlan] = useState<AnnualPlan | null>(null);
+
+  // Column visibility & row-level hiding
+  const [showGoalColumn, setShowGoalColumn] = useState(true);
+  const [showBudgetColumn, setShowBudgetColumn] = useState(true);
+  const [hiddenGoalRows, setHiddenGoalRows] = useState<Set<string>>(new Set());
+  const [hiddenBudgetRows, setHiddenBudgetRows] = useState<Set<string>>(new Set());
+
+  // Toggle status loading
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -68,7 +84,6 @@ const Plans = () => {
     }
   }, []);
 
-  // Create a map for lab names
   const labMap = useMemo(() => {
     return laboratories.reduce((acc, lab) => {
       acc[lab.id] = lab.name;
@@ -76,7 +91,6 @@ const Plans = () => {
     }, {} as Record<string, string>);
   }, [laboratories]);
 
-  // Filter plans by search query
   const filteredPlans = useMemo(() => {
     if (!searchQuery.trim()) return plans;
     
@@ -142,6 +156,45 @@ const Plans = () => {
   const handleViewPlan = (plan: AnnualPlan) => {
     setViewingPlan(plan);
     setDetailsSheetOpen(true);
+  };
+
+  const handleToggleStatus = async (plan: AnnualPlan) => {
+    const newStatus = plan.status === 'activo' ? 'cerrado' : 'activo';
+    setTogglingStatusId(plan.id);
+    try {
+      const { error } = await supabase
+        .from('annual_plans')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', plan.id);
+
+      if (error) throw error;
+
+      setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p));
+      toast.success(`Plan ${newStatus === 'activo' ? 'activado' : 'desactivado'}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`Error al cambiar estado: ${errorMessage}`);
+    } finally {
+      setTogglingStatusId(null);
+    }
+  };
+
+  const toggleRowGoalHidden = (planId: string) => {
+    setHiddenGoalRows(prev => {
+      const next = new Set(prev);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
+  };
+
+  const toggleRowBudgetHidden = (planId: string) => {
+    setHiddenBudgetRows(prev => {
+      const next = new Set(prev);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
   };
 
   const totalPurchaseGoal = plans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
@@ -233,14 +286,39 @@ const Plans = () => {
                 <FileText className="h-5 w-5 text-primary" />
                 <CardTitle>Planes Anuales</CardTitle>
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar laboratorio..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="flex items-center gap-2">
+                {/* Column visibility dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Columns3 className="h-4 w-4" />
+                      Columnas
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md z-50">
+                    <DropdownMenuCheckboxItem
+                      checked={showGoalColumn}
+                      onCheckedChange={setShowGoalColumn}
+                    >
+                      Meta de Compra
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={showBudgetColumn}
+                      onCheckedChange={setShowBudgetColumn}
+                    >
+                      Presupuesto
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar laboratorio..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -268,20 +346,31 @@ const Plans = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Activo</TableHead>
                     <TableHead>Nombre del Plan</TableHead>
                     <TableHead>Año</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Meta de Compra</TableHead>
-                    <TableHead className="text-right">Presupuesto</TableHead>
+                    {showGoalColumn && <TableHead className="text-right">Meta de Compra</TableHead>}
+                    {showBudgetColumn && <TableHead className="text-right">Presupuesto</TableHead>}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPlans.map((plan) => {
                     const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
+                    const isGoalHidden = hiddenGoalRows.has(plan.id);
+                    const isBudgetHidden = hiddenBudgetRows.has(plan.id);
                     
                     return (
                       <TableRow key={plan.id}>
+                        <TableCell>
+                          <Switch
+                            checked={plan.status === 'activo'}
+                            onCheckedChange={() => handleToggleStatus(plan)}
+                            disabled={togglingStatusId === plan.id}
+                            aria-label={`${plan.status === 'activo' ? 'Desactivar' : 'Activar'} plan`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{plan.name}</TableCell>
                         <TableCell>{plan.year}</TableCell>
                         <TableCell>
@@ -289,12 +378,42 @@ const Plans = () => {
                             {statusConfig.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(plan.total_purchase_goal || 0)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(plan.total_budget_allocated || 0)}
-                        </TableCell>
+                        {showGoalColumn && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="font-mono">
+                                {isGoalHidden ? '••••••' : formatCurrency(plan.total_purchase_goal || 0)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => toggleRowGoalHidden(plan.id)}
+                                title={isGoalHidden ? 'Mostrar valor' : 'Ocultar valor'}
+                              >
+                                {isGoalHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                        {showBudgetColumn && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="font-mono">
+                                {isBudgetHidden ? '••••••' : formatCurrency(plan.total_budget_allocated || 0)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => toggleRowBudgetHidden(plan.id)}
+                                title={isBudgetHidden ? 'Mostrar valor' : 'Ocultar valor'}
+                              >
+                                {isBudgetHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button

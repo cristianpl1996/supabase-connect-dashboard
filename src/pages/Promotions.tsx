@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { 
-  AlertCircle, Plus, Search, Eye, Pencil, Trash2, 
-  Tag, Calendar, DollarSign, Zap, Copy, Upload 
+  AlertCircle, Plus, Search, Eye, EyeOff, Pencil, Trash2, 
+  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3 
 } from 'lucide-react';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
@@ -23,6 +24,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
@@ -66,6 +73,13 @@ const Promotions = () => {
   const [isCloning, setIsCloning] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Column visibility & row-level hiding
+  const [showCostColumn, setShowCostColumn] = useState(true);
+  const [hiddenCostRows, setHiddenCostRows] = useState<Set<string>>(new Set());
+
+  // Toggle status loading
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -185,15 +199,43 @@ const Promotions = () => {
     setDetailsSheetOpen(true);
   };
 
+  const handleToggleStatus = async (promo: Promotion) => {
+    const newStatus = promo.status === 'activa' ? 'pausada' : 'activa';
+    setTogglingStatusId(promo.id);
+    try {
+      const { error } = await supabase
+        .from('promotions')
+        .update({ status: newStatus })
+        .eq('id', promo.id);
+
+      if (error) throw error;
+
+      setPromotions(prev => prev.map(p => p.id === promo.id ? { ...p, status: newStatus } as PromotionWithLab : p));
+      toast.success(`Promoción ${newStatus === 'activa' ? 'activada' : 'pausada'}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`Error al cambiar estado: ${errorMessage}`);
+    } finally {
+      setTogglingStatusId(null);
+    }
+  };
+
+  const toggleRowCostHidden = (promoId: string) => {
+    setHiddenCostRows(prev => {
+      const next = new Set(prev);
+      if (next.has(promoId)) next.delete(promoId);
+      else next.add(promoId);
+      return next;
+    });
+  };
+
   // Clone/Duplicate promotion
   const handleClonePromo = async (promo: PromotionWithLab) => {
     setIsCloning(true);
     try {
-      // Calculate next month dates
       const nextMonthStart = addMonths(new Date(), 1);
       const nextMonthEnd = addMonths(nextMonthStart, 1);
 
-      // Create new promotion
       const { data: newPromo, error: promoError } = await supabase
         .from('promotions')
         .insert({
@@ -210,11 +252,10 @@ const Promotions = () => {
 
       if (promoError) throw promoError;
 
-      // Copy mechanics if exists
       const promoMechanics = mechanics[promo.id];
       if (promoMechanics && promoMechanics.length > 0) {
         const mechanicToCopy = promoMechanics[0];
-          const { error: mechError } = await supabase
+        const { error: mechError } = await supabase
           .from('promo_mechanics')
           .insert({
             promo_id: newPromo.id,
@@ -262,7 +303,6 @@ const Promotions = () => {
         return;
       }
 
-      // Expected columns mapping
       const expectedColumns = ['Laboratorio', 'Titulo', 'SKU_Condicion', 'Cantidad_Condicion', 'Tipo_Beneficio', 'Valor_Beneficio'];
       const firstRow = jsonData[0];
       const missingColumns = expectedColumns.filter(col => !(col in firstRow));
@@ -272,7 +312,6 @@ const Promotions = () => {
         return;
       }
 
-      // Create lab name to ID map
       const labMap = new Map(laboratories.map(lab => [lab.name.toLowerCase(), lab.id]));
 
       let importedCount = 0;
@@ -289,7 +328,6 @@ const Promotions = () => {
           continue;
         }
 
-        // Map benefit type
         let rewardType = 'free_product';
         const benefitType = String(row['Tipo_Beneficio'] || '').toLowerCase();
         if (benefitType.includes('descuento') || benefitType.includes('%')) {
@@ -298,7 +336,6 @@ const Promotions = () => {
           rewardType = 'special_price';
         }
 
-        // Create promotion
         const nextMonth = addMonths(new Date(), 1);
         const { data: newPromo, error: promoError } = await supabase
           .from('promotions')
@@ -320,7 +357,6 @@ const Promotions = () => {
           continue;
         }
 
-        // Create mechanics
         await supabase
           .from('promo_mechanics')
           .insert({
@@ -351,7 +387,6 @@ const Promotions = () => {
       toast.error(`Error al importar: ${errorMessage}`);
     } finally {
       setIsImporting(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -486,14 +521,33 @@ const Promotions = () => {
                 <Tag className="h-5 w-5 text-primary" />
                 <CardTitle>Promociones</CardTitle>
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar promoción..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="flex items-center gap-2">
+                {/* Column visibility dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Columns3 className="h-4 w-4" />
+                      Columnas
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md z-50">
+                    <DropdownMenuCheckboxItem
+                      checked={showCostColumn}
+                      onCheckedChange={setShowCostColumn}
+                    >
+                      Costo Estimado
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar promoción..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -521,12 +575,13 @@ const Promotions = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Activa</TableHead>
                     <TableHead>Título</TableHead>
                     <TableHead>Laboratorio</TableHead>
                     <TableHead>Vigencia</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Tipo Mecánica</TableHead>
-                    <TableHead className="text-right">Costo Estimado</TableHead>
+                    {showCostColumn && <TableHead className="text-right">Costo Estimado</TableHead>}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -535,9 +590,18 @@ const Promotions = () => {
                     const statusConfig = STATUS_CONFIG[promo.status] || STATUS_CONFIG.borrador;
                     const promoMechanics = mechanics[promo.id] || [];
                     const mechanicType = promoMechanics[0]?.condition_type || 'N/A';
+                    const isCostHidden = hiddenCostRows.has(promo.id);
                     
                     return (
                       <TableRow key={promo.id}>
+                        <TableCell>
+                          <Switch
+                            checked={promo.status === 'activa'}
+                            onCheckedChange={() => handleToggleStatus(promo)}
+                            disabled={togglingStatusId === promo.id}
+                            aria-label={`${promo.status === 'activa' ? 'Pausar' : 'Activar'} promoción`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{promo.title}</TableCell>
                         <TableCell>{promo.laboratories?.name || '—'}</TableCell>
                         <TableCell className="text-sm">
@@ -556,9 +620,24 @@ const Promotions = () => {
                             {MECHANIC_LABELS[mechanicType] || mechanicType}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(promo.estimated_cost || 0)}
-                        </TableCell>
+                        {showCostColumn && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="font-mono">
+                                {isCostHidden ? '••••••' : formatCurrency(promo.estimated_cost || 0)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => toggleRowCostHidden(promo.id)}
+                                title={isCostHidden ? 'Mostrar valor' : 'Ocultar valor'}
+                              >
+                                {isCostHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
