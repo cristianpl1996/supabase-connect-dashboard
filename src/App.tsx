@@ -15,6 +15,7 @@ import Marketing from "./pages/Marketing";
 import Wallet from "./pages/Wallet";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Unsubscribe from "./pages/Unsubscribe";
 
 const queryClient = new QueryClient();
 
@@ -25,20 +26,31 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <PromoterProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<PromoterRouteGuard><Index /></PromoterRouteGuard>} />
-              <Route path="/plans" element={<Plans />} />
-              <Route path="/promotions" element={<Promotions />} />
-              <Route path="/calendar" element={<PromoterRouteGuard restricted><Calendar /></PromoterRouteGuard>} />
-              <Route path="/middleware" element={<Middleware />} />
-              <Route path="/marketing" element={<Marketing />} />
-              <Route path="/wallet" element={<PromoterRouteGuard restricted><Wallet /></PromoterRouteGuard>} />
-              <Route path="/settings" element={<PromoterRouteGuard restricted><Settings /></PromoterRouteGuard>} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
+          <Routes>
+            {/* Public standalone pages (no AppLayout) */}
+            <Route path="/unsubscribe" element={<Unsubscribe />} />
+
+            {/* App pages wrapped in AppLayout */}
+            <Route
+              path="/*"
+              element={
+                <AppLayout>
+                  <Routes>
+                    <Route path="/" element={<PromoterRouteGuard><Index /></PromoterRouteGuard>} />
+                    <Route path="/plans" element={<Plans />} />
+                    <Route path="/promotions" element={<Promotions />} />
+                    <Route path="/calendar" element={<PromoterRouteGuard restricted><Calendar /></PromoterRouteGuard>} />
+                    <Route path="/middleware" element={<Middleware />} />
+                    <Route path="/marketing" element={<Marketing />} />
+                    <Route path="/wallet" element={<PromoterRouteGuard restricted><Wallet /></PromoterRouteGuard>} />
+                    <Route path="/settings" element={<PromoterRouteGuard restricted><Settings /></PromoterRouteGuard>} />
+                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AppLayout>
+              }
+            />
+          </Routes>
         </PromoterProvider>
       </BrowserRouter>
     </TooltipProvider>
