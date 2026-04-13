@@ -14,6 +14,7 @@ import Middleware from "./pages/Middleware";
 import Marketing from "./pages/Marketing";
 import Wallet from "./pages/Wallet";
 import Settings from "./pages/Settings";
+import MapPage from "./pages/MapPage";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
 
@@ -44,6 +45,7 @@ const App = () => (
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/wallet" element={<PromoterRouteGuard restricted><Wallet /></PromoterRouteGuard>} />
                     <Route path="/settings" element={<PromoterRouteGuard restricted><Settings /></PromoterRouteGuard>} />
+                    <Route path="/map" element={<MapPage />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>

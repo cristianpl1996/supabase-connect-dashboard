@@ -22,4 +22,17 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     include: ["@tanstack/react-query"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Isolate Leaflet + clustering into their own async chunk so the
+          // main bundle stays lean for users who never visit /map
+          "vendor-leaflet": ["leaflet", "react-leaflet", "react-leaflet-cluster"],
+          "vendor-react": ["react", "react-dom"],
+          "vendor-query": ["@tanstack/react-query"],
+        },
+      },
+    },
+  },
 }));

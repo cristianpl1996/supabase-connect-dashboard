@@ -6,6 +6,7 @@ import {
   Image,
   Wallet,
   Settings,
+  Map,
   LogOut,
   ChevronLeft,
   Menu,
@@ -36,6 +37,7 @@ const mainNavItems = [
   { title: "Calendario Comercial", url: "/calendar", icon: CalendarDays },
   { title: "Marketing Kit", url: "/marketing", icon: Image },
   { title: "Billetera & Conciliación", url: "/wallet", icon: Wallet },
+  { title: "Mapa de Clientes", url: "/map", icon: Map },
 ];
 
 const footerNavItems = [{ title: "Configuración", url: "/settings", icon: Settings }];
