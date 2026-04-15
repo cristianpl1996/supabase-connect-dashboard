@@ -12,8 +12,11 @@ import {
   Menu,
 } from "lucide-react";
 import logoIco from "@/assets/logoico.png";
+import logo from "@/assets/logo.png";
+import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -45,15 +48,20 @@ const footerNavItems = [{ title: "Configuración", url: "/settings", icon: Setti
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className={isCollapsed ? "p-2 py-5 flex items-center justify-center" : "p-4 py-0"}>
         <div className="flex items-center justify-center flex-nowrap">
           {isCollapsed && (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <span className="font-black text-black text-lg font-serif leading-none">I</span>
-            </div>
+            <img src={logo} alt="Ivanagro" className="h-9 w-9 object-contain" />
           )}
           {!isCollapsed && (
             <img src={logoIco} alt="IVANagro" className="h-20 mt-3 mb-3 w-auto shrink-0 object-contain" />
@@ -108,7 +116,7 @@ export function AppSidebar() {
             <SidebarMenuButton asChild tooltip="Cerrar Sesión">
               <button
                 className={`flex w-full items-center rounded-lg py-2 text-destructive transition-colors hover:bg-destructive/10 ${isCollapsed ? "justify-center px-0" : "gap-3 px-3"}`}
-                onClick={() => console.log("Logout clicked")}
+                onClick={handleLogout}
               >
                 <LogOut className="h-5 w-5 shrink-0" />
                 {!isCollapsed && <span>Cerrar Sesión</span>}

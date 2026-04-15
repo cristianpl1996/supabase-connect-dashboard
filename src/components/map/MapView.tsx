@@ -19,6 +19,7 @@ const POPUP_CSS = `
   }
   .leaflet-popup-content {
     margin: 0 !important;
+    width: auto !important;
     line-height: 1.4 !important;
   }
   .leaflet-popup-tip {
@@ -81,64 +82,6 @@ function ZoomControl() {
   return null;
 }
 
-// ─── Sales rep legend ─────────────────────────────────────────────────────────
-
-interface RepLegendProps {
-  salesReps: SalesRepOption[];
-  activeRepIds: string[];
-  onToggleRep: (id: string) => void;
-}
-
-function RepLegend({ salesReps, activeRepIds, onToggleRep }: RepLegendProps) {
-  if (salesReps.length === 0) return null;
-
-  return (
-    <div className="absolute bottom-6 right-2 z-[999] pointer-events-auto">
-      <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-2 max-h-56 overflow-y-auto min-w-[185px]">
-        <p className="text-[9px] uppercase tracking-widest font-semibold text-gray-400 mb-1.5 px-0.5">
-          Representantes
-        </p>
-        <div className="flex flex-col gap-0.5">
-          {salesReps.map((rep) => {
-            const isActive = activeRepIds.includes(rep.id);
-            return (
-              <button
-                key={rep.id}
-                type="button"
-                onClick={() => onToggleRep(rep.id)}
-                className={`flex items-center gap-2 rounded px-1.5 py-1 text-left transition-colors w-full group
-                  ${isActive
-                    ? "font-semibold text-gray-900"
-                    : "text-gray-500 hover:text-gray-800"
-                  }`}
-                style={isActive ? { backgroundColor: `${rep.color}18` } : {}}
-              >
-                <span
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full transition-all ${isActive ? "ring-2" : "opacity-60 group-hover:opacity-100"}`}
-                  style={{ backgroundColor: rep.color, ringColor: rep.color }}
-                />
-                <span className="leading-tight truncate text-[11px] max-w-[140px]">{rep.name}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {activeRepIds.length > 0 && (
-          <div className="mt-1.5 pt-1.5 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => activeRepIds.forEach((id) => onToggleRep(id))}
-              className="text-[10px] text-gray-400 hover:text-gray-700 px-1.5 transition-colors"
-            >
-              Mostrar todos
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Map View ─────────────────────────────────────────────────────────────────
 
 interface MapViewProps {
@@ -181,11 +124,6 @@ export function MapView({
         <MarkerLayer customers={customers} repColorMap={repColorMap} />
       </MapContainer>
 
-      <RepLegend
-        salesReps={salesReps}
-        activeRepIds={activeRepIds}
-        onToggleRep={onToggleRep}
-      />
     </div>
   );
 }

@@ -18,7 +18,7 @@ export interface Customer {
   customer_business_type: string;
 
   // Contact
-  customer_cellphone: number | null;
+  customer_cellphone: string | number | null;
   customer_emails: string[];        // parsed from semicolon-separated string
   customer_business_address: string;
 

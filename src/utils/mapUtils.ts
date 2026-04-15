@@ -42,18 +42,30 @@ function parseProductSnapshots(v: unknown): ProductSnapshot[] {
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
+/** Coerces a value that may arrive as string or number into a finite number */
+function toNumber(v: unknown): number {
+  if (isFiniteNumber(v)) return v;
+  if (typeof v === "string") { const n = parseFloat(v); if (isFinite(n)) return n; }
+  return 0;
+}
+
 export function validateCustomer(record: unknown): Customer | null {
   if (!record || typeof record !== "object") return null;
   const r = record as Record<string, unknown>;
 
+  // ── Lat/lng: API uses customer_business_latitude/longitude; JSON uses latitude/longitude ──
+  const lat = isFiniteNumber(r.customer_business_latitude) ? r.customer_business_latitude
+            : isFiniteNumber(r.latitude)                   ? r.latitude
+            : null;
+  const lng = isFiniteNumber(r.customer_business_longitude) ? r.customer_business_longitude
+            : isFiniteNumber(r.longitude)                    ? r.longitude
+            : null;
+
+  // Require valid id, full name, and coordinates within bounds
   if (
     typeof r.id !== "number" ||
-    !isFiniteNumber(r.latitude) || !isFiniteNumber(r.longitude) ||
-    r.latitude < -90 || r.latitude > 90 ||
-    r.longitude < -180 || r.longitude > 180 ||
-    // government_id can arrive as a plain number (e.g. 900923310) or a string (e.g. "CN1045018378")
-    (typeof r.customer_government_id !== "string" && typeof r.customer_government_id !== "number") ||
-    String(r.customer_government_id).trim() === "" ||
+    lat === null || lng === null ||
+    lat < -90 || lat > 90 || lng < -180 || lng > 180 ||
     typeof r.customer_full_name !== "string" || !r.customer_full_name.trim()
   ) {
     return null;
@@ -62,45 +74,50 @@ export function validateCustomer(record: unknown): Customer | null {
   return {
     id: r.id,
     distributor_id: typeof r.distributor_id === "number" ? r.distributor_id : 0,
-    customer_government_id: String(r.customer_government_id).trim(),
+    customer_government_id:
+      typeof r.customer_government_id === "string" || typeof r.customer_government_id === "number"
+        ? String(r.customer_government_id).trim()
+        : "N/A",
     customer_full_name: (r.customer_full_name as string).trim(),
     customer_business_type:
-      typeof r.customer_business_type === "string" ? r.customer_business_type.trim() : "Sin clasificar",
-    customer_cellphone: typeof r.customer_cellphone === "number" ? r.customer_cellphone : null,
+      typeof r.customer_business_type === "string" && r.customer_business_type.trim()
+        ? r.customer_business_type.trim()
+        : "Sin clasificar",
+    // cellphone may arrive as string or number
+    customer_cellphone:
+      typeof r.customer_cellphone === "number" ? r.customer_cellphone
+      : typeof r.customer_cellphone === "string" && r.customer_cellphone.trim()
+        ? r.customer_cellphone.trim()
+        : null,
     customer_emails: parseEmails(r.customer_email),
     customer_business_address:
       typeof r.customer_business_address === "string" ? r.customer_business_address.trim() : "",
-    latitude: r.latitude,
-    longitude: r.longitude,
+    latitude:  lat,
+    longitude: lng,
     customer_age_range: nullify(r.customer_age_range),
-    customer_biological_sex: typeof r.customer_biological_sex === "number" ? r.customer_biological_sex : null,
-    customer_average_days_between_purchases:
-      isFiniteNumber(r.customer_average_days_between_purchases) ? r.customer_average_days_between_purchases : 0,
-    customer_average_purchase_ticket_amount:
-      isFiniteNumber(r.customer_average_purchase_ticket_amount) ? r.customer_average_purchase_ticket_amount : 0,
-    customer_total_lifetime_revenue:
-      isFiniteNumber(r.customer_total_lifetime_revenue) ? r.customer_total_lifetime_revenue : 0,
-    customer_total_number_of_purchases:
-      isFiniteNumber(r.customer_total_number_of_purchases) ? r.customer_total_number_of_purchases : 0,
-    customer_days_since_last_purchase:
-      isFiniteNumber(r.customer_days_since_last_purchase) ? r.customer_days_since_last_purchase : 0,
-    customer_clv_segment:
-      isFiniteNumber(r.customer_clv_segment) ? r.customer_clv_segment : 0,
-    customer_rfm_segment:
-      isFiniteNumber(r.customer_rfm_segment) ? r.customer_rfm_segment : 0,
-    customer_top_purchased_products_snapshot: parseProductSnapshots(r.customer_top_purchased_products_snapshot),
-    customer_is_government_employee: coerceBool(r.customer_is_government_employee),
+    customer_biological_sex:
+      typeof r.customer_biological_sex === "number" ? r.customer_biological_sex : null,
+    customer_average_days_between_purchases: toNumber(r.customer_average_days_between_purchases),
+    customer_average_purchase_ticket_amount: toNumber(r.customer_average_purchase_ticket_amount),
+    customer_total_lifetime_revenue:        toNumber(r.customer_total_lifetime_revenue),
+    customer_total_number_of_purchases:     toNumber(r.customer_total_number_of_purchases),
+    customer_days_since_last_purchase:      toNumber(r.customer_days_since_last_purchase),
+    customer_clv_segment:                   toNumber(r.customer_clv_segment),
+    // rfm_segment arrives as string from the API ("331") or number from JSON (122)
+    customer_rfm_segment:                   toNumber(r.customer_rfm_segment),
+    customer_top_purchased_products_snapshot:
+      parseProductSnapshots(r.customer_top_purchased_products_snapshot),
+    customer_is_government_employee:        coerceBool(r.customer_is_government_employee),
     customer_is_politically_exposed_person: coerceBool(r.customer_is_politically_exposed_person),
-    customer_has_confirmed_digital_wallet: coerceBool(r.customer_has_confirmed_digital_wallet),
-    sales_representative_id: typeof r.sales_representative_id === "number" ? r.sales_representative_id : 0,
+    customer_has_confirmed_digital_wallet:  coerceBool(r.customer_has_confirmed_digital_wallet),
+    sales_representative_id:
+      typeof r.sales_representative_id === "number" ? r.sales_representative_id : 0,
     sales_rep_full_name:
       typeof r.sales_rep_full_name === "string" && r.sales_rep_full_name.trim()
-        ? r.sales_rep_full_name.trim()
-        : "Sin asignar",
+        ? r.sales_rep_full_name.trim() : "Sin asignar",
     sales_rep_coverage_area:
       typeof r.sales_rep_coverage_area === "string" && r.sales_rep_coverage_area.trim()
-        ? r.sales_rep_coverage_area.trim()
-        : "Sin zona",
+        ? r.sales_rep_coverage_area.trim() : "Sin zona",
     created_at: typeof r.created_at === "string" ? r.created_at : new Date().toISOString(),
     updated_at: typeof r.updated_at === "string" ? r.updated_at : new Date().toISOString(),
   };

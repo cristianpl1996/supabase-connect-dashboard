@@ -26,17 +26,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { SalesRepOption } from "@/hooks/useMapLocations";
 import type { CustomerFilters } from "@/types/map";
-
-const NONE = "__none__";
 
 interface FilterPanelProps {
   filters: CustomerFilters;
@@ -53,18 +44,58 @@ interface FilterPanelProps {
   onZoomToAll: () => void;
 }
 
-// ─── Multi-select rep picker ─────────────────────────────────────────────────
+
+// ─── Inline search box ────────────────────────────────────────────────────────
+
+function PopoverSearch({
+  value,
+  onChange,
+  placeholder = "Buscar…",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="px-2 py-2 border-b border-gray-100">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        <input
+          autoFocus
+          className="w-full h-7 pl-7 pr-2 text-xs rounded-md border border-gray-200 bg-white outline-none focus:border-primary transition-colors"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Multi-select rep picker ──────────────────────────────────────────────────
 
 function RepMultiSelect({
   salesReps,
   selectedIds,
   onChange,
+  triggerClassName,
 }: {
   salesReps: SalesRepOption[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const toggle = (id: string) => {
     onChange(
@@ -76,18 +107,22 @@ function RepMultiSelect({
 
   const label =
     selectedIds.length === 0
-      ? "Todos los representantes"
+      ? "Representantes"
       : selectedIds.length === 1
       ? salesReps.find((r) => r.id === selectedIds[0])?.name ?? "1 representante"
       : `${selectedIds.length} representantes`;
 
+  const filtered = salesReps.filter((r) =>
+    r.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
-          className="h-8 min-w-[210px] max-w-[260px] justify-between text-sm font-normal px-3"
+          className={triggerClassName ?? "h-8 min-w-[200px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
             <Users className="h-3.5 w-3.5 shrink-0 text-gray-400" />
@@ -126,9 +161,15 @@ function RepMultiSelect({
           )}
         </div>
 
+        {/* Search */}
+        <PopoverSearch value={search} onChange={setSearch} placeholder="Buscar representante…" />
+
         {/* Rep list */}
-        <div className="max-h-64 overflow-y-auto py-1">
-          {salesReps.map((rep) => {
+        <div className="max-h-56 overflow-y-auto py-1">
+          {filtered.length === 0 && (
+            <p className="px-3 py-3 text-xs text-gray-400 text-center">Sin resultados</p>
+          )}
+          {filtered.map((rep) => {
             const checked = selectedIds.includes(rep.id);
             return (
               <button
@@ -161,6 +202,107 @@ function RepMultiSelect({
             {selectedIds.length === 0
               ? `${salesReps.length} representantes disponibles`
               : `${selectedIds.length} de ${salesReps.length} seleccionados`}
+          </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Single-select with search (zones / business types) ───────────────────────
+
+function SearchableSelect({
+  options,
+  value,
+  allLabel,
+  placeholder,
+  icon: Icon,
+  onChange,
+  triggerClassName,
+}: {
+  options: string[];
+  value: string;
+  allLabel: string;
+  placeholder: string;
+  icon: React.ElementType;
+  onChange: (v: string) => void;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = options.filter((o) =>
+    o.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const active = !!value;
+  const label = value || allLabel;
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={triggerClassName ?? "h-8 w-[175px] justify-between text-sm font-normal px-3"}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-gray-400"}`} />
+            <span className={`truncate ${active ? "text-gray-900 font-medium" : "text-gray-600"}`}>{label}</span>
+          </div>
+          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-60 p-0" align="start" sideOffset={4}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+          <span className="text-xs font-semibold text-gray-600">{placeholder}</span>
+          {active && (
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); }}
+              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              <X className="h-3 w-3" /> Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* Search */}
+        <PopoverSearch value={search} onChange={setSearch} placeholder={`Buscar ${placeholder.toLowerCase()}…`} />
+
+        {/* Options */}
+        <div className="max-h-56 overflow-y-auto py-1">
+          <button
+            type="button"
+            onClick={() => { onChange(""); setSearch(""); setOpen(false); }}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${!active ? "font-semibold text-gray-900" : "text-gray-600"}`}
+          >
+            <span className="flex-1">{allLabel}</span>
+            {!active && <Check className="h-3 w-3 text-primary shrink-0" />}
+          </button>
+
+          {filtered.length === 0 && (
+            <p className="px-3 py-3 text-xs text-gray-400 text-center">Sin resultados</p>
+          )}
+          {filtered.map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => { onChange(o); setSearch(""); setOpen(false); }}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${value === o ? "font-semibold text-gray-900" : "text-gray-600"}`}
+            >
+              <span className="flex-1 truncate">{o}</span>
+              {value === o && <Check className="h-3 w-3 text-primary shrink-0" />}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/60">
+          <p className="text-[10px] text-gray-400">
+            {!active ? `${options.length} opciones disponibles` : `Filtrando: ${value}`}
           </p>
         </div>
       </PopoverContent>
@@ -240,10 +382,10 @@ export function FilterPanel({
     <div className="border-b border-gray-200 bg-white">
 
       {/* ── Single compact row ── */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 px-3 py-2">
 
-        {/* Search */}
-        <div className="relative flex-1 min-w-[160px]">
+        {/* Search — toma todo el espacio sobrante */}
+        <div className="relative flex-1 min-w-[140px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
           <Input
             className="pl-8 pr-7 h-8 text-sm"
@@ -262,52 +404,37 @@ export function FilterPanel({
           )}
         </div>
 
-        {/* Multi-select reps */}
+        {/* Tres filtros: mismo ancho fijo para simetría */}
         <RepMultiSelect
           salesReps={options.salesReps}
           selectedIds={filters.sales_rep_ids}
           onChange={(ids) => onFilter("sales_rep_ids", ids)}
+          triggerClassName="h-8 w-[195px] shrink-0 justify-between text-sm font-normal px-3"
         />
-
-        {/* Coverage area */}
-        <Select
-          value={filters.coverage_area || NONE}
-          onValueChange={(v) => onFilter("coverage_area", v === NONE ? "" : v)}
-        >
-          <SelectTrigger className="h-8 w-[175px] text-sm gap-1.5">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <SelectValue placeholder="Todas las zonas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>Todas las zonas</SelectItem>
-            {options.coverageAreas.map((a) => (
-              <SelectItem key={a} value={a}>{a}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Business type */}
-        <Select
-          value={filters.business_type || NONE}
-          onValueChange={(v) => onFilter("business_type", v === NONE ? "" : v)}
-        >
-          <SelectTrigger className="h-8 w-[165px] text-sm gap-1.5">
-            <Store className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <SelectValue placeholder="Tipo de negocio" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>Todos los negocios</SelectItem>
-            {options.businessTypes.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={options.coverageAreas}
+          value={filters.coverage_area}
+          allLabel="Zonas"
+          placeholder="Zonas"
+          icon={MapPin}
+          onChange={(v) => onFilter("coverage_area", v)}
+          triggerClassName="h-8 w-[155px] shrink-0 justify-between text-sm font-normal px-3"
+        />
+        <SearchableSelect
+          options={options.businessTypes}
+          value={filters.business_type}
+          allLabel="Negocios"
+          placeholder="Negocios"
+          icon={Store}
+          onChange={(v) => onFilter("business_type", v)}
+          triggerClassName="h-8 w-[168px] shrink-0 justify-between text-sm font-normal px-3"
+        />
 
         {/* Advanced toggle */}
         <Button
           variant={advancedOpen ? "default" : "outline"}
           size="sm"
-          className="h-8 gap-1 text-sm px-2.5"
+          className="h-8 gap-1 text-sm px-2.5 shrink-0"
           onClick={() => setAdvancedOpen((o) => !o)}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -319,13 +446,13 @@ export function FilterPanel({
 
         {/* Reset */}
         {activeFilterCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={onReset} className="h-8 gap-1 text-sm px-2 text-gray-500">
+          <Button variant="ghost" size="sm" onClick={onReset} className="h-8 px-2 text-gray-500 shrink-0">
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
         )}
 
         {/* Zoom */}
-        <Button variant="outline" size="sm" onClick={onZoomToAll} className="h-8 gap-1.5 text-sm ml-auto">
+        <Button variant="outline" size="sm" onClick={onZoomToAll} className="h-8 gap-1.5 text-sm shrink-0">
           <Maximize2 className="h-3.5 w-3.5" />
           Ver todos
         </Button>
