@@ -42,6 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // Auto-logout when token expires (API returns 401)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearToken();
+      localStorage.removeItem(USER_KEY);
+      setUser(null);
+    };
+    window.addEventListener("ivanagro:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("ivanagro:unauthorized", handleUnauthorized);
+  }, []);
+
   const login = useCallback(async (credentials: LoginRequest) => {
     const res = await apiLogin(credentials);
     setToken(res.access_token);

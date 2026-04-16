@@ -32,6 +32,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message = body?.detail ?? body?.message ?? `Error ${res.status}`;
+    if (res.status === 401) {
+      window.dispatchEvent(new Event("ivanagro:unauthorized"));
+    }
     throw new ApiError(res.status, message);
   }
 
