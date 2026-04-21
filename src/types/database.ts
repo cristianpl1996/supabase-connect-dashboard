@@ -65,6 +65,65 @@ export interface WalletLedger {
   erp_doc_num: string | null;
 }
 
+export interface WalletSummary {
+  base_spendable_budget: number;
+  positive_adjustments: number;
+  negative_adjustments: number;
+  committed_amount: number;
+  available_balance: number;
+  utilization_percent: number;
+}
+
+export interface WalletLedgerEntry {
+  id: string;
+  type: 'ingreso' | 'egreso';
+  concept: string;
+  amount: number;
+  date: string;
+  source: string;
+  category: 'plan' | 'promo' | 'ajuste';
+}
+
+export interface LaboratoryWalletView {
+  laboratory: Pick<Laboratory, 'id' | 'name'>;
+  summary: WalletSummary;
+  ledger_entries: WalletLedgerEntry[];
+  flags: {
+    is_negative_balance: boolean;
+  };
+}
+
+export interface DashboardKpis {
+  total_budget_managed: number;
+  active_promotions_count: number;
+  total_promotions_count: number;
+  total_committed: number;
+  execution_percentage: number;
+  active_plans_count: number;
+}
+
+export interface DashboardSummary {
+  kpis: DashboardKpis;
+  expiring_promotions: Array<{
+    id: string;
+    title: string;
+    lab_id: string;
+    laboratory_name: string | null;
+    end_date: string;
+    days_left: number;
+    status: PromoStatus;
+  }>;
+  critical_laboratories: Array<{
+    lab_id: string;
+    lab_name: string;
+    available_balance: number;
+    percentage: number;
+    budget: number;
+    committed: number;
+  }>;
+  generated_at: string;
+}
+
 export interface Promotion {
   id: string;
   lab_id: string;
