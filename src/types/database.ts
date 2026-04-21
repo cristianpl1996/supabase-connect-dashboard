@@ -68,6 +68,7 @@ export interface WalletLedger {
 export interface Promotion {
   id: string;
   lab_id: string;
+  laboratory_name?: string | null;
   created_by_role: SourceRole;
   title: string;
   description: string | null;
@@ -81,6 +82,16 @@ export interface Promotion {
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;
+  mechanic?: PromoMechanic | null;
+  budget_summary?: {
+    lab_id: string;
+    spendable_balance: number;
+    base_spendable_budget: number;
+    committed_amount: number;
+    positive_adjustments: number;
+    negative_adjustments: number;
+  };
+  requires_manager_approval?: boolean;
 }
 
 export interface PromoMechanic {

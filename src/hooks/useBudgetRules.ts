@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { listBudgetRules, updateBudgetRule } from '@/lib/api';
 
 export interface BudgetRule {
   id: string;
@@ -11,15 +11,12 @@ export interface BudgetRule {
 
 export type BudgetRulesConfig = Record<string, boolean>;
 
-/**
- * Maps a plan_fund record (concept + amount_type) to a budget_rules concept_key.
- */
 export function mapFundToBudgetRuleKey(concept: string, amountType: string): string {
   const normalized = concept.toLowerCase().trim();
 
   if (normalized === 'rebate sell-in') return 'rebate_sell_in_perc';
   if (normalized === 'rebate sell-out') return 'rebate_sell_out_perc';
-  if (normalized === 'pronto pago') return 'invoice_discount_perc'; // financial discount
+  if (normalized === 'pronto pago') return 'invoice_discount_perc';
   if (normalized === 'marketing' && amountType === 'porcentaje') return 'marketing_perc';
   if (normalized === 'marketing' && amountType === 'fijo') return 'marketing_fixed_value';
   if (normalized === 'coop') return 'marketing_fixed_value';
@@ -28,9 +25,6 @@ export function mapFundToBudgetRuleKey(concept: string, amountType: string): str
   return 'invoice_discount_perc';
 }
 
-/**
- * Check if a specific plan_fund is spendable according to the config.
- */
 export function isFundSpendable(
   config: BudgetRulesConfig,
   concept: string,
@@ -40,19 +34,8 @@ export function isFundSpendable(
   return config[key] ?? false;
 }
 
-/**
- * Fetch budget rules from Supabase (for use in async/non-hook contexts).
- */
 export async function fetchBudgetRulesConfig(): Promise<BudgetRulesConfig> {
-  const { data, error } = await supabase
-    .from('budget_rules')
-    .select('concept_key, is_budget_source');
-
-  if (error) {
-    console.error('Error fetching budget_rules:', error);
-    return {};
-  }
-
+  const data = await listBudgetRules();
   const config: BudgetRulesConfig = {};
   (data || []).forEach((rule) => {
     config[rule.concept_key] = rule.is_budget_source;
@@ -60,9 +43,6 @@ export async function fetchBudgetRulesConfig(): Promise<BudgetRulesConfig> {
   return config;
 }
 
-/**
- * Hook to manage budget rules configuration with Supabase persistence.
- */
 export function useBudgetRules() {
   const [rules, setRules] = useState<BudgetRule[]>([]);
   const [config, setConfig] = useState<BudgetRulesConfig>({});
@@ -70,22 +50,21 @@ export function useBudgetRules() {
 
   const fetchRules = useCallback(async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('budget_rules')
-      .select('*')
-      .order('created_at');
-
-    if (error) {
-      console.error('Error fetching budget_rules:', error);
-    } else {
+    try {
+      const data = await listBudgetRules();
       setRules(data || []);
-      const newConfig: BudgetRulesConfig = {};
+      const nextConfig: BudgetRulesConfig = {};
       (data || []).forEach((rule) => {
-        newConfig[rule.concept_key] = rule.is_budget_source;
+        nextConfig[rule.concept_key] = rule.is_budget_source;
       });
-      setConfig(newConfig);
+      setConfig(nextConfig);
+    } catch (error) {
+      console.error('Error fetching budget_rules:', error);
+      setRules([]);
+      setConfig({});
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -93,26 +72,20 @@ export function useBudgetRules() {
   }, [fetchRules]);
 
   const toggleRule = useCallback(async (conceptKey: string) => {
-    // Optimistic update
-    setConfig((prev) => ({ ...prev, [conceptKey]: !prev[conceptKey] }));
+    const newValue = !config[conceptKey];
+    setConfig((prev) => ({ ...prev, [conceptKey]: newValue }));
     setRules((prev) =>
       prev.map((r) =>
         r.concept_key === conceptKey
-          ? { ...r, is_budget_source: !r.is_budget_source }
+          ? { ...r, is_budget_source: newValue }
           : r
       )
     );
 
-    const newValue = !config[conceptKey];
-
-    const { error } = await supabase
-      .from('budget_rules')
-      .update({ is_budget_source: newValue })
-      .eq('concept_key', conceptKey);
-
-    if (error) {
+    try {
+      await updateBudgetRule(conceptKey, newValue);
+    } catch (error) {
       console.error('Error updating budget_rule:', error);
-      // Rollback on error
       setConfig((prev) => ({ ...prev, [conceptKey]: !newValue }));
       setRules((prev) =>
         prev.map((r) =>
@@ -121,6 +94,7 @@ export function useBudgetRules() {
             : r
         )
       );
+      throw error;
     }
   }, [config]);
 

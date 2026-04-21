@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createPromotion, getPromotion, getPromotionBudget, updatePromotion } from '@/lib/api';
 import { usePromoter } from '@/contexts/PromoterContext';
-import { Laboratory, Promotion, PromoMechanic, PlanFund } from '@/types/database';
+import { Laboratory, Promotion } from '@/types/database';
 import {
   Sheet,
   SheetContent,
@@ -29,8 +29,6 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, FileText, Zap, DollarSign, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { fetchBudgetRulesConfig, isFundSpendable } from '@/hooks/useBudgetRules';
 
 interface PromotionFormSheetProps {
   open: boolean;
@@ -41,135 +39,106 @@ interface PromotionFormSheetProps {
 }
 
 const SEGMENT_OPTIONS = [
-  { value: 'ganaderia', label: 'Ganadería' },
+  { value: 'ganaderia', label: 'Ganaderia' },
   { value: 'mascotas', label: 'Mascotas' },
-  { value: 'todo', label: 'Todo el país' },
+  { value: 'todo', label: 'Todo el pais' },
 ];
 
 const CONDITION_TYPES = [
   { value: 'sku_list', label: 'Lista de SKUs (Pague X Lleve Y)' },
-  { value: 'min_amount', label: 'Monto Mínimo de Compra' },
-  { value: 'category', label: 'Categoría de Producto' },
+  { value: 'min_amount', label: 'Monto Minimo de Compra' },
+  { value: 'category', label: 'Categoria de Producto' },
 ];
 
 const REWARD_TYPES = [
-  { value: 'free_product', label: 'Producto Gratis (Bonificación)' },
+  { value: 'free_product', label: 'Producto Gratis (Bonificacion)' },
   { value: 'discount_percent', label: 'Descuento Porcentual' },
   { value: 'price_override', label: 'Precio Especial' },
 ];
 
 const ACCOUNTING_TREATMENTS = [
   { value: 'descuento_pie', label: 'Descuento Pie de Factura' },
-  { value: 'bonificacion_precio_cero', label: 'Bonificación a Precio Cero' },
-  { value: 'nota_credito_posterior', label: 'Nota Crédito Posterior' },
+  { value: 'bonificacion_precio_cero', label: 'Bonificacion a Precio Cero' },
+  { value: 'nota_credito_posterior', label: 'Nota Credito Posterior' },
 ];
 
-export function PromotionFormSheet({ 
-  open, 
-  onOpenChange, 
-  laboratories, 
-  onSuccess, 
-  editingPromo 
+export function PromotionFormSheet({
+  open,
+  onOpenChange,
+  laboratories,
+  onSuccess,
+  editingPromo
 }: PromotionFormSheetProps) {
   const isEditing = !!editingPromo;
   const { promoter, isPromoter } = usePromoter();
-  
-  // Approval limit warning
+
   const [approvalWarning, setApprovalWarning] = useState<string | null>(null);
-  
-  // Section A: General Data
   const [labId, setLabId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [segment, setSegment] = useState('todo');
-  
-  // Section B: Mechanics
   const [conditionType, setConditionType] = useState('sku_list');
   const [conditionValue, setConditionValue] = useState('');
   const [conditionQty, setConditionQty] = useState<number>(0);
   const [rewardType, setRewardType] = useState('free_product');
   const [rewardValue, setRewardValue] = useState<number>(0);
-  
-  // Section C: Financial
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
   const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
-  const [existingMechanicId, setExistingMechanicId] = useState<string | null>(null);
-  
-  // Overdraft protection
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [spendableBalance, setSpendableBalance] = useState<number | null>(null);
 
-  // Load existing data when editing
   useEffect(() => {
     if (open && editingPromo) {
-      setLabId(editingPromo.lab_id);
-      setTitle(editingPromo.title);
-      setDescription(editingPromo.description || '');
-      setStartDate(editingPromo.start_date);
-      setEndDate(editingPromo.end_date);
-      
-      // Parse segment
-      const targetSegment = editingPromo.target_segment as { type?: string } | null;
-      setSegment(targetSegment?.type || 'todo');
-      
-      setEstimatedCost(editingPromo.estimated_cost || 0);
-      setMaxRedemptions(editingPromo.max_redemptions || '');
-
-      // Fetch existing mechanic
-      const fetchMechanic = async () => {
+      const fetchPromotion = async () => {
         setIsLoadingMechanic(true);
         try {
-          const { data, error } = await supabase
-            .from('promo_mechanics')
-            .select('*')
-            .eq('promo_id', editingPromo.id)
-            .single();
+          const details = await getPromotion(editingPromo.id);
+          setLabId(details.lab_id);
+          setTitle(details.title);
+          setDescription(details.description || '');
+          setStartDate(details.start_date);
+          setEndDate(details.end_date);
+          const targetSegment = details.target_segment as { type?: string } | null;
+          setSegment(targetSegment?.type || 'todo');
+          setEstimatedCost(details.estimated_cost || 0);
+          setMaxRedemptions(details.max_redemptions || '');
 
-          if (error && error.code !== 'PGRST116') throw error;
-          
-          if (data) {
-            setExistingMechanicId(data.id);
-            setConditionType(data.condition_type || 'sku_list');
-            setAccountingTreatment(data.accounting_treatment || 'descuento_pie');
-            setRewardType(data.reward_type || 'free_product');
-            
-            // Parse condition config
-            const condConfig = data.condition_config as { skus?: string; min_qty?: number; min_amount?: number; category?: string } | null;
+          const mechanic = details.mechanic;
+          if (mechanic) {
+            setConditionType(mechanic.condition_type || 'sku_list');
+            setAccountingTreatment(mechanic.accounting_treatment || 'descuento_pie');
+            setRewardType(mechanic.reward_type || 'free_product');
+            const condConfig = mechanic.condition_config as { skus?: string[]; quantity?: number; min_amount?: number; category?: string; min_qty?: number } | null;
             if (condConfig) {
-              setConditionValue(condConfig.skus || condConfig.category || '');
-              setConditionQty(condConfig.min_qty || condConfig.min_amount || 0);
+              setConditionValue(Array.isArray(condConfig.skus) ? condConfig.skus.join(', ') : condConfig.category || '');
+              setConditionQty(Number(condConfig.quantity ?? condConfig.min_qty ?? condConfig.min_amount ?? 0));
             }
-            
-            // Parse reward config
-            const rewConfig = data.reward_config as { free_qty?: number; discount_percent?: number; special_price?: number } | null;
+            const rewConfig = mechanic.reward_config as { value?: number; free_qty?: number; discount_percent?: number; special_price?: number } | null;
             if (rewConfig) {
-              setRewardValue(rewConfig.free_qty || rewConfig.discount_percent || rewConfig.special_price || 0);
+              setRewardValue(Number(rewConfig.value ?? rewConfig.free_qty ?? rewConfig.discount_percent ?? rewConfig.special_price ?? 0));
             }
           }
         } catch (err) {
-          console.error('Error loading mechanic:', err);
+          console.error('Error loading promotion:', err);
+          toast.error('Error al cargar la promocion');
         } finally {
           setIsLoadingMechanic(false);
         }
       };
-
-      fetchMechanic();
+      fetchPromotion();
     } else if (open && !editingPromo) {
       resetForm();
-      // Auto-set lab for promoters
       if (isPromoter && promoter) {
         setLabId(promoter.laboratory_id);
       }
     }
   }, [open, editingPromo, isPromoter, promoter]);
 
-  // Approval limit check for promoters
   useEffect(() => {
     if (!isPromoter || !promoter || !open) {
       setApprovalWarning(null);
@@ -177,89 +146,26 @@ export function PromotionFormSheet({
     }
     if (promoter.approval_limit !== null && estimatedCost > 0 && estimatedCost > promoter.approval_limit) {
       setApprovalWarning(
-        `⚠️ El costo estimado (${formatCurrency(estimatedCost)}) supera tu cupo de aprobación (${formatCurrency(promoter.approval_limit)}). La promoción se guardará como "Requiere Aprobación de Gerencia".`
+        `El costo estimado (${formatCurrency(estimatedCost)}) supera tu cupo de aprobacion (${formatCurrency(promoter.approval_limit)}). La promocion se guardara como "Requiere Aprobacion de Gerencia".`
       );
     } else {
       setApprovalWarning(null);
     }
   }, [estimatedCost, isPromoter, promoter, open]);
 
-  // Overdraft protection: check spendable budget when lab or cost changes
   useEffect(() => {
     if (!labId || !open) {
       setBudgetError(null);
       setSpendableBalance(null);
       return;
     }
-
     const checkBudget = async () => {
       try {
-        const budgetRules = await fetchBudgetRulesConfig();
-
-        // Fetch plans for this lab
-        const { data: plans } = await supabase
-          .from('annual_plans')
-          .select('id, total_purchase_goal')
-          .eq('lab_id', labId);
-
-        const planIds = (plans || []).map(p => p.id);
-        let spendable = 0;
-
-        if (planIds.length > 0) {
-          const { data: funds } = await supabase
-            .from('plan_funds')
-            .select('*')
-            .in('plan_id', planIds);
-
-          const purchaseGoals: Record<string, number> = {};
-          (plans || []).forEach(p => { purchaseGoals[p.id] = p.total_purchase_goal || 0; });
-
-          (funds || []).forEach((fund: PlanFund) => {
-            if (isFundSpendable(budgetRules, fund.concept, fund.amount_type)) {
-              if (fund.amount_type === 'fijo') {
-                spendable += fund.amount_value || 0;
-              } else {
-                spendable += ((purchaseGoals[fund.plan_id] || 0) * (fund.amount_value || 0)) / 100;
-              }
-            }
-          });
-        }
-
-        // Fetch existing committed promos (exclude current promo if editing)
-        const query = supabase
-          .from('promotions')
-          .select('estimated_cost')
-          .eq('lab_id', labId)
-          .in('status', ['activa', 'borrador', 'revision', 'aprobada']);
-
-        const { data: promos } = editingPromo
-          ? await query.neq('id', editingPromo.id)
-          : await query;
-
-        const committed = (promos || []).reduce(
-          (sum, p) => sum + (p.estimated_cost || 0), 0
-        );
-
-        // Fetch adjustments
-        const { data: adjustments } = await supabase
-          .from('wallet_ledger')
-          .select('amount')
-          .eq('lab_id', labId)
-          .eq('transaction_type', 'ajuste_manual');
-
-        let positiveAdj = 0;
-        let negativeAdj = 0;
-        (adjustments || []).forEach(adj => {
-          if (adj.amount > 0) positiveAdj += adj.amount;
-          else negativeAdj += Math.abs(adj.amount);
-        });
-
-        const available = (spendable + positiveAdj) - (committed + negativeAdj);
-        setSpendableBalance(available);
-
-        if (estimatedCost > 0 && estimatedCost > available) {
+        const summary = await getPromotionBudget(labId, editingPromo?.id);
+        setSpendableBalance(summary.spendable_balance);
+        if (estimatedCost > 0 && estimatedCost > summary.spendable_balance) {
           setBudgetError(
-            `⛔ Error: No puedes crear esta promoción. Estás excediendo el presupuesto de Marketing asignado (No toques el margen del distribuidor). Saldo gastable disponible: ${formatCurrency(available)}`
+            `Error: No puedes crear esta promocion. Estas excediendo el presupuesto de Marketing asignado. Saldo gastable disponible: ${formatCurrency(summary.spendable_balance)}`
           );
         } else {
           setBudgetError(null);
@@ -268,9 +174,8 @@ export function PromotionFormSheet({
         console.error('Error checking budget:', err);
       }
     };
-
     checkBudget();
-  }, [labId, estimatedCost, open, editingPromo]);
+  }, [labId, estimatedCost, open]);
 
   const resetForm = () => {
     setLabId('');
@@ -287,46 +192,48 @@ export function PromotionFormSheet({
     setEstimatedCost(0);
     setAccountingTreatment('descuento_pie');
     setMaxRedemptions('');
-    setExistingMechanicId(null);
     setBudgetError(null);
     setSpendableBalance(null);
     setApprovalWarning(null);
   };
 
-  const buildConditionConfig = () => {
-    switch (conditionType) {
-      case 'sku_list':
-        return { skus: conditionValue, min_qty: conditionQty };
-      case 'min_amount':
-        return { min_amount: conditionQty };
-      case 'category':
-        return { category: conditionValue, min_qty: conditionQty };
-      default:
-        return {};
-    }
-  };
+  const buildConditionConfig = useMemo(() => {
+    return () => {
+      switch (conditionType) {
+        case 'sku_list':
+          return { skus: conditionValue.split(',').map((item) => item.trim()).filter(Boolean), quantity: conditionQty };
+        case 'min_amount':
+          return { min_amount: conditionQty };
+        case 'category':
+          return { category: conditionValue, min_qty: conditionQty };
+        default:
+          return {};
+      }
+    };
+  }, [conditionType, conditionValue, conditionQty]);
 
-  const buildRewardConfig = () => {
-    switch (rewardType) {
-      case 'free_product':
-        return { free_qty: rewardValue };
-      case 'discount_percent':
-        return { discount_percent: rewardValue };
-      case 'price_override':
-        return { special_price: rewardValue };
-      default:
-        return {};
-    }
-  };
+  const buildRewardConfig = useMemo(() => {
+    return () => {
+      switch (rewardType) {
+        case 'free_product':
+          return { free_qty: rewardValue, value: rewardValue };
+        case 'discount_percent':
+          return { discount_percent: rewardValue, value: rewardValue };
+        case 'price_override':
+          return { special_price: rewardValue, value: rewardValue };
+        default:
+          return {};
+      }
+    };
+  }, [rewardType, rewardValue]);
 
   const handleSubmit = async () => {
-    // Validation
     if (!labId) {
       toast.error('Selecciona un laboratorio');
       return;
     }
     if (!title.trim()) {
-      toast.error('Ingresa un título para la promoción');
+      toast.error('Ingresa un titulo para la promocion');
       return;
     }
     if (!startDate || !endDate) {
@@ -337,23 +244,14 @@ export function PromotionFormSheet({
       toast.error('La fecha de inicio debe ser anterior a la de fin');
       return;
     }
-
-    // Overdraft protection: block if exceeds spendable budget
     if (budgetError) {
       toast.error('No puedes guardar: el costo estimado supera el presupuesto gastable disponible.');
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Determine status: if promoter exceeds approval limit → revision (pending approval)
-      let promoStatus: string = 'borrador';
-      if (isPromoter && promoter && promoter.approval_limit !== null && estimatedCost > promoter.approval_limit) {
-        promoStatus = 'revision';
-      }
-
-      const promotionData = {
+      const payload = {
         lab_id: labId,
         title: title.trim(),
         description: description.trim() || null,
@@ -363,71 +261,23 @@ export function PromotionFormSheet({
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
-        status: promoStatus,
+        mechanic: {
+          condition_type: conditionType,
+          condition_config: buildConditionConfig(),
+          reward_type: rewardType,
+          reward_config: buildRewardConfig(),
+          accounting_treatment: accountingTreatment,
+        },
       };
 
-      const mechanicData = {
-        condition_type: conditionType,
-        condition_config: buildConditionConfig(),
-        reward_type: rewardType,
-        reward_config: buildRewardConfig(),
-        accounting_treatment: accountingTreatment,
-      };
+      const result = isEditing && editingPromo
+        ? await updatePromotion(editingPromo.id, payload)
+        : await createPromotion(payload);
 
-      if (isEditing && editingPromo) {
-        // UPDATE MODE
-        const { error: promoError } = await supabase
-          .from('promotions')
-          .update(promotionData)
-          .eq('id', editingPromo.id);
-
-        if (promoError) throw new Error(`Error al actualizar promoción: ${promoError.message}`);
-
-        // Update or insert mechanic
-        if (existingMechanicId) {
-          const { error: mechError } = await supabase
-            .from('promo_mechanics')
-            .update(mechanicData)
-            .eq('id', existingMechanicId);
-
-          if (mechError) throw new Error(`Error al actualizar mecánica: ${mechError.message}`);
-        } else {
-          const { error: mechError } = await supabase
-            .from('promo_mechanics')
-            .insert({ ...mechanicData, promo_id: editingPromo.id });
-
-          if (mechError) throw new Error(`Error al crear mecánica: ${mechError.message}`);
-        }
-
-        toast.success('Promoción actualizada exitosamente');
+      if (result.requires_manager_approval) {
+        toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
       } else {
-        // CREATE MODE
-        const { data: promoData, error: promoError } = await supabase
-          .from('promotions')
-          .insert(promotionData)
-          .select('id')
-          .single();
-
-        if (promoError) throw new Error(`Error al crear promoción: ${promoError.message}`);
-
-        // Insert mechanic
-        const { error: mechError } = await supabase
-          .from('promo_mechanics')
-          .insert({ ...mechanicData, promo_id: promoData.id });
-
-        if (mechError) {
-          // Rollback
-          await supabase.from('promotions').delete().eq('id', promoData.id);
-          throw new Error(`Error al crear mecánica: ${mechError.message}`);
-        }
-
-        if (promoStatus === 'revision') {
-          toast.success('Promoción creada — Requiere Aprobación de Gerencia', {
-            description: 'El costo estimado supera tu cupo de aprobación.',
-          });
-        } else {
-          toast.success('Promoción creada exitosamente');
-        }
+        toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
       }
 
       resetForm();
@@ -440,22 +290,20 @@ export function PromotionFormSheet({
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{isEditing ? 'Editar Promoción' : 'Nueva Promoción'}</SheetTitle>
+          <SheetTitle>{isEditing ? 'Editar Promocion' : 'Nueva Promocion'}</SheetTitle>
           <SheetDescription>
-            {isEditing ? 'Modifica los datos de la promoción' : 'Crea una nueva promoción comercial'}
+            {isEditing ? 'Modifica los datos de la promocion' : 'Crea una nueva promocion comercial'}
           </SheetDescription>
         </SheetHeader>
 
@@ -467,7 +315,6 @@ export function PromotionFormSheet({
         ) : (
           <div className="mt-6">
             <Accordion type="multiple" defaultValue={['general', 'mechanics', 'financial']} className="space-y-4">
-              {/* SECTION A: General Data */}
               <AccordionItem value="general" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
@@ -481,9 +328,9 @@ export function PromotionFormSheet({
                     {isPromoter ? (
                       <div className="flex items-center gap-2 p-2 bg-muted rounded-md border">
                         <span className="text-sm font-medium">
-                          {laboratories.find(l => l.id === labId)?.name || 'Laboratorio asignado'}
+                          {laboratories.find((l) => l.id === labId)?.name || 'Laboratorio asignado'}
                         </span>
-                        <span className="text-xs text-muted-foreground ml-auto">🔒 Asignado</span>
+                        <span className="text-xs text-muted-foreground ml-auto">Asignado</span>
                       </div>
                     ) : (
                       <Select value={labId} onValueChange={setLabId}>
@@ -502,58 +349,35 @@ export function PromotionFormSheet({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="title">Título de la Promoción</Label>
-                    <Input
-                      id="title"
-                      placeholder="Ej: Pague 10 Lleve 12 - Ganadería"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
+                    <Label htmlFor="title">Titulo de la Promocion</Label>
+                    <Input id="title" placeholder="Ej: Pague 10 Lleve 12 - Ganaderia" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Descripción (opcional)</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Descripción detallada de la promoción..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={2}
-                    />
+                    <Label htmlFor="description">Descripcion (opcional)</Label>
+                    <Textarea id="description" placeholder="Descripcion detallada de la promocion..." value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="startDate">Fecha Inicio</Label>
-                      <Input
-                        id="startDate"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                      />
+                      <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="endDate">Fecha Fin</Label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                      />
+                      <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="segment">Segmentación</Label>
+                    <Label htmlFor="segment">Segmentacion</Label>
                     <Select value={segment} onValueChange={setSegment}>
                       <SelectTrigger id="segment">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {SEGMENT_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -561,54 +385,38 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              {/* SECTION B: Mechanics */}
               <AccordionItem value="mechanics" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-amber-500" />
-                    <span className="font-semibold">Mecánica de la Promoción</span>
+                    <span className="font-semibold">Mecanica de la Promocion</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-6 pt-4">
-                  {/* Condition */}
                   <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                    <h4 className="text-sm font-medium text-foreground">
-                      Si el cliente compra... (Condición)
-                    </h4>
-                    
+                    <h4 className="text-sm font-medium text-foreground">Si el cliente compra... (Condicion)</h4>
                     <div className="space-y-2">
-                      <Label>Tipo de Condición</Label>
+                      <Label>Tipo de Condicion</Label>
                       <Select value={conditionType} onValueChange={setConditionType}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {CONDITION_TYPES.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
+                          {CONDITION_TYPES.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       {conditionType !== 'min_amount' && (
                         <div className="space-y-2">
-                          <Label>
-                            {conditionType === 'sku_list' ? 'SKUs (separados por coma)' : 'Categoría'}
-                          </Label>
+                          <Label>{conditionType === 'sku_list' ? 'SKUs (separados por coma)' : 'Categoria'}</Label>
                           <Input
-                            placeholder={conditionType === 'sku_list' ? 'SKU001, SKU002' : 'Ganadería'}
+                            placeholder={conditionType === 'sku_list' ? 'SKU001, SKU002' : 'Ganaderia'}
                             value={conditionValue}
                             onChange={(e) => setConditionValue(e.target.value)}
                           />
                         </div>
                       )}
                       <div className="space-y-2">
-                        <Label>
-                          {conditionType === 'min_amount' ? 'Monto Mínimo ($)' : 'Cantidad Requerida'}
-                        </Label>
+                        <Label>{conditionType === 'min_amount' ? 'Monto Minimo ($)' : 'Cantidad Requerida'}</Label>
                         <Input
                           type="number"
                           min={0}
@@ -620,28 +428,17 @@ export function PromotionFormSheet({
                     </div>
                   </div>
 
-                  {/* Reward */}
                   <div className="p-4 bg-green-500/10 rounded-lg space-y-4">
-                    <h4 className="text-sm font-medium text-foreground">
-                      Entonces recibe... (Beneficio)
-                    </h4>
-                    
+                    <h4 className="text-sm font-medium text-foreground">Entonces recibe... (Beneficio)</h4>
                     <div className="space-y-2">
                       <Label>Tipo de Beneficio</Label>
                       <Select value={rewardType} onValueChange={setRewardType}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {REWARD_TYPES.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
+                          {REWARD_TYPES.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="space-y-2">
                       <Label>
                         {rewardType === 'free_product' && 'Cantidad a Regalar'}
@@ -661,7 +458,6 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              {/* SECTION C: Financial */}
               <AccordionItem value="financial" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
@@ -673,54 +469,30 @@ export function PromotionFormSheet({
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="estimatedCost">Costo Estimado ($)</Label>
-                      <Input
-                        id="estimatedCost"
-                        type="number"
-                        min={0}
-                        value={estimatedCost || ''}
-                        onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)}
-                        placeholder="1000000"
-                      />
+                      <Input id="estimatedCost" type="number" min={0} value={estimatedCost || ''} onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)} placeholder="1000000" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="maxRedemptions">Máx. Redenciones (opcional)</Label>
-                      <Input
-                        id="maxRedemptions"
-                        type="number"
-                        min={0}
-                        value={maxRedemptions}
-                        onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value) : '')}
-                        placeholder="500"
-                      />
+                      <Label htmlFor="maxRedemptions">Max. Redenciones (opcional)</Label>
+                      <Input id="maxRedemptions" type="number" min={0} value={maxRedemptions} onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value, 10) : '')} placeholder="500" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Tratamiento Contable (ERP)</Label>
                     <Select value={accountingTreatment} onValueChange={setAccountingTreatment}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {ACCOUNTING_TREATMENTS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
+                        {ACCOUNTING_TREATMENTS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Define cómo se reflejará esta promoción en SAP Business One
-                    </p>
+                    <p className="text-xs text-muted-foreground">Define como se reflejara esta promocion en SAP Business One</p>
                   </div>
 
                   {estimatedCost > 0 && !budgetError && (
                     <div className="p-3 bg-primary/10 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Costo Estimado</span>
-                        <span className="text-lg font-bold text-primary">
-                          {formatCurrency(estimatedCost)}
-                        </span>
+                        <span className="text-lg font-bold text-primary">{formatCurrency(estimatedCost)}</span>
                       </div>
                       {spendableBalance !== null && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -730,51 +502,35 @@ export function PromotionFormSheet({
                     </div>
                   )}
 
-                  {/* Overdraft blocking error */}
                   {budgetError && (
                     <Alert variant="destructive" className="border-destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription className="font-medium">
-                        {budgetError}
-                      </AlertDescription>
+                      <AlertDescription className="font-medium">{budgetError}</AlertDescription>
                     </Alert>
                   )}
 
-                  {/* Approval limit warning for promoters */}
                   {approvalWarning && !budgetError && (
                     <Alert className="border-amber-300 bg-amber-50">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="font-medium text-amber-800">
-                        {approvalWarning}
-                      </AlertDescription>
+                      <AlertDescription className="font-medium text-amber-800">{approvalWarning}</AlertDescription>
                     </Alert>
                   )}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-6 mt-6 border-t">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
+              <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button
-                className="flex-1"
-                onClick={handleSubmit}
-                disabled={isSubmitting || !!budgetError}
-              >
+              <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting || !!budgetError}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     {isEditing ? 'Actualizando...' : 'Guardando...'}
                   </>
                 ) : (
-                  isEditing ? 'Actualizar Promoción' : 'Guardar Promoción'
+                  isEditing ? 'Actualizar Promocion' : 'Guardar Promocion'
                 )}
               </Button>
             </div>

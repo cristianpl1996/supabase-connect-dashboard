@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, type ReactNode } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ExternalPromoter {
   id: string;
@@ -11,14 +11,13 @@ export interface ExternalPromoter {
 }
 
 interface PromoterContextValue {
-  /** null = still loading, undefined = not a promoter, ExternalPromoter = is promoter */
-  promoter: ExternalPromoter | null | undefined;
+  promoter: ExternalPromoter | undefined;
   isPromoter: boolean;
   isLoading: boolean;
 }
 
 const PromoterContext = createContext<PromoterContextValue>({
-  promoter: null,
+  promoter: undefined,
   isPromoter: false,
   isLoading: true,
 });
@@ -32,46 +31,18 @@ interface PromoterProviderProps {
 }
 
 export function PromoterProvider({ children }: PromoterProviderProps) {
-  const [promoter, setPromoter] = useState<ExternalPromoter | null | undefined>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    checkPromoterStatus();
-  }, []);
-
-  async function checkPromoterStatus() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        // No authenticated user — not a promoter
-        setPromoter(undefined);
-        setIsLoading(false);
-        return;
+  const { user, isLoading } = useAuth();
+  const isPromoter = user?.role === 'promotor' && !!user.laboratory_id;
+  const promoter = isPromoter
+    ? {
+        id: String(user?.id ?? ''),
+        user_id: String(user?.id ?? ''),
+        laboratory_id: user?.laboratory_id ?? '',
+        approval_limit: user?.approval_limit ?? null,
+        is_active: true,
+        created_at: '',
       }
-
-      const { data, error } = await supabase
-        .from('external_promoters')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking promoter status:', error);
-        setPromoter(undefined);
-      } else {
-        setPromoter(data ?? undefined);
-      }
-    } catch (err) {
-      console.error('Error in promoter check:', err);
-      setPromoter(undefined);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const isPromoter = promoter !== null && promoter !== undefined;
+    : undefined;
 
   return (
     <PromoterContext.Provider value={{ promoter, isPromoter, isLoading }}>

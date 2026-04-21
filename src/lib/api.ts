@@ -53,6 +53,11 @@ export interface AuthUser {
   email?: string;
   full_name?: string;
   role?: string;
+  distributor_id?: number;
+  sales_representative_id?: number;
+  laboratory_id?: string;
+  approval_limit?: number | null;
+  is_promoter?: boolean;
 }
 
 export interface TokenResponse {
@@ -179,6 +184,105 @@ export interface PlanPayload {
   funds: PlanFundPayload[];
 }
 
+export type PromoStatus = "borrador" | "revision" | "aprobada" | "activa" | "pausada" | "finalizada" | "cancelada";
+export type SourceRole = "laboratorio" | "distribuidor" | "admin";
+export type WalletTxType = "deposito_plan" | "ajuste_manual" | "reserva_promo" | "gasto_real" | "reintegro_no_usado";
+
+export interface PromoMechanic {
+  id: string;
+  promo_id: string;
+  condition_type: string | null;
+  condition_config: Record<string, unknown> | null;
+  reward_type: string | null;
+  reward_config: Record<string, unknown> | null;
+  accounting_treatment: string | null;
+}
+
+export interface Promotion {
+  id: string;
+  lab_id: string;
+  laboratory_name?: string | null;
+  created_by_role: SourceRole;
+  title: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  status: PromoStatus;
+  estimated_cost: number | null;
+  max_redemptions: number | null;
+  current_redemptions: number;
+  target_segment: Record<string, unknown> | null;
+  flash_card_url: string | null;
+  marketing_copy: string | null;
+  created_at: string;
+  mechanic?: PromoMechanic | null;
+  budget_summary?: PromotionBudgetSummary;
+  requires_manager_approval?: boolean;
+}
+
+export interface PromotionBudgetSummary {
+  lab_id: string;
+  spendable_balance: number;
+  base_spendable_budget: number;
+  committed_amount: number;
+  positive_adjustments: number;
+  negative_adjustments: number;
+}
+
+export interface BudgetRule {
+  id: string;
+  concept_key: string;
+  label: string;
+  is_budget_source: boolean;
+  created_at: string;
+}
+
+export interface WalletLedger {
+  id: string;
+  lab_id: string;
+  plan_id: string | null;
+  promo_id: string | null;
+  transaction_type: WalletTxType;
+  amount: number;
+  description: string | null;
+  transaction_date: string;
+  reconciled_with_erp: boolean;
+  erp_doc_num: string | null;
+}
+
+export interface PromoMechanicPayload {
+  condition_type: string | null;
+  condition_config: Record<string, unknown> | null;
+  reward_type: string | null;
+  reward_config: Record<string, unknown> | null;
+  accounting_treatment: string | null;
+}
+
+export interface PromotionPayload {
+  lab_id: string;
+  created_by_role?: SourceRole;
+  title: string;
+  description?: string | null;
+  start_date: string;
+  end_date: string;
+  status?: PromoStatus;
+  estimated_cost?: number | null;
+  max_redemptions?: number | null;
+  target_segment?: Record<string, unknown> | null;
+  flash_card_url?: string | null;
+  marketing_copy?: string | null;
+  mechanic: PromoMechanicPayload;
+}
+
+export interface PromotionImportRowPayload {
+  laboratory: string;
+  title: string;
+  sku_condition?: string | null;
+  quantity_condition?: number | null;
+  benefit_type?: string | null;
+  benefit_value?: number | null;
+}
+
 export function listLaboratories(): Promise<Laboratory[]> {
   return apiList<Laboratory>("/api/v1/laboratories?limit=500&offset=0");
 }
@@ -232,4 +336,66 @@ export function updatePlanStatus(id: string, status: Plan["status"]): Promise<Pl
 
 export async function deletePlan(id: string): Promise<void> {
   await apiDetail<Plan>(`/api/v1/plans/${id}`, { method: "DELETE" });
+}
+
+export function listPromotions(): Promise<Promotion[]> {
+  return apiList<Promotion>("/api/v1/promotions?limit=500&offset=0");
+}
+
+export function getPromotion(id: string): Promise<Promotion> {
+  return apiDetail<Promotion>(`/api/v1/promotions/${id}`);
+}
+
+export function createPromotion(payload: PromotionPayload): Promise<Promotion> {
+  return apiDetail<Promotion>("/api/v1/promotions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updatePromotion(id: string, payload: Partial<PromotionPayload>): Promise<Promotion> {
+  return apiDetail<Promotion>(`/api/v1/promotions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updatePromotionStatus(id: string, status: PromoStatus): Promise<Promotion> {
+  return apiDetail<Promotion>(`/api/v1/promotions/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function clonePromotion(id: string): Promise<Promotion> {
+  return apiDetail<Promotion>(`/api/v1/promotions/${id}/clone`, { method: "POST" });
+}
+
+export async function deletePromotion(id: string): Promise<void> {
+  await apiDetail<Promotion>(`/api/v1/promotions/${id}`, { method: "DELETE" });
+}
+
+export async function importPromotions(rows: PromotionImportRowPayload[]): Promise<{ imported_count: number; skipped_count: number; errors: string[] }> {
+  return apiDetail<{ imported_count: number; skipped_count: number; errors: string[] }>("/api/v1/promotions/import", {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+}
+
+export function getPromotionBudget(labId: string, excludePromoId?: string): Promise<PromotionBudgetSummary> {
+  const qs = new URLSearchParams();
+  if (excludePromoId) qs.set("exclude_promo_id", excludePromoId);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiDetail<PromotionBudgetSummary>(`/api/v1/laboratories/${labId}/promotion-budget${suffix}`);
+}
+
+export function listBudgetRules(): Promise<BudgetRule[]> {
+  return apiList<BudgetRule>("/api/v1/budget-rules");
+}
+
+export function updateBudgetRule(conceptKey: string, is_budget_source: boolean): Promise<BudgetRule> {
+  return apiDetail<BudgetRule>(`/api/v1/budget-rules/${conceptKey}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_budget_source }),
+  });
 }
