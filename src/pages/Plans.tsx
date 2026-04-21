@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { deletePlan, listLaboratories, listPlans, updatePlanStatus } from "@/lib/api";
 import { AnnualPlan, Laboratory } from "@/types/database";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,20 +76,14 @@ const Plans = () => {
       setLoading(true);
       setError(null);
 
-      const [plansRes, labsRes] = await Promise.all([
-        supabase.from("annual_plans").select("*").order("year", { ascending: false }),
-        supabase.from("laboratories").select("*").order("name"),
-      ]);
+      const [plansData, labsData] = await Promise.all([listPlans(), listLaboratories()]);
 
-      if (plansRes.error) throw new Error(`Planes: ${plansRes.error.message}`);
-      if (labsRes.error) throw new Error(`Laboratorios: ${labsRes.error.message}`);
-
-      setPlans(plansRes.data || []);
-      setLaboratories(labsRes.data || []);
+      setPlans(plansData || []);
+      setLaboratories(labsData || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido";
       if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        setError(`Error de red/CORS: No se pudo conectar a Supabase. Detalles: ${errorMessage}`);
+        setError(`Error de red/CORS: No se pudo conectar a la API. Detalles: ${errorMessage}`);
       } else {
         setError(errorMessage);
       }
@@ -153,10 +147,7 @@ const Plans = () => {
 
     setIsDeleting(true);
     try {
-      const { error } = await supabase.from("annual_plans").delete().eq("id", planToDelete.id);
-
-      if (error) throw error;
-
+      await deletePlan(planToDelete.id);
       toast.success("Plan eliminado exitosamente");
       fetchData();
     } catch (err) {
@@ -178,14 +169,8 @@ const Plans = () => {
     const newStatus = plan.status === "activo" ? "cerrado" : "activo";
     setTogglingStatusId(plan.id);
     try {
-      const { error } = await supabase
-        .from("annual_plans")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", plan.id);
-
-      if (error) throw error;
-
-      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)));
+      const updatedPlan = await updatePlanStatus(plan.id, newStatus);
+      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: updatedPlan.status } : p)));
       toast.success(`Plan ${newStatus === "activo" ? "activado" : "desactivado"}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error desconocido";

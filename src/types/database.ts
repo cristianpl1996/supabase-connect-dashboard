@@ -6,10 +6,12 @@ export type SourceRole = 'laboratorio' | 'distribuidor' | 'admin';
 
 export interface Laboratory {
   id: string;
-  erp_code: string;
+  erp_code: string | null;
   name: string;
   tax_id: string | null;
   logo_url: string | null;
+  brand_color: string | null;
+  annual_goal: number | null;
   created_at: string;
 }
 
@@ -27,15 +29,17 @@ export interface Product {
 export interface AnnualPlan {
   id: string;
   lab_id: string;
+  laboratory_name?: string | null;
   year: number;
   name: string;
-  status: string;
+  status: 'activo' | 'negociacion' | 'cerrado';
   contract_pdf_url: string | null;
   ai_extracted_data: Record<string, unknown> | null;
   total_purchase_goal: number | null;
   total_budget_allocated: number | null;
   created_at: string;
   updated_at: string;
+  funds?: PlanFund[];
 }
 
 export interface PlanFund {

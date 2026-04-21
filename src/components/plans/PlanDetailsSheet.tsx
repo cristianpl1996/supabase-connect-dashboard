@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getPlan } from '@/lib/api';
 import { AnnualPlan, PlanFund } from '@/types/database';
 import {
   Sheet,
@@ -22,7 +22,7 @@ interface PlanDetailsSheetProps {
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
   activo: { label: 'Activo', variant: 'default' },
-  negociacion: { label: 'En Negociación', variant: 'secondary' },
+  negociacion: { label: 'En Negociacion', variant: 'secondary' },
   cerrado: { label: 'Cerrado', variant: 'outline' },
 };
 
@@ -32,24 +32,18 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
 
   useEffect(() => {
     if (open && plan) {
-      const fetchFunds = async () => {
+      const fetchPlan = async () => {
         setLoading(true);
         try {
-          const { data, error } = await supabase
-            .from('plan_funds')
-            .select('*')
-            .eq('plan_id', plan.id)
-            .order('concept');
-
-          if (error) throw error;
-          setFunds(data || []);
+          const details = await getPlan(plan.id);
+          setFunds(details.funds || []);
         } catch (err) {
           console.error('Error loading funds:', err);
         } finally {
           setLoading(false);
         }
       };
-      fetchFunds();
+      fetchPlan();
     }
   }, [open, plan]);
 
@@ -62,7 +56,6 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
     }).format(value);
   };
 
-  // Calculate resolved amounts for percentage-based funds
   const resolvedFunds = funds.map((fund) => {
     const resolvedAmount = fund.amount_type === 'porcentaje'
       ? (plan?.total_purchase_goal || 0) * (fund.amount_value || 0) / 100
@@ -71,7 +64,6 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
   });
 
   const totalBudget = plan?.total_budget_allocated || 0;
-
   const statusConfig = STATUS_CONFIG[plan?.status || 'activo'] || STATUS_CONFIG.activo;
 
   if (!plan) return null;
@@ -81,16 +73,15 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <div className="flex items-center gap-2">
-            <SheetTitle className="text-xl">{labName || 'Laboratorio'}</SheetTitle>
+            <SheetTitle className="text-xl">{labName || plan.laboratory_name || 'Laboratorio'}</SheetTitle>
             <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
           </div>
           <SheetDescription>
-            Plan Año {plan.year}
+            Plan Ano {plan.year}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -114,7 +105,6 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
 
           <Separator />
 
-          {/* Funds Breakdown */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
               Desglose de Fondos ({funds.length})
@@ -133,8 +123,8 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
             ) : (
               <div className="space-y-4">
                 {resolvedFunds.map((fund) => {
-                  const percentage = totalBudget > 0 
-                    ? (fund.resolvedAmount / totalBudget) * 100 
+                  const percentage = totalBudget > 0
+                    ? (fund.resolvedAmount / totalBudget) * 100
                     : 0;
 
                   return (
@@ -167,20 +157,19 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
             )}
           </div>
 
-          {/* Budget Visualization */}
           {funds.length > 0 && (
             <>
               <Separator />
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                  Distribución Visual
+                  Distribucion Visual
                 </h3>
                 <div className="flex h-6 rounded-lg overflow-hidden">
                   {resolvedFunds.map((fund, index) => {
-                    const percentage = totalBudget > 0 
-                      ? (fund.resolvedAmount / totalBudget) * 100 
+                    const percentage = totalBudget > 0
+                      ? (fund.resolvedAmount / totalBudget) * 100
                       : 0;
-                    
+
                     const colors = [
                       'bg-primary',
                       'bg-blue-500',
@@ -189,7 +178,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                       'bg-purple-500',
                       'bg-pink-500',
                     ];
-                    
+
                     return (
                       <div
                         key={fund.id}
@@ -210,7 +199,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                       'bg-purple-500',
                       'bg-pink-500',
                     ];
-                    
+
                     return (
                       <div key={fund.id} className="flex items-center gap-1.5 text-xs">
                         <div className={`w-3 h-3 rounded ${colors[index % colors.length]}`} />

@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import {
+  createLaboratory as createLaboratoryRequest,
+  deleteLaboratory as deleteLaboratoryRequest,
+  listLaboratories,
+  updateLaboratory as updateLaboratoryRequest,
+} from '@/lib/api';
 
 export interface Laboratory {
   id: string;
-  erp_code: string;
+  erp_code: string | null;
   name: string;
   tax_id: string | null;
   logo_url: string | null;
@@ -26,17 +31,14 @@ export function useLaboratories() {
 
   const fetchLabs = useCallback(async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('laboratories')
-      .select('*')
-      .order('name');
-
-    if (error) {
-      console.error('Error fetching laboratories:', error);
-    } else {
+    try {
+      const data = await listLaboratories();
       setLaboratories(data || []);
+    } catch (error) {
+      console.error('Error fetching laboratories:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -44,38 +46,27 @@ export function useLaboratories() {
   }, [fetchLabs]);
 
   const createLab = useCallback(async (formData: LaboratoryFormData) => {
-    const { data, error } = await supabase
-      .from('laboratories')
-      .insert({
-        name: formData.name,
-        erp_code: formData.erp_code || null,
-        logo_url: formData.logo_url || null,
-        brand_color: formData.brand_color || null,
-        annual_goal: formData.annual_goal,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await createLaboratoryRequest({
+      name: formData.name,
+      erp_code: formData.erp_code || null,
+      tax_id: null,
+      logo_url: formData.logo_url || null,
+      brand_color: formData.brand_color || null,
+      annual_goal: formData.annual_goal,
+    });
     setLaboratories((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     return data;
   }, []);
 
   const updateLab = useCallback(async (id: string, formData: LaboratoryFormData) => {
-    const { data, error } = await supabase
-      .from('laboratories')
-      .update({
-        name: formData.name,
-        erp_code: formData.erp_code || null,
-        logo_url: formData.logo_url || null,
-        brand_color: formData.brand_color || null,
-        annual_goal: formData.annual_goal,
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const data = await updateLaboratoryRequest(id, {
+      name: formData.name,
+      erp_code: formData.erp_code || null,
+      tax_id: null,
+      logo_url: formData.logo_url || null,
+      brand_color: formData.brand_color || null,
+      annual_goal: formData.annual_goal,
+    });
     setLaboratories((prev) =>
       prev.map((l) => (l.id === id ? data : l)).sort((a, b) => a.name.localeCompare(b.name))
     );
@@ -83,12 +74,7 @@ export function useLaboratories() {
   }, []);
 
   const deleteLab = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from('laboratories')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
+    await deleteLaboratoryRequest(id);
     setLaboratories((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
