@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { getNotifications, type NotificationItem } from "@/lib/api";
+import { getNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/api";
 
 function getInitials(name?: string, username?: string): string {
   const source = name ?? username ?? "U";
@@ -43,10 +43,21 @@ export function AppLayout({ children }: AppLayoutProps) {
   const displayName = user?.full_name ?? user?.username ?? "Usuario";
   const displayRole = user?.role ?? "Administrador";
 
+  const loadNotifications = async () => {
+    try {
+      const response = await getNotifications();
+      setNotifications(response.items);
+      setUnreadCount(response.unread_count);
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-
-    const loadNotifications = async () => {
+    const guardedLoadNotifications = async () => {
       try {
         const response = await getNotifications();
         if (!mounted) return;
@@ -60,9 +71,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       }
     };
 
-    void loadNotifications();
+    void guardedLoadNotifications();
     const interval = window.setInterval(() => {
-      void loadNotifications();
+      void guardedLoadNotifications();
     }, 30000);
 
     return () => {
@@ -76,8 +87,25 @@ export function AppLayout({ children }: AppLayoutProps) {
     navigate("/login", { replace: true });
   };
 
-  const handleNotificationClick = (notification: NotificationItem) => {
+  const handleNotificationClick = async (notification: NotificationItem) => {
+    if (!notification.is_read) {
+      try {
+        await markNotificationRead(notification.notification_key);
+      } catch (error) {
+        console.error("Error marking notification as read:", error);
+      }
+    }
+    await loadNotifications();
     navigate(notification.route);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      await loadNotifications();
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
   };
 
   return (
@@ -111,7 +139,19 @@ export function AppLayout({ children }: AppLayoutProps) {
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="w-96">
-                <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <DropdownMenuLabel className="px-0">Notificaciones</DropdownMenuLabel>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={handleMarkAllAsRead}
+                    disabled={unreadCount === 0}
+                  >
+                    Marcar todas como leidas
+                  </Button>
+                </div>
                 <DropdownMenuSeparator />
                 {notifications.length === 0 ? (
                   <DropdownMenuItem disabled>No hay notificaciones nuevas</DropdownMenuItem>
@@ -119,12 +159,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                   notifications.map((notification) => (
                     <DropdownMenuItem
                       key={notification.id}
-                      className="cursor-pointer items-start gap-3 py-3"
-                      onClick={() => handleNotificationClick(notification)}
+                      className={`cursor-pointer items-start gap-3 py-3 ${notification.is_read ? "opacity-70" : ""}`}
+                      onClick={() => void handleNotificationClick(notification)}
                     >
                       <div
                         className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                          notification.level === "critical"
+                          notification.is_read
+                            ? "bg-muted-foreground/40"
+                            : notification.level === "critical"
                             ? "bg-red-500"
                             : notification.level === "warning"
                               ? "bg-amber-500"
@@ -132,7 +174,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                         }`}
                       />
                       <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">{notification.title}</p>
+                        <p className={`text-sm leading-none ${notification.is_read ? "font-normal" : "font-medium"}`}>
+                          {notification.title}
+                        </p>
                         <p className="text-xs leading-5 text-muted-foreground">{notification.message}</p>
                       </div>
                     </DropdownMenuItem>

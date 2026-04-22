@@ -92,6 +92,16 @@ async function apiDetail<T>(path: string, options: RequestInit = {}): Promise<T>
   return res.data;
 }
 
+function withQuery(path: string, params: Record<string, string | number | boolean | null | undefined>): string {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === "") return;
+    query.set(key, String(value));
+  });
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
+}
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 export interface CustomerParams {
   search?: string;
@@ -381,16 +391,66 @@ export interface ActivePromotionExecutionView {
 
 export interface NotificationItem {
   id: string;
+  notification_key: string;
   title: string;
   message: string;
   level: "info" | "warning" | "critical";
   route: string;
   created_at: string;
+  is_read: boolean;
 }
 
 export interface NotificationsSummary {
   items: NotificationItem[];
   unread_count: number;
+}
+
+export interface LaboratoryListParams {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PlanListParams {
+  search?: string;
+  status?: Plan["status"];
+  lab_id?: string;
+  year?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PromotionListParams {
+  search?: string;
+  status?: PromoStatus;
+  lab_id?: string;
+  created_by_role?: SourceRole;
+  start_date_from?: string;
+  start_date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CalendarPromotionListParams {
+  search?: string;
+  status?: PromoStatus;
+  lab_id?: string;
+  category?: string;
+  start_date_from?: string;
+  start_date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PromoExecutionListParams {
+  search?: string;
+  lab_id?: string;
+  promo_id?: string;
+  is_billed_to_lab?: boolean;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface PromoMechanicPayload {
@@ -426,8 +486,12 @@ export interface PromotionImportRowPayload {
   benefit_value?: number | null;
 }
 
-export function listLaboratories(): Promise<Laboratory[]> {
-  return apiList<Laboratory>("/api/v1/laboratories?limit=500&offset=0");
+export function listLaboratories(params: LaboratoryListParams = {}): Promise<Laboratory[]> {
+  return apiList<Laboratory>(withQuery("/api/v1/laboratories", {
+    search: params.search,
+    limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function createLaboratory(payload: LaboratoryPayload): Promise<Laboratory> {
@@ -448,8 +512,15 @@ export async function deleteLaboratory(id: string): Promise<void> {
   await apiDetail<Laboratory>(`/api/v1/laboratories/${id}`, { method: "DELETE" });
 }
 
-export function listPlans(): Promise<Plan[]> {
-  return apiList<Plan>("/api/v1/plans?limit=500&offset=0");
+export function listPlans(params: PlanListParams = {}): Promise<Plan[]> {
+  return apiList<Plan>(withQuery("/api/v1/plans", {
+    search: params.search,
+    status: params.status,
+    lab_id: params.lab_id,
+    year: params.year,
+    limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function getPlan(id: string): Promise<Plan> {
@@ -481,8 +552,17 @@ export async function deletePlan(id: string): Promise<void> {
   await apiDetail<Plan>(`/api/v1/plans/${id}`, { method: "DELETE" });
 }
 
-export function listPromotions(): Promise<Promotion[]> {
-  return apiList<Promotion>("/api/v1/promotions?limit=500&offset=0");
+export function listPromotions(params: PromotionListParams = {}): Promise<Promotion[]> {
+  return apiList<Promotion>(withQuery("/api/v1/promotions", {
+    search: params.search,
+    status: params.status,
+    lab_id: params.lab_id,
+    created_by_role: params.created_by_role,
+    start_date_from: params.start_date_from,
+    start_date_to: params.start_date_to,
+    limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function getPromotion(id: string): Promise<Promotion> {
@@ -558,12 +638,27 @@ export function getDashboardSummary(): Promise<DashboardSummary> {
   return apiDetail<DashboardSummary>("/api/v1/dashboard/summary");
 }
 
-export function listCalendarPromotions(): Promise<CalendarPromotion[]> {
-  return apiList<CalendarPromotion>("/api/v1/calendar/promotions?limit=500&offset=0");
+export function listCalendarPromotions(params: CalendarPromotionListParams = {}): Promise<CalendarPromotion[]> {
+  return apiList<CalendarPromotion>(withQuery("/api/v1/calendar/promotions", {
+    search: params.search,
+    status: params.status,
+    lab_id: params.lab_id,
+    category: params.category,
+    start_date_from: params.start_date_from,
+    start_date_to: params.start_date_to,
+    limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
 }
 
-export function listMarketingPromotions(): Promise<Promotion[]> {
-  return apiList<Promotion>("/api/v1/marketing/promotions?limit=500&offset=0");
+export function listMarketingPromotions(params: PromotionListParams = {}): Promise<Promotion[]> {
+  return apiList<Promotion>(withQuery("/api/v1/marketing/promotions", {
+    search: params.search,
+    status: params.status,
+    lab_id: params.lab_id,
+    limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function generateMarketingCopy(id: string): Promise<MarketingCopyResponse> {
@@ -587,12 +682,26 @@ export function uploadMarketingFlashcard(
   });
 }
 
-export function listPromoExecutions(): Promise<PromoExecution[]> {
-  return apiList<PromoExecution>("/api/v1/promo-executions?limit=50&offset=0");
+export function listPromoExecutions(params: PromoExecutionListParams = {}): Promise<PromoExecution[]> {
+  return apiList<PromoExecution>(withQuery("/api/v1/promo-executions", {
+    search: params.search,
+    lab_id: params.lab_id,
+    promo_id: params.promo_id,
+    is_billed_to_lab: params.is_billed_to_lab,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    limit: params.limit ?? 50,
+    offset: params.offset ?? 0,
+  }));
 }
 
-export function listActiveExecutionPromotions(): Promise<ActivePromotionExecutionView[]> {
-  return apiList<ActivePromotionExecutionView>("/api/v1/promo-executions/active-promotions?limit=100&offset=0");
+export function listActiveExecutionPromotions(params: Pick<PromoExecutionListParams, "search" | "lab_id" | "limit" | "offset"> = {}): Promise<ActivePromotionExecutionView[]> {
+  return apiList<ActivePromotionExecutionView>(withQuery("/api/v1/promo-executions/active-promotions", {
+    search: params.search,
+    lab_id: params.lab_id,
+    limit: params.limit ?? 100,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function simulatePromoExecution(): Promise<PromoExecutionSimulationResult> {
@@ -610,4 +719,16 @@ export function updatePromoExecutionBilled(id: string, is_billed_to_lab: boolean
 
 export function getNotifications(): Promise<NotificationsSummary> {
   return apiDetail<NotificationsSummary>("/api/v1/notifications");
+}
+
+export function markNotificationRead(notificationKey: string): Promise<{ notification_key: string; is_read: boolean }> {
+  return apiDetail<{ notification_key: string; is_read: boolean }>(`/api/v1/notifications/${notificationKey}/read`, {
+    method: "POST",
+  });
+}
+
+export function markAllNotificationsRead(): Promise<{ updated_count: number }> {
+  return apiDetail<{ updated_count: number }>("/api/v1/notifications/read-all", {
+    method: "POST",
+  });
 }
