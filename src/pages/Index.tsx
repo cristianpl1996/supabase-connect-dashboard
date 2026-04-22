@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardSummary, getDashboardSummary } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,26 +20,16 @@ import {
 
 const Index = () => {
   const navigate = useNavigate();
-  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void fetchDashboard();
-  }, []);
-
-  const fetchDashboard = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setDashboard(await getDashboardSummary());
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: dashboard,
+    isLoading: loading,
+    error,
+  } = useQuery<DashboardSummary>({
+    queryKey: ["dashboard-summary"],
+    queryFn: getDashboardSummary,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("es-CO", {
@@ -95,7 +85,9 @@ const Index = () => {
               <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-medium text-destructive">Error de Conexion</p>
-                <p className="text-sm text-destructive/90">{error}</p>
+                <p className="text-sm text-destructive/90">
+                  {error instanceof Error ? error.message : "Error desconocido"}
+                </p>
               </div>
             </div>
           </CardContent>

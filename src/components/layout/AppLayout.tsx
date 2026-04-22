@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, LogOut, Menu } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
@@ -36,51 +37,21 @@ export function AppLayout({ children }: AppLayoutProps) {
   const isMobile = useIsMobile();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const initials = getInitials(user?.full_name, user?.username);
   const displayName = user?.full_name ?? user?.username ?? "Usuario";
   const displayRole = user?.role ?? "Administrador";
 
-  const loadNotifications = async () => {
-    try {
-      const response = await getNotifications();
-      setNotifications(response.items);
-      setUnreadCount(response.unread_count);
-    } catch (error) {
-      console.error("Error loading notifications:", error);
-      setNotifications([]);
-      setUnreadCount(0);
-    }
-  };
+  const { data: notificationsSummary, refetch: refetchNotifications } = useQuery({
+    queryKey: ["header-notifications"],
+    queryFn: getNotifications,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    let mounted = true;
-    const guardedLoadNotifications = async () => {
-      try {
-        const response = await getNotifications();
-        if (!mounted) return;
-        setNotifications(response.items);
-        setUnreadCount(response.unread_count);
-      } catch (error) {
-        console.error("Error loading notifications:", error);
-        if (!mounted) return;
-        setNotifications([]);
-        setUnreadCount(0);
-      }
-    };
-
-    void guardedLoadNotifications();
-    const interval = window.setInterval(() => {
-      void guardedLoadNotifications();
-    }, 30000);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, []);
+  const notifications = notificationsSummary?.items ?? [];
+  const unreadCount = notificationsSummary?.unread_count ?? 0;
 
   const handleLogout = () => {
     logout();
@@ -95,14 +66,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         console.error("Error marking notification as read:", error);
       }
     }
-    await loadNotifications();
+    await refetchNotifications();
     navigate(notification.route);
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await markAllNotificationsRead();
-      await loadNotifications();
+      await refetchNotifications();
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
@@ -121,7 +92,15 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <div className="flex-1" />
 
-            <DropdownMenu>
+            <DropdownMenu
+              open={isNotificationsOpen}
+              onOpenChange={(open) => {
+                setIsNotificationsOpen(open);
+                if (open) {
+                  void refetchNotifications();
+                }
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
