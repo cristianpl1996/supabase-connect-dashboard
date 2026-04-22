@@ -19,14 +19,17 @@ export class ApiError extends Error {
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
+  const headers = new Headers(options.headers ?? undefined);
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {}),
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -320,6 +323,76 @@ export interface DashboardSummary {
   generated_at: string;
 }
 
+export interface CalendarPromotion {
+  id: string;
+  title: string;
+  lab_id: string;
+  laboratory_name: string | null;
+  start_date: string;
+  end_date: string;
+  status: PromoStatus;
+  estimated_cost: number;
+  mechanic: PromoMechanic | null;
+  derived_category: string;
+  has_conflict: boolean;
+  conflict_with: string[];
+}
+
+export interface MarketingCopyResponse {
+  promotion_id: string;
+  marketing_copy: string;
+}
+
+export interface MarketingFlashcardResponse {
+  promotion_id: string;
+  flash_card_url: string;
+  marketing_copy: string | null;
+}
+
+export interface PromoExecution {
+  id: string;
+  erp_order_id: string | null;
+  cost_impact: number | null;
+  execution_date: string;
+  is_billed_to_lab: boolean;
+  promo_id: string | null;
+  customer_id: string | null;
+  promo_title: string | null;
+  customer_name: string | null;
+  customer_nit: string | null;
+  product_sku: string | null;
+  product_name: string | null;
+}
+
+export interface PromoExecutionSimulationResult {
+  execution: PromoExecution;
+  triggered: boolean;
+  description: string;
+  erp_order_id: string;
+}
+
+export interface ActivePromotionExecutionView {
+  id: string;
+  title: string;
+  lab_id: string;
+  laboratory_name: string | null;
+  mechanic: PromoMechanic | null;
+}
+
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  level: "info" | "warning" | "critical";
+  route: string;
+  created_at: string;
+}
+
+export interface NotificationsSummary {
+  items: NotificationItem[];
+  unread_count: number;
+}
+
 export interface PromoMechanicPayload {
   condition_type: string | null;
   condition_config: Record<string, unknown> | null;
@@ -483,4 +556,58 @@ export function createWalletAdjustment(labId: string, payload: WalletAdjustmentP
 
 export function getDashboardSummary(): Promise<DashboardSummary> {
   return apiDetail<DashboardSummary>("/api/v1/dashboard/summary");
+}
+
+export function listCalendarPromotions(): Promise<CalendarPromotion[]> {
+  return apiList<CalendarPromotion>("/api/v1/calendar/promotions?limit=500&offset=0");
+}
+
+export function listMarketingPromotions(): Promise<Promotion[]> {
+  return apiList<Promotion>("/api/v1/marketing/promotions?limit=500&offset=0");
+}
+
+export function generateMarketingCopy(id: string): Promise<MarketingCopyResponse> {
+  return apiDetail<MarketingCopyResponse>(`/api/v1/promotions/${id}/marketing/copy`, {
+    method: "POST",
+  });
+}
+
+export function uploadMarketingFlashcard(
+  id: string,
+  file: Blob,
+  filename: string,
+  marketingCopy: string,
+): Promise<MarketingFlashcardResponse> {
+  const formData = new FormData();
+  formData.append("file", file, filename);
+  formData.append("marketing_copy", marketingCopy);
+  return apiDetail<MarketingFlashcardResponse>(`/api/v1/promotions/${id}/marketing/flashcard`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function listPromoExecutions(): Promise<PromoExecution[]> {
+  return apiList<PromoExecution>("/api/v1/promo-executions?limit=50&offset=0");
+}
+
+export function listActiveExecutionPromotions(): Promise<ActivePromotionExecutionView[]> {
+  return apiList<ActivePromotionExecutionView>("/api/v1/promo-executions/active-promotions?limit=100&offset=0");
+}
+
+export function simulatePromoExecution(): Promise<PromoExecutionSimulationResult> {
+  return apiDetail<PromoExecutionSimulationResult>("/api/v1/promo-executions/simulate", {
+    method: "POST",
+  });
+}
+
+export function updatePromoExecutionBilled(id: string, is_billed_to_lab: boolean): Promise<PromoExecution> {
+  return apiDetail<PromoExecution>(`/api/v1/promo-executions/${id}/billed`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_billed_to_lab }),
+  });
+}
+
+export function getNotifications(): Promise<NotificationsSummary> {
+  return apiDetail<NotificationsSummary>("/api/v1/notifications");
 }
