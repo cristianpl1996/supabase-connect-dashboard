@@ -48,6 +48,14 @@ const ACCOUNTING_LABELS: Record<string, string> = {
   nota_credito_posterior: 'Nota Crédito Posterior',
 };
 
+const SCOPE_LABELS: Record<string, string> = {
+  all: 'Todos',
+  products: 'Productos especificos',
+  customers: 'Clientes especificos',
+  product_filters: 'Linea / categoria / marca / especie',
+  customer_segment: 'Segmento de clientes',
+};
+
 export function PromotionDetailsSheet({ 
   open, 
   onOpenChange, 
@@ -76,9 +84,17 @@ export function PromotionDetailsSheet({
   if (!promotion) return null;
 
   const statusConfig = STATUS_CONFIG[promotion.status] || STATUS_CONFIG.borrador;
-  const targetSegment = promotion.target_segment as { type?: string } | null;
+  const targetSegment = promotion.target_segment as {
+    type?: string;
+    scope?: string;
+    product_skus?: string[];
+    customer_ids?: string[];
+    product_filters?: Record<string, string>;
+    customer_filters?: Record<string, string>;
+  } | null;
   const conditionConfig = mechanic?.condition_config as Record<string, unknown> | null;
   const rewardConfig = mechanic?.reward_config as Record<string, unknown> | null;
+  const scope = targetSegment?.scope || (targetSegment?.type && targetSegment.type !== 'todo' ? 'customer_segment' : 'all');
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -110,16 +126,42 @@ export function PromotionDetailsSheet({
             </div>
           </div>
 
-          {/* Segment */}
-          {targetSegment?.type && (
-            <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-              <Target className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium">Segmentación</p>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {targetSegment.type === 'todo' ? 'Todo el país' : targetSegment.type}
-                </p>
+          {/* Scope */}
+          {targetSegment && (
+            <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Target className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Aplica a</p>
+                  <p className="text-sm text-muted-foreground capitalize">
+                    {SCOPE_LABELS[scope] || scope}
+                  </p>
+                </div>
               </div>
+              {Array.isArray(targetSegment.product_skus) && targetSegment.product_skus.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {targetSegment.product_skus.map((sku) => <Badge key={sku} variant="outline">{sku}</Badge>)}
+                </div>
+              )}
+              {Array.isArray(targetSegment.customer_ids) && targetSegment.customer_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {targetSegment.customer_ids.map((id) => <Badge key={id} variant="outline">Cliente {id}</Badge>)}
+                </div>
+              )}
+              {targetSegment.product_filters && (
+                <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                  {Object.entries(targetSegment.product_filters).filter(([, value]) => value).map(([key, value]) => (
+                    <p key={key}><span className="font-medium text-foreground">{key}:</span> {value}</p>
+                  ))}
+                </div>
+              )}
+              {targetSegment.customer_filters && (
+                <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                  {Object.entries(targetSegment.customer_filters).filter(([, value]) => value).map(([key, value]) => (
+                    <p key={key}><span className="font-medium text-foreground">{key}:</span> {value}</p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

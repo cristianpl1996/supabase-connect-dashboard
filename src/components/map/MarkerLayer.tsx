@@ -58,12 +58,12 @@ export function MarkerLayer({ customers, repColorMap }: MarkerLayerProps) {
             icon={getCachedIcon(color)}
           >
             <Popup
-              maxWidth={360}
-              minWidth={360}
+              maxWidth={340}
+              minWidth={300}
               closeButton
               // Keep popup fully inside the visible map area
-              autoPanPaddingTopLeft={[20, 20]}
-              autoPanPaddingBottomRight={[20, 20]}
+              autoPanPaddingTopLeft={[28, 28]}
+              autoPanPaddingBottomRight={[28, 28]}
             >
               <LocationPopup customer={customer} repColor={color} />
             </Popup>

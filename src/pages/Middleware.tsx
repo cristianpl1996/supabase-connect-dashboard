@@ -113,7 +113,7 @@ export default function Middleware() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-screen-2xl space-y-6">
       <div className="mb-8">
         <Link to="/" className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-1 h-4 w-4" />

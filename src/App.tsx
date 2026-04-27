@@ -17,6 +17,8 @@ import Marketing from "./pages/Marketing";
 import Wallet from "./pages/Wallet";
 import Settings from "./pages/Settings";
 import MapPage from "./pages/MapPage";
+import Products from "./pages/Products";
+import Customers from "./pages/Customers";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
@@ -47,6 +49,8 @@ const App = () => (
                       <Route path="/home" element={<PromoterRouteGuard><Index /></PromoterRouteGuard>} />
                         <Route path="/plans" element={<Plans />} />
                         <Route path="/promotions" element={<Promotions />} />
+                        <Route path="/products" element={<Products />} />
+                        <Route path="/customers" element={<Customers />} />
                         <Route path="/calendar" element={<PromoterRouteGuard restricted><Calendar /></PromoterRouteGuard>} />
                         <Route path="/middleware" element={<Middleware />} />
                         <Route path="/marketing" element={<Marketing />} />

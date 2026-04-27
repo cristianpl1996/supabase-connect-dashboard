@@ -3,6 +3,7 @@
 export type PromoStatus = 'borrador' | 'revision' | 'aprobada' | 'activa' | 'pausada' | 'finalizada' | 'cancelada';
 export type WalletTxType = 'deposito_plan' | 'ajuste_manual' | 'reserva_promo' | 'gasto_real' | 'reintegro_no_usado';
 export type SourceRole = 'laboratorio' | 'distribuidor' | 'admin';
+export type PromotionTargetScope = 'all' | 'customers' | 'customer_segment' | 'product_filters';
 
 export interface Laboratory {
   id: string;
@@ -138,6 +139,9 @@ export interface Promotion {
   max_redemptions: number | null;
   current_redemptions: number;
   target_segment: Record<string, unknown> | null;
+  product_skus?: string[];
+  target_scope?: PromotionTargetScope;
+  target_config?: Record<string, unknown>;
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;

@@ -38,7 +38,7 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
     .split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
   return (
-    <div className="w-full font-sans">
+    <div className="max-h-[min(70svh,520px)] w-[min(340px,calc(100vw-2rem))] overflow-y-auto font-sans">
 
       {/* ── Header ── */}
       <div className="px-3 py-2.5 text-white" style={{ backgroundColor: repColor }}>

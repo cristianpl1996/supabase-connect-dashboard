@@ -41,13 +41,62 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="h-8 bg-muted animate-pulse rounded w-64" />
+      <div className="mx-auto max-w-screen-2xl space-y-8">
+        <div className="space-y-2">
+          <div className="h-8 w-72 animate-pulse rounded-md bg-muted shadow-sm" />
+          <div className="h-4 w-96 max-w-full animate-pulse rounded-md bg-muted/80 shadow-sm" />
+        </div>
+
         <div className="grid gap-4 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+            <div key={i} className="rounded-lg border border-border/50 bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-5 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="mt-5 h-9 w-36 animate-pulse rounded bg-muted" />
+              <div className="mt-3 h-3 w-28 animate-pulse rounded bg-muted/80" />
+            </div>
           ))}
         </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {[1, 2].map((panel) => (
+            <div key={panel} className="rounded-lg border border-border/50 bg-card p-6 shadow-sm">
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-5 animate-pulse rounded bg-muted" />
+                <div className="h-6 w-56 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="mt-2 h-4 w-72 max-w-full animate-pulse rounded bg-muted/80" />
+              <div className="mt-6 space-y-3">
+                {[1, 2, 3, 4].map((row) => (
+                  <div key={row} className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                      <div className="h-3 w-1/3 animate-pulse rounded bg-muted/80" />
+                    </div>
+                    <div className="ml-4 h-6 w-14 animate-pulse rounded-full bg-muted" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-lg border border-border/50 bg-card p-6 shadow-sm">
+          <div className="h-6 w-40 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-4 w-56 animate-pulse rounded bg-muted/80" />
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="flex h-24 flex-col items-center justify-center gap-3 rounded-md border bg-background shadow-sm">
+                <div className="h-8 w-8 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mx-auto h-3 w-64 animate-pulse rounded bg-muted/80" />
       </div>
     );
   }
@@ -64,7 +113,7 @@ const Index = () => {
   const criticalLabs = dashboard?.critical_laboratories ?? [];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="mx-auto max-w-screen-2xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Inicio - Dashboard</h1>
         <p className="text-muted-foreground">

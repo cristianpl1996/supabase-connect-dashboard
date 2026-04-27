@@ -6,7 +6,7 @@ import { MapStatusBar } from "./MapStatusBar";
 import { MapView } from "./MapView";
 import type { MapModuleProps } from "@/types/map";
 
-export function MapModule({ data, title = "Mapa de Clientes", isLoading = false }: MapModuleProps) {
+export function MapModule({ data, title = "Mapa de Clientes", isLoading = false, controlsDisabled = false }: MapModuleProps) {
   const [fitTrigger, setFitTrigger] = useState(0);
 
   const {
@@ -37,13 +37,13 @@ export function MapModule({ data, title = "Mapa de Clientes", isLoading = false 
   );
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-white">
 
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-        <MapIcon className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">{title}</h1>
+      <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
+        <MapIcon className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-bold sm:text-3xl">{title}</h1>
           <p className="text-muted-foreground text-sm">
             {allCustomers.length.toLocaleString("es-CO")} clientes · {options.salesReps.length} representantes
           </p>
@@ -61,6 +61,7 @@ export function MapModule({ data, title = "Mapa de Clientes", isLoading = false 
           onFilter={setFilter}
           onReset={resetFilters}
           onZoomToAll={handleZoomToAll}
+          disabled={controlsDisabled}
         />
       </div>
 

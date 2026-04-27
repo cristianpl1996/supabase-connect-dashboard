@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronUp,
   Maximize2,
-  RotateCcw,
   Search,
   SlidersHorizontal,
   Users,
@@ -39,6 +38,7 @@ interface FilterPanelProps {
   totalCount: number;
   filteredCount: number;
   activeFilterCount: number;
+  disabled?: boolean;
   onFilter: <K extends keyof CustomerFilters>(key: K, value: CustomerFilters[K]) => void;
   onReset: () => void;
   onZoomToAll: () => void;
@@ -88,11 +88,13 @@ function RepMultiSelect({
   selectedIds,
   onChange,
   triggerClassName,
+  disabled = false,
 }: {
   salesReps: SalesRepOption[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   triggerClassName?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -122,6 +124,7 @@ function RepMultiSelect({
         <Button
           variant="outline"
           role="combobox"
+          disabled={disabled}
           className={triggerClassName ?? "h-8 min-w-[200px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -154,6 +157,7 @@ function RepMultiSelect({
             <button
               type="button"
               onClick={() => onChange([])}
+              disabled={disabled}
               className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
             >
               <X className="h-3 w-3" /> Limpiar
@@ -176,6 +180,7 @@ function RepMultiSelect({
                 key={rep.id}
                 type="button"
                 onClick={() => toggle(rep.id)}
+                disabled={disabled}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
               >
                 <Checkbox
@@ -219,6 +224,7 @@ function SearchableSelect({
   icon: Icon,
   onChange,
   triggerClassName,
+  disabled = false,
 }: {
   options: string[];
   value: string;
@@ -227,6 +233,7 @@ function SearchableSelect({
   icon: React.ElementType;
   onChange: (v: string) => void;
   triggerClassName?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -245,6 +252,7 @@ function SearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={triggerClassName ?? "h-8 w-[175px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -263,6 +271,7 @@ function SearchableSelect({
             <button
               type="button"
               onClick={() => { onChange(""); setOpen(false); }}
+              disabled={disabled}
               className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
             >
               <X className="h-3 w-3" /> Limpiar
@@ -278,6 +287,7 @@ function SearchableSelect({
           <button
             type="button"
             onClick={() => { onChange(""); setSearch(""); setOpen(false); }}
+            disabled={disabled}
             className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${!active ? "font-semibold text-gray-900" : "text-gray-600"}`}
           >
             <span className="flex-1">{allLabel}</span>
@@ -292,6 +302,7 @@ function SearchableSelect({
               key={o}
               type="button"
               onClick={() => { onChange(o); setSearch(""); setOpen(false); }}
+              disabled={disabled}
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${value === o ? "font-semibold text-gray-900" : "text-gray-600"}`}
             >
               <span className="flex-1 truncate">{o}</span>
@@ -322,6 +333,7 @@ function RangeInputs({
   placeholder,
   step = 1,
   onFilter,
+  disabled = false,
 }: {
   label: string;
   icon: React.ElementType;
@@ -332,6 +344,7 @@ function RangeInputs({
   placeholder: { min: string; max: string };
   step?: number;
   onFilter: <K extends keyof CustomerFilters>(key: K, value: CustomerFilters[K]) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -347,6 +360,7 @@ function RangeInputs({
           value={minValue}
           step={step}
           min={0}
+          disabled={disabled}
           onChange={(e) => onFilter(minKey, e.target.value as CustomerFilters[typeof minKey])}
         />
         <span className="text-gray-300 text-xs shrink-0">—</span>
@@ -357,6 +371,7 @@ function RangeInputs({
           value={maxValue}
           step={step}
           min={0}
+          disabled={disabled}
           onChange={(e) => onFilter(maxKey, e.target.value as CustomerFilters[typeof maxKey])}
         />
       </div>
@@ -372,6 +387,7 @@ export function FilterPanel({
   totalCount,
   filteredCount,
   activeFilterCount,
+  disabled = false,
   onFilter,
   onReset,
   onZoomToAll,
@@ -382,21 +398,23 @@ export function FilterPanel({
     <div className="border-b border-gray-200 bg-white">
 
       {/* ── Single compact row ── */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 lg:flex-nowrap">
 
         {/* Search — toma todo el espacio sobrante */}
-        <div className="relative flex-1 min-w-[140px]">
+        <div className="relative min-w-full flex-1 sm:min-w-[280px] lg:min-w-[320px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
           <Input
             className="pl-8 pr-7 h-8 text-sm"
             placeholder="Nombre, NIT, dirección…"
             value={filters.search}
+            disabled={disabled}
             onChange={(e) => onFilter("search", e.target.value)}
           />
           {filters.search && (
             <button
               type="button"
               onClick={() => onFilter("search", "")}
+              disabled={disabled}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <X className="h-3 w-3" />
@@ -409,7 +427,8 @@ export function FilterPanel({
           salesReps={options.salesReps}
           selectedIds={filters.sales_rep_ids}
           onChange={(ids) => onFilter("sales_rep_ids", ids)}
-          triggerClassName="h-8 w-[195px] shrink-0 justify-between text-sm font-normal px-3"
+          disabled={disabled}
+          triggerClassName="h-8 min-w-[calc(50%-0.25rem)] flex-1 justify-between px-3 text-sm font-normal sm:min-w-[195px] lg:w-[195px] lg:flex-none"
         />
         <SearchableSelect
           options={options.coverageAreas}
@@ -418,7 +437,8 @@ export function FilterPanel({
           placeholder="Zonas"
           icon={MapPin}
           onChange={(v) => onFilter("coverage_area", v)}
-          triggerClassName="h-8 w-[155px] shrink-0 justify-between text-sm font-normal px-3"
+          disabled={disabled}
+          triggerClassName="h-8 min-w-[calc(50%-0.25rem)] flex-1 justify-between px-3 text-sm font-normal sm:min-w-[155px] lg:w-[155px] lg:flex-none"
         />
         <SearchableSelect
           options={options.businessTypes}
@@ -427,15 +447,17 @@ export function FilterPanel({
           placeholder="Negocios"
           icon={Store}
           onChange={(v) => onFilter("business_type", v)}
-          triggerClassName="h-8 w-[168px] shrink-0 justify-between text-sm font-normal px-3"
+          disabled={disabled}
+          triggerClassName="h-8 min-w-[calc(50%-0.25rem)] flex-1 justify-between px-3 text-sm font-normal sm:min-w-[168px] lg:w-[168px] lg:flex-none"
         />
 
         {/* Advanced toggle */}
         <Button
           variant={advancedOpen ? "default" : "outline"}
           size="sm"
-          className="h-8 gap-1 text-sm px-2.5 shrink-0"
+          className="h-8 min-w-[3rem] shrink-0 gap-1 px-2.5 text-sm"
           onClick={() => setAdvancedOpen((o) => !o)}
+          disabled={disabled}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           {activeFilterCount > 0 && (
@@ -446,13 +468,20 @@ export function FilterPanel({
 
         {/* Reset */}
         {activeFilterCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={onReset} className="h-8 px-2 text-gray-500 shrink-0">
-            <RotateCcw className="h-3.5 w-3.5" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onReset}
+            disabled={disabled}
+            className="h-8 shrink-0 gap-1.5 px-2.5 text-sm text-gray-600"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Limpiar</span>
           </Button>
         )}
 
         {/* Zoom */}
-        <Button variant="outline" size="sm" onClick={onZoomToAll} className="h-8 gap-1.5 text-sm shrink-0">
+        <Button variant="outline" size="sm" onClick={onZoomToAll} disabled={disabled} className="h-8 flex-1 shrink-0 gap-1.5 text-sm sm:flex-none">
           <Maximize2 className="h-3.5 w-3.5" />
           Ver todos
         </Button>
@@ -471,6 +500,7 @@ export function FilterPanel({
               maxValue={filters.max_days_since_purchase}
               placeholder={{ min: "Mín días", max: "Máx días" }}
               onFilter={onFilter}
+              disabled={disabled}
             />
             <RangeInputs
               label="LTV — facturación total"
@@ -482,6 +512,7 @@ export function FilterPanel({
               placeholder={{ min: "Mín $", max: "Máx $" }}
               step={10000}
               onFilter={onFilter}
+              disabled={disabled}
             />
             <RangeInputs
               label="Ticket promedio"
@@ -493,13 +524,14 @@ export function FilterPanel({
               placeholder={{ min: "Mín $", max: "Máx $" }}
               step={10000}
               onFilter={onFilter}
+              disabled={disabled}
             />
           </div>
         </div>
       )}
 
       {/* ── Stats ── */}
-      <div className="flex items-center gap-3 px-3 py-1 bg-gray-50/80 border-t border-gray-100">
+      <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 bg-gray-50/80 px-3 py-1">
         <p className="text-xs text-gray-500">
           <span className="font-semibold text-gray-800">{filteredCount}</span>
           {activeFilterCount > 0 && <span> de {totalCount}</span>}
@@ -522,6 +554,7 @@ export function FilterPanel({
                   <button
                     type="button"
                     onClick={() => onFilter("sales_rep_ids", filters.sales_rep_ids.filter((s) => s !== id))}
+                    disabled={disabled}
                     className="opacity-80 hover:opacity-100"
                   >
                     <X className="h-2.5 w-2.5" />

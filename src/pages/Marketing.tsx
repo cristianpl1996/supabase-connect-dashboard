@@ -19,6 +19,7 @@ export default function Marketing() {
   const [selectedPromoId, setSelectedPromoId] = useState<string>("");
   const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState("");
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -47,6 +48,7 @@ export default function Marketing() {
   }, [selectedPromoId, promotions]);
 
   async function fetchPromotions() {
+    setIsLoadingPromotions(true);
     try {
       setPromotions(await listMarketingPromotions());
     } catch (error) {
@@ -56,6 +58,8 @@ export default function Marketing() {
         description: "No se pudieron cargar las promociones desde la API",
         variant: "destructive",
       });
+    } finally {
+      setIsLoadingPromotions(false);
     }
   }
 
@@ -225,11 +229,11 @@ export default function Marketing() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Megaphone className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">Kit de Difusion</h1>
+    <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <Megaphone className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold sm:text-3xl">Kit de Difusion</h1>
           <p className="text-muted-foreground">Genera materiales de venta profesionales en segundos</p>
         </div>
       </div>
@@ -240,7 +244,7 @@ export default function Marketing() {
           <CardDescription>Elige una promocion para generar materiales</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={selectedPromoId} onValueChange={setSelectedPromoId}>
+          <Select value={selectedPromoId} onValueChange={setSelectedPromoId} disabled={isLoadingPromotions}>
             <SelectTrigger className="w-full md:w-[400px]">
               <SelectValue placeholder="Seleccionar promocion..." />
             </SelectTrigger>
@@ -259,7 +263,7 @@ export default function Marketing() {
       </Card>
 
       {selectedPromo ? (
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -279,15 +283,16 @@ export default function Marketing() {
                   <Textarea
                     value={generatedCopy}
                     onChange={(e) => setGeneratedCopy(e.target.value)}
+                    disabled={isGenerating}
                     placeholder="El texto generado aparecera aqui..."
                     className="min-h-[180px] text-base"
                   />
-                  <div className="flex gap-2">
-                    <Button onClick={handleCopyToClipboard} disabled={!generatedCopy} className="flex-1">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <Button onClick={handleCopyToClipboard} disabled={!generatedCopy || isGenerating} className="w-full">
                       <Copy className="h-4 w-4 mr-2" />
                       Copiar al Portapapeles
                     </Button>
-                    <Button variant="outline" onClick={() => void handleGenerateCopy(selectedPromo.id)}>
+                    <Button variant="outline" onClick={() => void handleGenerateCopy(selectedPromo.id)} disabled={isGenerating} className="w-full sm:w-auto">
                       <Sparkles className="h-4 w-4 mr-2" />
                       Regenerar
                     </Button>
@@ -311,7 +316,7 @@ export default function Marketing() {
               {productImage && (
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-muted-foreground">Zoom:</span>
-                  <Slider value={imageZoom} onValueChange={setImageZoom} min={50} max={200} step={5} className="flex-1" />
+                  <Slider value={imageZoom} onValueChange={setImageZoom} min={50} max={200} step={5} disabled={isDownloading || isSaving} className="flex-1" />
                   <span className="text-sm font-medium w-12">{imageZoom[0]}%</span>
                 </div>
               )}
@@ -381,12 +386,12 @@ export default function Marketing() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={() => void handleDownloadFlashcard()} disabled={isDownloading} className="flex-1" size="lg">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button onClick={() => void handleDownloadFlashcard()} disabled={isDownloading || isGenerating} className="w-full" size="lg">
                   {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                   Descargar PNG
                 </Button>
-                <Button onClick={() => void handleSaveToHistory()} disabled={isSaving} variant="secondary" size="lg" className="flex-1">
+                <Button onClick={() => void handleSaveToHistory()} disabled={isSaving || isGenerating} variant="secondary" size="lg" className="w-full">
                   {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   Guardar en Historial
                 </Button>

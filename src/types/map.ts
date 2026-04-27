@@ -91,4 +91,5 @@ export interface MapModuleProps {
   data: unknown[];
   title?: string;
   isLoading?: boolean;
+  controlsDisabled?: boolean;
 }

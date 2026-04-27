@@ -17,9 +17,13 @@ const POPUP_CSS = `
     box-shadow: 0 8px 30px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08) !important;
     border: 1px solid rgba(0,0,0,0.06) !important;
   }
+  .leaflet-popup {
+    max-width: calc(100vw - 2rem) !important;
+  }
   .leaflet-popup-content {
     margin: 0 !important;
     width: auto !important;
+    max-width: calc(100vw - 2rem) !important;
     line-height: 1.4 !important;
   }
   .leaflet-popup-tip {

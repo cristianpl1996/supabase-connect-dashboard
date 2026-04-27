@@ -77,14 +77,25 @@ export function login(credentials: LoginRequest): Promise<TokenResponse> {
 }
 
 // ─── Generic paginated response ───────────────────────────────────────────────
-// Actual API shape: { data: [...], meta: { limit, offset, count } }
+// List API shape: { data, meta: { limit, offset, count } }
 interface ApiMeta { limit: number; offset: number; count: number; }
-interface ApiListResponse<T> { data: T[]; meta: ApiMeta; }
+export interface ApiListResponse<T> {
+  data: T[];
+  meta: ApiMeta;
+}
 interface ApiDetailResponse<T> { data: T; meta: { count?: number }; }
+
+function listResults<T>(res: ApiListResponse<T>): T[] {
+  return res.data ?? [];
+}
+
+export function listTotal<T>(res: ApiListResponse<T>): number | null {
+  return Number.isFinite(res.meta?.count) ? Number(res.meta.count) : null;
+}
 
 async function apiList<T>(path: string): Promise<T[]> {
   const res = await apiFetch<ApiListResponse<T>>(path);
-  return res.data;
+  return listResults(res);
 }
 
 async function apiDetail<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -107,6 +118,18 @@ export interface CustomerParams {
   search?: string;
   business_type?: string;
   government_id?: string;
+  city?: string;
+  state?: string;
+  sales_representative_id?: number;
+  has_location?: boolean;
+  min_revenue?: number;
+  max_revenue?: number;
+  min_purchases?: number;
+  max_purchases?: number;
+  min_average_ticket?: number;
+  max_average_ticket?: number;
+  min_days_since_last_purchase?: number;
+  max_days_since_last_purchase?: number;
   limit?: number;
   offset?: number;
 }
@@ -114,21 +137,76 @@ export interface CustomerParams {
 // Loosely typed — mapUtils validates and normalises each field.
 export type CustomerRecord = Record<string, unknown>;
 
-async function getCustomersPage(params: CustomerParams = {}): Promise<ApiListResponse<CustomerRecord>> {
+export type SaleRecord = Record<string, unknown>;
+export type TracingRecord = Record<string, unknown>;
+
+export interface CustomerTopProduct {
+  product_sku: string | null;
+  product_commercial_name: string | null;
+  product_brand_name: string | null;
+  total_units: number | null;
+  total_revenue: number | null;
+  last_purchase_date: string | null;
+}
+
+export async function getCustomersPage(params: CustomerParams = {}): Promise<ApiListResponse<CustomerRecord>> {
   const qs = new URLSearchParams();
   if (params.search)        qs.set("search", params.search);
   if (params.business_type) qs.set("business_type", params.business_type);
   if (params.government_id) qs.set("government_id", params.government_id);
+  if (params.city) qs.set("city", params.city);
+  if (params.state) qs.set("state", params.state);
+  if (params.sales_representative_id) qs.set("sales_representative_id", String(params.sales_representative_id));
+  if (params.has_location !== undefined) qs.set("has_location", String(params.has_location));
+  if (params.min_revenue !== undefined) qs.set("min_revenue", String(params.min_revenue));
+  if (params.max_revenue !== undefined) qs.set("max_revenue", String(params.max_revenue));
+  if (params.min_purchases !== undefined) qs.set("min_purchases", String(params.min_purchases));
+  if (params.max_purchases !== undefined) qs.set("max_purchases", String(params.max_purchases));
+  if (params.min_average_ticket !== undefined) qs.set("min_average_ticket", String(params.min_average_ticket));
+  if (params.max_average_ticket !== undefined) qs.set("max_average_ticket", String(params.max_average_ticket));
+  if (params.min_days_since_last_purchase !== undefined) qs.set("min_days_since_last_purchase", String(params.min_days_since_last_purchase));
+  if (params.max_days_since_last_purchase !== undefined) qs.set("max_days_since_last_purchase", String(params.max_days_since_last_purchase));
   qs.set("limit",  String(params.limit  ?? 100));
   qs.set("offset", String(params.offset ?? 0));
   return apiFetch<ApiListResponse<CustomerRecord>>(`/api/v1/customers?${qs}`);
+}
+
+export async function listCustomers(params: CustomerParams = {}): Promise<CustomerRecord[]> {
+  const res = await getCustomersPage(params);
+  return listResults(res);
+}
+
+export function getCustomer(customerId: number): Promise<CustomerRecord> {
+  return apiDetail<CustomerRecord>(`/api/v1/customers/${customerId}`);
+}
+
+export function listCustomerSales(customerId: number, limit = 20): Promise<SaleRecord[]> {
+  return apiList<SaleRecord>(withQuery("/api/v1/sales", {
+    customer_id: customerId,
+    limit,
+    offset: 0,
+  }));
+}
+
+export function listCustomerTracing(customerId: number, limit = 20): Promise<TracingRecord[]> {
+  return apiList<TracingRecord>(withQuery(`/api/v1/tracing/customer/${customerId}`, {
+    limit,
+    offset: 0,
+  }));
+}
+
+export function listCustomerTopProducts(customerId: number, limit = 10): Promise<CustomerTopProduct[]> {
+  return apiList<CustomerTopProduct>(withQuery(`/api/v1/customers/${customerId}/top-products`, {
+    limit,
+    offset: 0,
+  }));
 }
 
 /** Fetches one page from /api/v1/customers-map (only records with coordinates). */
 export async function getMapCustomersBatch(offset: number): Promise<CustomerRecord[]> {
   const qs = new URLSearchParams({ limit: "2000", offset: String(offset) });
   const res = await apiFetch<ApiListResponse<CustomerRecord>>(`/api/v1/customers-map?${qs}`);
-  return res?.data ?? [];
+  return listResults(res);
 }
 
 // Commercial domain: laboratories + plans
@@ -141,6 +219,103 @@ export interface Laboratory {
   brand_color: string | null;
   annual_goal: number | null;
   created_at: string;
+}
+
+export interface ProductCatalogItem {
+  product_sku: string;
+  product_commercial_name?: string | null;
+  product_brand_name?: string | null;
+  product_industry_sector?: string | null;
+  product_category?: string | null;
+  product_line_name?: string | null;
+  product_target_species?: string | null;
+  product_target_animal_species?: string | null;
+  product_technical_description?: string | null;
+  product_unit_of_measurement?: string | null;
+  product_substitute_skus?: unknown;
+  product_recommended_application_frequency?: string | null;
+  metadata?: unknown;
+  is_catalog_verified?: boolean | null;
+  is_discontinued?: boolean | null;
+  product_is_catalog_verified?: boolean | null;
+  product_is_discontinued?: boolean | null;
+  inventory_id?: number | null;
+  distributor_id?: number | null;
+  units_available_in_stock?: number | null;
+  total_units_available?: number | null;
+  inventory_locations_count?: number | null;
+  max_units_in_single_inventory?: number | null;
+  ordered_quantity?: number | null;
+  committed_quantity?: number | null;
+  maximal_stock?: number | null;
+  minimal_stock?: number | null;
+  min_unit_sale_price?: number | null;
+  max_unit_sale_price?: number | null;
+  avg_unit_sale_price?: number | null;
+  min_standard_average_price?: number | null;
+  max_standard_average_price?: number | null;
+  avg_standard_average_price?: number | null;
+  inventories?: ProductInventoryLocation[];
+  price_lists_count?: number | null;
+  price_lists?: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
+export interface ProductInventoryLocation {
+  inventory_id?: number | null;
+  warehouse_code?: string | null;
+  in_stock?: number | null;
+  ordered_quantity?: number | null;
+  committed_quantity?: number | null;
+  maximal_stock?: number | null;
+  minimal_stock?: number | null;
+  standard_average_price?: number | null;
+  source_metadata?: unknown;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ProductListParams {
+  sku?: string;
+  search?: string;
+  brand_name?: string;
+  category?: string;
+  line_name?: string;
+  target_species?: string;
+  is_catalog_verified?: boolean;
+  is_discontinued?: boolean;
+  has_inventory?: boolean;
+  in_stock_only?: boolean;
+  min_units?: number;
+  max_units?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface InventoryItem {
+  id: number;
+  inventory_id?: number | null;
+  distributor_id: number;
+  product_catalog_code: string;
+  units_available_in_stock: number;
+  product_commercial_name?: string | null;
+  product_brand_name?: string | null;
+  product_category?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface InventoryListParams {
+  sku?: string;
+  search?: string;
+  brand_name?: string;
+  category?: string;
+  in_stock_only?: boolean;
+  min_units?: number;
+  max_units?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface LaboratoryPayload {
@@ -200,6 +375,7 @@ export interface PlanPayload {
 export type PromoStatus = "borrador" | "revision" | "aprobada" | "activa" | "pausada" | "finalizada" | "cancelada";
 export type SourceRole = "laboratorio" | "distribuidor" | "admin";
 export type WalletTxType = "deposito_plan" | "ajuste_manual" | "reserva_promo" | "gasto_real" | "reintegro_no_usado";
+export type PromotionTargetScope = "all" | "customers" | "customer_segment" | "product_filters";
 
 export interface PromoMechanic {
   id: string;
@@ -225,6 +401,9 @@ export interface Promotion {
   max_redemptions: number | null;
   current_redemptions: number;
   target_segment: Record<string, unknown> | null;
+  product_skus?: string[];
+  target_scope?: PromotionTargetScope;
+  target_config?: Record<string, unknown>;
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;
@@ -472,6 +651,9 @@ export interface PromotionPayload {
   estimated_cost?: number | null;
   max_redemptions?: number | null;
   target_segment?: Record<string, unknown> | null;
+  product_skus: string[];
+  target_scope: PromotionTargetScope;
+  target_config: Record<string, unknown>;
   flash_card_url?: string | null;
   marketing_copy?: string | null;
   mechanic: PromoMechanicPayload;
@@ -484,6 +666,69 @@ export interface PromotionImportRowPayload {
   quantity_condition?: number | null;
   benefit_type?: string | null;
   benefit_value?: number | null;
+}
+
+export function listProducts(params: ProductListParams = {}): Promise<ProductCatalogItem[]> {
+  return apiList<ProductCatalogItem>(withQuery("/api/v1/products", {
+    sku: params.sku,
+    search: params.search,
+    brand_name: params.brand_name,
+    category: params.category,
+    line_name: params.line_name,
+    target_species: params.target_species,
+    is_catalog_verified: params.is_catalog_verified,
+    is_discontinued: params.is_discontinued,
+    has_inventory: params.has_inventory,
+    in_stock_only: params.in_stock_only,
+    min_units: params.min_units,
+    max_units: params.max_units,
+    limit: params.limit ?? 100,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function getProductsPage(params: ProductListParams = {}): Promise<ApiListResponse<ProductCatalogItem>> {
+  return apiFetch<ApiListResponse<ProductCatalogItem>>(withQuery("/api/v1/products", {
+    sku: params.sku,
+    search: params.search,
+    brand_name: params.brand_name,
+    category: params.category,
+    line_name: params.line_name,
+    target_species: params.target_species,
+    is_catalog_verified: params.is_catalog_verified,
+    is_discontinued: params.is_discontinued,
+    has_inventory: params.has_inventory,
+    in_stock_only: params.in_stock_only,
+    min_units: params.min_units,
+    max_units: params.max_units,
+    limit: params.limit ?? 100,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function getProduct(sku: string): Promise<ProductCatalogItem> {
+  return apiDetail<ProductCatalogItem>(`/api/v1/products/${encodeURIComponent(sku)}`);
+}
+
+export function listInventory(params: InventoryListParams = {}): Promise<InventoryItem[]> {
+  return apiList<InventoryItem>(withQuery("/api/v1/inventory", {
+    sku: params.sku,
+    search: params.search,
+    brand_name: params.brand_name,
+    category: params.category,
+    in_stock_only: params.in_stock_only,
+    min_units: params.min_units,
+    max_units: params.max_units,
+    limit: params.limit ?? 100,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function updateInventoryItem(inventoryId: number, units_available_in_stock: number): Promise<InventoryItem> {
+  return apiDetail<InventoryItem>(`/api/v1/inventory/${inventoryId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ units_available_in_stock }),
+  });
 }
 
 export function listLaboratories(params: LaboratoryListParams = {}): Promise<Laboratory[]> {

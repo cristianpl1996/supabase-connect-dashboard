@@ -51,11 +51,11 @@ const Settings = () => {
   const spendableCount = Object.values(config).filter(Boolean).length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <SettingsIcon className="h-8 w-8 text-primary" />
-        <div>
+      <div className="flex min-w-0 items-center gap-3">
+        <SettingsIcon className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold text-foreground">Configuración</h1>
           <p className="text-muted-foreground">
             Controla las reglas financieras y accesos del sistema
@@ -64,7 +64,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="budget" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="w-full">
           <TabsTrigger value="budget" className="gap-2">
             <ShieldCheck className="h-4 w-4" />
             Reglas de Presupuesto
@@ -102,7 +102,7 @@ const Settings = () => {
           {/* Rules Card */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-primary" />
@@ -127,10 +127,10 @@ const Settings = () => {
                     return (
                       <div
                         key={rule.id}
-                        className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
+                        className="flex items-start justify-between gap-3 py-4 first:pt-0 last:pb-0"
                       >
                         <div className="flex-1 pr-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Label
                               htmlFor={rule.concept_key}
                               className="text-base font-medium cursor-pointer"
@@ -153,6 +153,7 @@ const Settings = () => {
                           id={rule.concept_key}
                           checked={isActive}
                           onCheckedChange={() => handleToggleRule(rule.concept_key)}
+                          disabled={isLoading}
                           aria-label={`¿${rule.label} es presupuesto gastable?`}
                         />
                       </div>
@@ -189,7 +190,7 @@ const Settings = () => {
         <TabsContent value="users" className="space-y-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-primary" />
@@ -199,7 +200,7 @@ const Settings = () => {
                     {users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}
                   </CardDescription>
                 </div>
-                <Button onClick={() => setUserFormOpen(true)} className="gap-2">
+                <Button onClick={() => setUserFormOpen(true)} disabled={usersLoading} className="w-full gap-2 sm:w-auto">
                   <Plus className="h-4 w-4" />
                   Invitar Usuario
                 </Button>
@@ -220,6 +221,42 @@ const Settings = () => {
                   </p>
                 </div>
               ) : (
+                <>
+                <div className="space-y-3 md:hidden">
+                  {users.map((user) => (
+                    <div key={user.id} className="rounded-md border bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{user.email}</p>
+                          {user.full_name && <p className="mt-1 truncate text-xs text-muted-foreground">{user.full_name}</p>}
+                        </div>
+                        <Badge
+                          variant={user.role === 'admin' ? 'default' : user.role === 'promotor' ? 'outline' : 'secondary'}
+                          className={user.role === 'promotor' ? 'border-primary/30 text-primary' : undefined}
+                        >
+                          {ROLE_LABELS[user.role]}
+                        </Badge>
+                      </div>
+                      {user.role === 'promotor' && user.laboratory_name && (
+                        <div className="mt-3 text-sm">
+                          <p className="font-medium">{user.laboratory_name}</p>
+                          <p className="text-xs font-mono text-muted-foreground">Cupo: ${(user.approval_limit ?? 0).toLocaleString()}</p>
+                        </div>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveUser(user.id)}
+                        disabled={usersLoading || deletingId === user.id}
+                        className="mt-3 w-full text-destructive hover:text-destructive"
+                      >
+                        {deletingId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Eliminar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -265,7 +302,7 @@ const Settings = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleRemoveUser(user.id)}
-                            disabled={deletingId === user.id}
+                            disabled={usersLoading || deletingId === user.id}
                             className="text-destructive hover:text-destructive"
                           >
                             {deletingId === user.id ? (
@@ -279,6 +316,8 @@ const Settings = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

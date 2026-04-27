@@ -211,288 +211,343 @@ const Plans = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Planes y Negociaciones</h1>
-            <p className="text-muted-foreground mt-1">Gestión de Negociaciones Anuales por Laboratorio</p>
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar plan, laboratorio, año..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Button onClick={handleOpenCreate} className="gap-2 shrink-0">
-              <Plus className="h-4 w-4" />
-              Nuevo Plan Año
-            </Button>
-          </div>
+    <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Planes y Negociaciones</h1>
+          <p className="text-muted-foreground mt-1">Gestión de Negociaciones Anuales por Laboratorio</p>
         </div>
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar plan, laboratorio, año..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={loading}
+              className="pl-9"
+            />
+          </div>
+          <Button onClick={handleOpenCreate} disabled={loading} className="w-full gap-2 sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Nuevo Plan Año
+          </Button>
+        </div>
+      </div>
 
-        {/* Error Display */}
-        {error && (
-          <Card className="border-destructive bg-destructive/10">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-medium text-destructive">Error de Conexión</p>
-                  <p className="text-sm text-destructive/90 whitespace-pre-wrap">{error}</p>
-                </div>
+      {/* Error Display */}
+      {error && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-medium text-destructive">Error de Conexión</p>
+                <p className="text-sm text-destructive/90 whitespace-pre-wrap">{error}</p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total de Compras</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-8 bg-muted animate-pulse rounded" />
-              ) : (
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalPurchaseGoal)}</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Total Asignado</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-8 bg-muted animate-pulse rounded" />
-              ) : (
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalBudget)}</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Plans Table */}
+      {/* Summary Cards */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <Card className="border-border/50 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                <CardTitle>Planes Anuales</CardTitle>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Column visibility dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Columns3 className="h-4 w-4" />
-                      Columnas
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md z-50">
-                    <DropdownMenuCheckboxItem checked={showGoalColumn} onCheckedChange={setShowGoalColumn}>
-                      Meta de Compra
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuCheckboxItem checked={showBudgetColumn} onCheckedChange={setShowBudgetColumn}>
-                      Presupuesto
-                    </DropdownMenuCheckboxItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total de Compras</CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-                ))}
-              </div>
-            ) : filteredPlans.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  {searchQuery ? "No se encontraron planes con ese criterio" : "No hay planes anuales registrados"}
-                </p>
-                {!searchQuery && (
-                  <Button variant="outline" className="mt-4" onClick={handleOpenCreate}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crear primer plan
-                  </Button>
-                )}
-              </div>
+              <div className="h-8 bg-muted animate-pulse rounded" />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Activo</TableHead>
-                    <TableHead>Nombre del Plan</TableHead>
-                    <TableHead>Año</TableHead>
-                    <TableHead>Estado</TableHead>
-                    {showGoalColumn && (
-                      <TableHead className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Meta de Compra</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => {
-                              setAllGoalsHidden((prev) => !prev);
-                              setHiddenGoalRows(new Set());
-                            }}
-                            title={allGoalsHidden ? "Mostrar todos" : "Ocultar todos"}
-                          >
-                            {allGoalsHidden ? (
-                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableHead>
-                    )}
-                    {showBudgetColumn && (
-                      <TableHead className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <span>Presupuesto</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => {
-                              setAllBudgetsHidden((prev) => !prev);
-                              setHiddenBudgetRows(new Set());
-                            }}
-                            title={allBudgetsHidden ? "Mostrar todos" : "Ocultar todos"}
-                          >
-                            {allBudgetsHidden ? (
-                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableHead>
-                    )}
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPlans.map((plan) => {
-                    const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
-                    const isGoalHidden = allGoalsHidden ? !hiddenGoalRows.has(plan.id) : hiddenGoalRows.has(plan.id);
-                    const isBudgetHidden = allBudgetsHidden
-                      ? !hiddenBudgetRows.has(plan.id)
-                      : hiddenBudgetRows.has(plan.id);
-
-                    return (
-                      <TableRow key={plan.id}>
-                        <TableCell>
-                          <Switch
-                            checked={plan.status === "activo"}
-                            onCheckedChange={() => handleToggleStatus(plan)}
-                            disabled={togglingStatusId === plan.id}
-                            aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{plan.name}</TableCell>
-                        <TableCell>{plan.year}</TableCell>
-                        <TableCell>
-                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
-                        </TableCell>
-                        {showGoalColumn && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="font-mono">
-                                {isGoalHidden ? "••••••" : formatCurrency(plan.total_purchase_goal || 0)}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => toggleRowGoalHidden(plan.id)}
-                                title={isGoalHidden ? "Mostrar valor" : "Ocultar valor"}
-                              >
-                                {isGoalHidden ? (
-                                  <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                ) : (
-                                  <Eye className="h-3 w-3 text-muted-foreground" />
-                                )}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                        {showBudgetColumn && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="font-mono">
-                                {isBudgetHidden ? "••••••" : formatCurrency(plan.total_budget_allocated || 0)}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => toggleRowBudgetHidden(plan.id)}
-                                title={isBudgetHidden ? "Mostrar valor" : "Ocultar valor"}
-                              >
-                                {isBudgetHidden ? (
-                                  <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                ) : (
-                                  <Eye className="h-3 w-3 text-muted-foreground" />
-                                )}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleViewPlan(plan)}
-                              title="Ver detalles"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleEditPlan(plan)}
-                              title="Editar"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(plan)}
-                              title="Eliminar"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(totalPurchaseGoal)}</p>
             )}
           </CardContent>
         </Card>
+
+        <Card className="border-border/50 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Total Asignado</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-8 bg-muted animate-pulse rounded" />
+            ) : (
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(totalBudget)}</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Plans Table */}
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle>Planes Anuales</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Column visibility dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2" disabled={loading}>
+                    <Columns3 className="h-4 w-4" />
+                    Columnas
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-md z-50">
+                  <DropdownMenuCheckboxItem checked={showGoalColumn} onCheckedChange={setShowGoalColumn}>
+                    Meta de Compra
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem checked={showBudgetColumn} onCheckedChange={setShowBudgetColumn}>
+                    Presupuesto
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+              ))}
+            </div>
+          ) : filteredPlans.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                {searchQuery ? "No se encontraron planes con ese criterio" : "No hay planes anuales registrados"}
+              </p>
+              {!searchQuery && (
+                <Button variant="outline" className="mt-4" onClick={handleOpenCreate} disabled={loading}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear primer plan
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {filteredPlans.map((plan) => {
+                  const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
+                  const isGoalHidden = allGoalsHidden ? !hiddenGoalRows.has(plan.id) : hiddenGoalRows.has(plan.id);
+                  const isBudgetHidden = allBudgetsHidden ? !hiddenBudgetRows.has(plan.id) : hiddenBudgetRows.has(plan.id);
+                  return (
+                    <div key={plan.id} className="rounded-md border bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{plan.name}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{plan.year}</p>
+                        </div>
+                        <Switch
+                          checked={plan.status === "activo"}
+                          onCheckedChange={() => handleToggleStatus(plan)}
+                          disabled={loading || togglingStatusId === plan.id}
+                          aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
+                        />
+                      </div>
+                      <div className="mt-3"><Badge variant={statusConfig.variant}>{statusConfig.label}</Badge></div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        {showGoalColumn && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Meta</p>
+                            <p className="font-mono font-medium">{isGoalHidden ? "••••••" : formatCurrency(plan.total_purchase_goal || 0)}</p>
+                          </div>
+                        )}
+                        {showBudgetColumn && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Presupuesto</p>
+                            <p className="font-mono font-medium">{isBudgetHidden ? "••••••" : formatCurrency(plan.total_budget_allocated || 0)}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-1">
+                        <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={loading} title="Ver detalles"><Eye className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading} title="Editar"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading} title="Eliminar"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Activo</TableHead>
+                      <TableHead>Nombre del Plan</TableHead>
+                      <TableHead>Año</TableHead>
+                      <TableHead>Estado</TableHead>
+                      {showGoalColumn && (
+                        <TableHead className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Meta de Compra</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setAllGoalsHidden((prev) => !prev);
+                                setHiddenGoalRows(new Set());
+                              }}
+                              disabled={loading}
+                              title={allGoalsHidden ? "Mostrar todos" : "Ocultar todos"}
+                            >
+                              {allGoalsHidden ? (
+                                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableHead>
+                      )}
+                      {showBudgetColumn && (
+                        <TableHead className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Presupuesto</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setAllBudgetsHidden((prev) => !prev);
+                                setHiddenBudgetRows(new Set());
+                              }}
+                              disabled={loading}
+                              title={allBudgetsHidden ? "Mostrar todos" : "Ocultar todos"}
+                            >
+                              {allBudgetsHidden ? (
+                                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableHead>
+                      )}
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPlans.map((plan) => {
+                      const statusConfig = STATUS_CONFIG[plan.status] || STATUS_CONFIG.activo;
+                      const isGoalHidden = allGoalsHidden ? !hiddenGoalRows.has(plan.id) : hiddenGoalRows.has(plan.id);
+                      const isBudgetHidden = allBudgetsHidden
+                        ? !hiddenBudgetRows.has(plan.id)
+                        : hiddenBudgetRows.has(plan.id);
+
+                      return (
+                        <TableRow key={plan.id}>
+                          <TableCell>
+                            <Switch
+                              checked={plan.status === "activo"}
+                              onCheckedChange={() => handleToggleStatus(plan)}
+                              disabled={loading || togglingStatusId === plan.id}
+                              aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{plan.name}</TableCell>
+                          <TableCell>{plan.year}</TableCell>
+                          <TableCell>
+                            <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                          </TableCell>
+                          {showGoalColumn && (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="font-mono">
+                                  {isGoalHidden ? "••••••" : formatCurrency(plan.total_purchase_goal || 0)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => toggleRowGoalHidden(plan.id)}
+                                  disabled={loading}
+                                  title={isGoalHidden ? "Mostrar valor" : "Ocultar valor"}
+                                >
+                                  {isGoalHidden ? (
+                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                  ) : (
+                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                          {showBudgetColumn && (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="font-mono">
+                                  {isBudgetHidden ? "••••••" : formatCurrency(plan.total_budget_allocated || 0)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => toggleRowBudgetHidden(plan.id)}
+                                  disabled={loading}
+                                  title={isBudgetHidden ? "Mostrar valor" : "Ocultar valor"}
+                                >
+                                  {isBudgetHidden ? (
+                                    <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                  ) : (
+                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                          <TableCell className="text-left">
+                            <div className="flex justify-start gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleViewPlan(plan)}
+                                disabled={loading}
+                                title="Ver detalles"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleEditPlan(plan)}
+                                disabled={loading}
+                                title="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteClick(plan)}
+                                disabled={loading}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Form Sheet */}
       <PlanFormSheet

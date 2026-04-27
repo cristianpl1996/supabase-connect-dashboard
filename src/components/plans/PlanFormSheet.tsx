@@ -313,7 +313,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="year">Ano</Label>
                 <Input
@@ -368,7 +368,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                 {funds.map((fund, index) => (
                   <div
                     key={fund.id}
-                    className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg"
+                    className="grid gap-2 rounded-lg bg-muted/50 p-3 sm:grid-cols-[1.5rem_1fr_auto_auto_auto] sm:items-center"
                   >
                     <span className="text-xs text-muted-foreground w-6">
                       {index + 1}.
@@ -378,7 +378,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                       value={fund.concept}
                       onValueChange={(v) => updateFund(fund.id, 'concept', v)}
                     >
-                      <SelectTrigger className="w-40">
+                      <SelectTrigger className="w-full sm:w-40">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -394,7 +394,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                       value={fund.amount_type}
                       onValueChange={(v) => updateFund(fund.id, 'amount_type', v as 'fijo' | 'porcentaje')}
                     >
-                      <SelectTrigger className="w-24">
+                      <SelectTrigger className="w-full sm:w-24">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -407,7 +407,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                       type="number"
                       min={0}
                       step={fund.amount_type === 'porcentaje' ? 0.1 : 1}
-                      className="w-24"
+                      className="w-full sm:w-24"
                       value={fund.amount_value || ''}
                       onChange={(e) => updateFund(fund.id, 'amount_value', parseFloat(e.target.value) || 0)}
                       placeholder={fund.amount_type === 'porcentaje' ? '3.0' : '1000000'}
@@ -440,17 +440,17 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
           <Separator />
 
-          <div className="flex gap-3 pt-4">
+          <div className="grid gap-2 pt-4 sm:grid-cols-2">
             <Button
               variant="outline"
-              className="flex-1"
+              className="w-full"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancelar
             </Button>
             <Button
-              className="flex-1"
+              className="w-full"
               onClick={handleSubmit}
               disabled={isSubmitting || isLoadingFunds}
             >

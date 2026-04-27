@@ -27,6 +27,7 @@ export default function WalletPage() {
   const [selectedLabId, setSelectedLabId] = useState<string>('');
   const [selectedLabName, setSelectedLabName] = useState<string>('');
   const [walletView, setWalletView] = useState<LaboratoryWalletView | null>(null);
+  const [isLoadingLabs, setIsLoadingLabs] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'ingreso' | 'egreso'>('ingreso');
@@ -54,8 +55,10 @@ export default function WalletPage() {
   }, [selectedLabId, laboratories]);
 
   async function fetchLaboratories() {
+    setIsLoadingLabs(true);
     if (user?.role === 'promotor' && user.laboratory_id) {
       setSelectedLabId(user.laboratory_id);
+      setIsLoadingLabs(false);
       return;
     }
     try {
@@ -68,6 +71,8 @@ export default function WalletPage() {
         description: 'No se pudieron cargar los laboratorios desde la API',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoadingLabs(false);
     }
   }
 
@@ -249,7 +254,7 @@ export default function WalletPage() {
   const isNegativeBalance = walletView?.flags.is_negative_balance ?? false;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="mx-auto max-w-screen-2xl space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <Wallet className="h-8 w-8 text-primary" />
@@ -264,7 +269,7 @@ export default function WalletPage() {
             {canCreateAdjustments && (
               <Dialog open={isAdjustmentOpen} onOpenChange={setIsAdjustmentOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline">
+                  <Button variant="outline" disabled={isLoading || isLoadingLabs}>
                     <Plus className="h-4 w-4 mr-2" />
                     Nuevo Ajuste
                   </Button>
@@ -278,7 +283,7 @@ export default function WalletPage() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Tipo de Ajuste</Label>
-                      <Select value={adjustmentType} onValueChange={(v) => setAdjustmentType(v as 'ingreso' | 'egreso')}>
+                      <Select value={adjustmentType} onValueChange={(v) => setAdjustmentType(v as 'ingreso' | 'egreso')} disabled={isLoading || isSavingAdjustment}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -295,6 +300,7 @@ export default function WalletPage() {
                         placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123..."
                         value={adjustmentReason}
                         onChange={(e) => setAdjustmentReason(e.target.value)}
+                        disabled={isLoading || isSavingAdjustment}
                       />
                     </div>
 
@@ -305,6 +311,7 @@ export default function WalletPage() {
                         placeholder="0"
                         value={adjustmentAmount}
                         onChange={(e) => setAdjustmentAmount(e.target.value)}
+                        disabled={isLoading || isSavingAdjustment}
                       />
                     </div>
 
@@ -314,6 +321,7 @@ export default function WalletPage() {
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
+                            disabled={isLoading || isSavingAdjustment}
                             className={cn('w-full justify-start text-left font-normal', !adjustmentDate && 'text-muted-foreground')}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -334,10 +342,10 @@ export default function WalletPage() {
                   </div>
 
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAdjustmentOpen(false)}>
+                    <Button variant="outline" onClick={() => setIsAdjustmentOpen(false)} disabled={isSavingAdjustment}>
                       Cancelar
                     </Button>
-                    <Button onClick={() => void handleSaveAdjustment()} disabled={isSavingAdjustment}>
+                    <Button onClick={() => void handleSaveAdjustment()} disabled={isLoading || isSavingAdjustment}>
                       {isSavingAdjustment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Guardar Ajuste
                     </Button>
@@ -346,7 +354,7 @@ export default function WalletPage() {
               </Dialog>
             )}
 
-            <Button onClick={handleExportPDF} disabled={isExporting || !walletView}>
+            <Button onClick={handleExportPDF} disabled={isLoading || isLoadingLabs || isExporting || !walletView}>
               {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
               Exportar PDF
             </Button>
@@ -360,7 +368,7 @@ export default function WalletPage() {
           <CardDescription>Elige un laboratorio para ver su estado financiero</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={selectedLabId} onValueChange={setSelectedLabId} disabled={user?.role === 'promotor'}>
+          <Select value={selectedLabId} onValueChange={setSelectedLabId} disabled={isLoadingLabs || isLoading || user?.role === 'promotor'}>
             <SelectTrigger className="w-full md:w-[400px]">
               <SelectValue placeholder="Seleccionar laboratorio..." />
             </SelectTrigger>

@@ -161,15 +161,15 @@ const Calendar = () => {
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
   return (
-    <div className="max-w-full mx-auto space-y-6">
+    <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Calendario Comercial</h1>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Calendario Comercial</h1>
           <p className="text-muted-foreground mt-1">Linea de tiempo de promociones con deteccion de canibalizacion</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-48">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={loading}>
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Filtrar categoria" />
             </SelectTrigger>
             <SelectContent className="bg-popover border border-border shadow-md z-50">
@@ -184,14 +184,18 @@ const Calendar = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Promociones este mes</CardTitle>
             <CalendarDays className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{visibleItems.length}</p>
+            {loading ? (
+              <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
+            ) : (
+              <p className="text-2xl font-bold text-foreground">{visibleItems.length}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -201,7 +205,11 @@ const Calendar = () => {
             <Layers className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{new Set(visibleItems.map((item) => item.category)).size}</p>
+            {loading ? (
+              <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
+            ) : (
+              <p className="text-2xl font-bold text-foreground">{new Set(visibleItems.map((item) => item.category)).size}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -211,26 +219,32 @@ const Calendar = () => {
             <AlertTriangle className={`h-4 w-4 ${conflictCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
           </CardHeader>
           <CardContent>
-            <p className={`text-2xl font-bold ${conflictCount > 0 ? 'text-destructive' : 'text-foreground'}`}>{conflictCount}</p>
-            {conflictCount > 0 && <p className="text-xs text-muted-foreground mt-1">Promociones de la misma categoria se superponen</p>}
+            {loading ? (
+              <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
+            ) : (
+              <>
+                <p className={`text-2xl font-bold ${conflictCount > 0 ? 'text-destructive' : 'text-foreground'}`}>{conflictCount}</p>
+                {conflictCount > 0 && <p className="text-xs text-muted-foreground mt-1">Promociones de la misma categoria se superponen</p>}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center justify-between gap-2 sm:justify-start">
+              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={loading}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-xl font-semibold text-foreground capitalize min-w-[200px] text-center">
+              <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-foreground sm:min-w-[200px] sm:text-xl">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
               </h2>
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}>
+              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={loading}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} className="text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={loading} className="text-xs text-muted-foreground">
                 Hoy
               </Button>
             </div>
@@ -260,7 +274,44 @@ const Calendar = () => {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 md:hidden">
+              {ganttRows.length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarDays className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No hay promociones en este mes</p>
+                </div>
+              ) : (
+                ganttRows.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className="w-full rounded-md border bg-card p-3 text-left"
+                    onClick={() => {
+                      setSelectedPromo(row.promotion);
+                      setDetailsOpen(true);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{row.title}</p>
+                        <p className="mt-1 truncate text-sm text-muted-foreground">{row.labName}</p>
+                      </div>
+                      {row.hasConflict && <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Badge variant="outline">{row.category}</Badge>
+                      <Badge variant={row.status === 'revision' ? 'destructive' : 'secondary'}>{row.status}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {format(row.startDate, 'dd MMM', { locale: es })} - {format(row.endDate, 'dd MMM yyyy', { locale: es })} ({row.totalDays} dias)
+                    </p>
+                    <p className="mt-1 text-sm font-medium">{formatCurrency(row.estimatedCost)}</p>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <div className="min-w-[900px]">
                 <div className="grid gap-px mb-1" style={{ gridTemplateColumns: `180px repeat(${daysInMonth.length}, 1fr)` }}>
                   <div className="text-xs font-medium text-muted-foreground p-2">Promocion</div>
@@ -361,6 +412,7 @@ const Calendar = () => {
                 </div>
               </div>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

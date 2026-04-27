@@ -3,11 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Bell, LogOut, Menu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
+import logo from "@/assets/logo.png";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,14 +84,34 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <SidebarProvider defaultOpen={!isMobile}>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <SidebarInset className="flex-1">
-          <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/60 bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
-            <SidebarTrigger className="-ml-1 h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
-              <Menu className="h-4 w-4" />
-              <span className="sr-only">Toggle menu</span>
-            </SidebarTrigger>
+      <div className="flex min-h-screen w-full overflow-x-hidden">
+        {!isMobile && <AppSidebar />}
+        <SidebarInset className="min-w-0 flex-1">
+          <header
+            className={cn(
+              "sticky top-0 z-20 flex h-14 min-w-0 items-center gap-3 border-b px-5 sm:px-5 lg:px-6",
+              isMobile
+                ? "border-sidebar-border bg-sidebar text-sidebar-foreground"
+                : "border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+            )}
+          >
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => navigate("/home")}
+                className="shrink-0 p-0"
+                aria-label="Ir a inicio"
+              >
+                <img src={logo} alt="Ivanagro" className="h-8 w-auto object-contain" />
+              </button>
+            )}
+
+            {!isMobile && (
+              <SidebarTrigger className="-ml-1 h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                <Menu className="h-4 w-4" />
+                <span className="sr-only">Toggle menu</span>
+              </SidebarTrigger>
+            )}
 
             <div className="flex-1" />
 
@@ -117,7 +140,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-96">
+              <DropdownMenuContent align="end" className="w-[calc(100vw-1.5rem)] max-w-96">
                 <div className="flex items-center justify-between px-2 py-1.5">
                   <DropdownMenuLabel className="px-0">Notificaciones</DropdownMenuLabel>
                   <Button
@@ -199,7 +222,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             </DropdownMenu>
           </header>
 
-          <main className="flex-1 p-6 md:p-10">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 md:px-8 md:py-8 xl:px-10">
+            {children}
+          </main>
+          {isMobile && <MobileBottomNav />}
         </SidebarInset>
       </div>
     </SidebarProvider>
