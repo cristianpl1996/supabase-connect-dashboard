@@ -22,6 +22,7 @@ export interface Product {
   name: string;
   category: string | null;
   brand_id: string | null;
+  brand_original_product_id?: string | null;
   current_stock: number;
   unit_cost: number | null;
   is_active: boolean;
@@ -34,6 +35,9 @@ export interface AnnualPlan {
   year: number;
   name: string;
   status: 'activo' | 'negociacion' | 'cerrado';
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   contract_pdf_url: string | null;
   ai_extracted_data: Record<string, unknown> | null;
   total_purchase_goal: number | null;
@@ -110,6 +114,10 @@ export interface DashboardSummary {
     title: string;
     lab_id: string;
     laboratory_name: string | null;
+    created_by_role?: SourceRole;
+    created_by_identifier?: string | null;
+    created_by_responsible?: string | null;
+    created_by_brand?: string | null;
     end_date: string;
     days_left: number;
     status: PromoStatus;
@@ -130,6 +138,9 @@ export interface Promotion {
   lab_id: string;
   laboratory_name?: string | null;
   created_by_role: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   title: string;
   description: string | null;
   start_date: string;

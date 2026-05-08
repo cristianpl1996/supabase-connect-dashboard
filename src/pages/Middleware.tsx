@@ -16,6 +16,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 
 export default function Middleware() {
   const [executions, setExecutions] = useState<PromoExecution[]>([]);
@@ -25,6 +28,7 @@ export default function Middleware() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastSync, setLastSync] = useState<Date>(new Date());
   const [isOnline, setIsOnline] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchExecutions = async (silent = false) => {
     if (!silent) {
@@ -35,10 +39,12 @@ export default function Middleware() {
       const data = await listPromoExecutions();
       setExecutions(data);
       setIsOnline(true);
+      setError(null);
       setLastSync(new Date());
     } catch (error) {
       console.error("Error fetching executions from API:", error);
       setIsOnline(false);
+      setError(formatApiErrorMessage(error));
       if (!silent) {
         toast({
           title: "Error de API",
@@ -59,9 +65,11 @@ export default function Middleware() {
       const data = await listActiveExecutionPromotions();
       setActivePromos(data);
       setIsOnline(true);
+      setError(null);
     } catch (error) {
       console.error("Error fetching active promotions from API:", error);
       setIsOnline(false);
+      setError(formatApiErrorMessage(error));
     }
   };
 
@@ -97,6 +105,7 @@ export default function Middleware() {
     } catch (error) {
       console.error("Error simulating middleware order:", error);
       setIsOnline(false);
+      setError(formatApiErrorMessage(error));
       toast({
         title: "Error de API",
         description: "No se pudo simular el pedido en el middleware.",
@@ -114,6 +123,7 @@ export default function Middleware() {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6">
+      <ErrorDisabledContent disabled={!!error}>
       <div className="mb-8">
         <Link to="/" className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-1 h-4 w-4" />
@@ -130,7 +140,13 @@ export default function Middleware() {
           </Button>
         </div>
       </div>
+      </ErrorDisabledContent>
 
+      {error && (
+        <ModuleErrorCard message={error} onRetry={() => void refreshData()} loading={refreshing || loading} />
+      )}
+
+      <ErrorDisabledContent disabled={!!error} className="space-y-6">
       <div className="mb-8 grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -264,6 +280,7 @@ export default function Middleware() {
           )}
         </CardContent>
       </Card>
+      </ErrorDisabledContent>
     </div>
   );
 }

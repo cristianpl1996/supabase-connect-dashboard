@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  AlertCircle,
   TrendingUp,
   FileText,
   Plus,
@@ -22,6 +21,9 @@ import {
 } from "lucide-react";
 import { PlanFormSheet } from "@/components/plans/PlanFormSheet";
 import { PlanDetailsSheet } from "@/components/plans/PlanDetailsSheet";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -81,12 +83,7 @@ const Plans = () => {
       setPlans(plansData || []);
       setLaboratories(labsData || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
-      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        setError(`Error de red/CORS: No se pudo conectar a la API. Detalles: ${errorMessage}`);
-      } else {
-        setError(errorMessage);
-      }
+      setError(formatApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -213,6 +210,7 @@ const Plans = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-8">
       {/* Header */}
+      <ErrorDisabledContent disabled={!!error}>
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Planes y Negociaciones</h1>
@@ -235,22 +233,14 @@ const Plans = () => {
           </Button>
         </div>
       </div>
+      </ErrorDisabledContent>
 
       {/* Error Display */}
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-medium text-destructive">Error de Conexión</p>
-                <p className="text-sm text-destructive/90 whitespace-pre-wrap">{error}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ModuleErrorCard message={error} onRetry={fetchData} loading={loading} />
       )}
 
+      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-8">
       {/* Summary Cards */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Card className="border-border/50 shadow-sm">
@@ -591,6 +581,7 @@ const Plans = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </ErrorDisabledContent>
     </div>
   );
 };

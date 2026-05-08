@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 import {
-  AlertCircle,
   TrendingUp,
   Tag,
   Percent,
@@ -24,6 +26,8 @@ const Index = () => {
     data: dashboard,
     isLoading: loading,
     error,
+    refetch,
+    isFetching,
   } = useQuery<DashboardSummary>({
     queryKey: ["dashboard-summary"],
     queryFn: getDashboardSummary,
@@ -128,21 +132,14 @@ const Index = () => {
       </div>
 
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-medium text-destructive">Error de Conexion</p>
-                <p className="text-sm text-destructive/90">
-                  {error instanceof Error ? error.message : "Error desconocido"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ModuleErrorCard
+          message={formatApiErrorMessage(error)}
+          onRetry={() => void refetch()}
+          loading={isFetching}
+        />
       )}
 
+      <ErrorDisabledContent disabled={!!error} className="space-y-8">
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-primary/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -310,6 +307,7 @@ const Index = () => {
       <div className="text-xs text-muted-foreground text-center">
         Ultima actualizacion: {new Date().toLocaleTimeString("es-CO")} • Conectado a la API
       </div>
+      </ErrorDisabledContent>
     </div>
   );
 };

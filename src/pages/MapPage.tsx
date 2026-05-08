@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 
 import { MapModule } from "@/components/map/MapModule";
+import { Button } from "@/components/ui/button";
 import { getMapCustomersBatch, type CustomerRecord } from "@/lib/api";
+import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE = 2000;
 
@@ -12,13 +14,16 @@ export default function MapPage() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [totalLoaded, setTotalLoaded] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [badge, setBadge] = useState<BadgePhase>("loading");
   const fetchedRef = useRef(false);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
+  async function fetchCustomers() {
+    setCustomers([]);
+    setTotalLoaded(0);
+    setError(null);
+    setInitialLoading(true);
+    setBadge("loading");
     let offset = 0;
 
     async function fetchNext() {
@@ -27,6 +32,7 @@ export default function MapPage() {
 
         setCustomers((prev) => [...prev, ...batch]);
         setTotalLoaded((prev) => prev + batch.length);
+        setInitialLoading(false);
 
         if (batch.length === PAGE) {
           offset += PAGE;
@@ -37,20 +43,52 @@ export default function MapPage() {
           setTimeout(() => setBadge("hidden"), 3000);
         }
       } catch (err) {
-        setError((err as Error).message);
+        setError(formatApiErrorMessage(err));
+        setInitialLoading(false);
         setBadge("hidden");
       }
     }
 
-    void fetchNext();
+    await fetchNext();
+  }
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    void fetchCustomers();
   }, []);
+
+  if (initialLoading && customers.length === 0 && !error) {
+    return (
+      <div className="-mx-3 -my-4 flex h-[calc(100svh-3.5rem)] items-center justify-center bg-slate-50 px-4 sm:-mx-5 md:-mx-8 md:-my-8 xl:-mx-10">
+        <div className="flex flex-col items-center text-center">
+          <div className="relative flex h-24 w-24 items-center justify-center">
+            <span className="absolute h-12 w-12 animate-ping rounded-full bg-primary/20" />
+            <span className="absolute h-16 w-16 animate-ping rounded-full bg-primary/10 [animation-delay:180ms]" />
+            <span className="absolute h-20 w-20 animate-ping rounded-full bg-primary/5 [animation-delay:360ms]" />
+            <Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+          </div>
+          <h2 className="mt-3 text-base font-bold text-foreground">Cargando mapa de clientes</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Preparando clientes georreferenciados</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error && customers.length === 0) {
     return (
-      <div className="-mx-3 -my-4 flex h-[calc(100svh-3.5rem)] flex-col items-center justify-center gap-3 sm:-mx-5 md:-mx-8 md:-my-8 xl:-mx-10">
-        <AlertCircle className="h-8 w-8 text-red-500" />
-        <p className="text-sm font-semibold text-gray-800">Error al cargar clientes</p>
-        <p className="max-w-xs text-center text-xs text-red-600">{error}</p>
+      <div className="-mx-3 -my-4 flex h-[calc(100svh-3.5rem)] items-center justify-center bg-slate-50 px-4 sm:-mx-5 md:-mx-8 md:-my-8 xl:-mx-10">
+        <div className="flex w-full max-w-sm flex-col items-center text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
+            <AlertCircle className="h-6 w-6" />
+          </span>
+          <h2 className="mt-4 text-base font-bold text-foreground">Revisa la conexion con la API y vuelve a intentarlo</h2>
+          <p className="mt-1 max-w-xs break-words text-sm font-medium text-destructive">{error}</p>
+          <Button variant="outline" onClick={() => void fetchCustomers()} className="mt-5 gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Reintentar
+          </Button>
+        </div>
       </div>
     );
   }

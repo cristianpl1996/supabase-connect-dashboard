@@ -22,7 +22,6 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
   Activity,
-  AlertCircle,
   BarChart3,
   Building2,
   Copy,
@@ -43,6 +42,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE_SIZE = 200;
 
@@ -285,7 +287,7 @@ export default function Customers() {
       });
       setHasMore(offset + batch.length < total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(formatApiErrorMessage(err));
       if (mode === "reset") setCustomers([]);
       if (mode === "reset") setTotalCustomers(null);
     } finally {
@@ -436,19 +438,10 @@ export default function Customers() {
       </div>
 
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 gap-3 text-destructive">
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">{error}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => fetchPage(0, "reset")} disabled={loadingInitial} className="gap-2">
-              <RefreshCw className="h-4 w-4" /> Reintentar
-            </Button>
-          </CardContent>
-        </Card>
+        <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
       )}
 
+      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { title: "Clientes cargados", value: totalLabel ? `${loadedLabel} / ${totalLabel}` : loadedLabel, note: "Segun filtros actuales", icon: UserRound },
@@ -812,6 +805,7 @@ export default function Customers() {
           )}
         </SheetContent>
       </Sheet>
+      </ErrorDisabledContent>
     </div>
   );
 }

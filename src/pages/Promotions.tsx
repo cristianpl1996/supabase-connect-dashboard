@@ -16,11 +16,14 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  AlertCircle, Plus, Search, Eye, EyeOff, Pencil, Trash2,
+  Plus, Search, Eye, EyeOff, Pencil, Trash2,
   Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check
 } from 'lucide-react';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
+import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
+import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { formatApiErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -95,8 +98,7 @@ const Promotions = () => {
       setPromotions(promosData || []);
       setLaboratories(labsData || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      setError(errorMessage);
+      setError(formatApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -303,6 +305,7 @@ const Promotions = () => {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6 sm:space-y-8">
+      <ErrorDisabledContent disabled={!!error}>
       <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Gestion de Promociones</h1>
@@ -326,21 +329,13 @@ const Promotions = () => {
           </Button>
         </div>
       </div>
+      </ErrorDisabledContent>
 
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-medium text-destructive">Error de Conexion</p>
-                <p className="text-sm text-destructive/90">{error}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ModuleErrorCard message={error} onRetry={fetchData} loading={loading} />
       )}
 
+      <ErrorDisabledContent disabled={!!error} className="space-y-6 sm:space-y-8">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -689,6 +684,7 @@ const Promotions = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </ErrorDisabledContent>
     </div>
   );
 };

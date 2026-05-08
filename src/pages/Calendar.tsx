@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
+import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
+import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { formatApiErrorMessage } from '@/lib/errors';
 import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, Layers, Info } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addMonths, subMonths, differenceInDays, isBefore, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -55,6 +58,7 @@ interface GanttPromo {
 const Calendar = () => {
   const [promotions, setPromotions] = useState<CalendarPromotion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -67,9 +71,11 @@ const Calendar = () => {
   async function fetchData() {
     try {
       setLoading(true);
+      setError(null);
       setPromotions(await listCalendarPromotions());
     } catch (err) {
       console.error('Error fetching calendar data:', err);
+      setError(formatApiErrorMessage(err));
       setPromotions([]);
     } finally {
       setLoading(false);
@@ -162,6 +168,7 @@ const Calendar = () => {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+      <ErrorDisabledContent disabled={!!error}>
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Calendario Comercial</h1>
@@ -183,7 +190,13 @@ const Calendar = () => {
           </Select>
         </div>
       </div>
+      </ErrorDisabledContent>
 
+      {error && (
+        <ModuleErrorCard message={error} onRetry={() => void fetchData()} loading={loading} />
+      )}
+
+      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -424,6 +437,7 @@ const Calendar = () => {
         mechanic={selectedPromo?.mechanic ?? undefined}
         labName={selectedPromo?.laboratory_name || undefined}
       />
+      </ErrorDisabledContent>
     </div>
   );
 };

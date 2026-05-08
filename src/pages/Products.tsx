@@ -19,7 +19,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
-  AlertCircle,
   BadgeCheck,
   Boxes,
   Eye,
@@ -31,6 +30,9 @@ import {
   Tags,
   X,
 } from "lucide-react";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE_SIZE = 200;
 const CORE_PRODUCT_FIELDS = new Set([
@@ -260,7 +262,7 @@ export default function Products() {
       });
       setHasMore(total === null ? batch.length === PAGE_SIZE : offset + batch.length < total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(formatApiErrorMessage(err));
       if (mode === "reset") {
         setProducts([]);
         setTotalProducts(null);
@@ -358,16 +360,10 @@ export default function Products() {
       </div>
 
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="pt-6">
-            <div className="flex gap-3 text-destructive">
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
       )}
 
+      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "..." : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
         <KpiCard title="Con stock disponible" value={`${stockCoverage}%`} note={`${formatCount(productsWithStock)} SKUs con unidades`} icon={Boxes} loading={loadingInitial} />
@@ -713,6 +709,7 @@ export default function Products() {
           )}
         </SheetContent>
       </Sheet>
+      </ErrorDisabledContent>
     </div>
   );
 }

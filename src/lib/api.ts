@@ -225,6 +225,7 @@ export interface ProductCatalogItem {
   product_sku: string;
   product_commercial_name?: string | null;
   product_brand_name?: string | null;
+  brand_original_product_id?: string | null;
   product_industry_sector?: string | null;
   product_category?: string | null;
   product_line_name?: string | null;
@@ -344,6 +345,9 @@ export interface Plan {
   year: number;
   name: string;
   status: "activo" | "negociacion" | "cerrado";
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   contract_pdf_url: string | null;
   ai_extracted_data: Record<string, unknown> | null;
   total_purchase_goal: number | null;
@@ -366,6 +370,9 @@ export interface PlanPayload {
   year: number;
   name?: string;
   status?: "activo" | "negociacion" | "cerrado";
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   contract_pdf_url?: string | null;
   ai_extracted_data?: Record<string, unknown> | null;
   total_purchase_goal: number | null;
@@ -392,6 +399,9 @@ export interface Promotion {
   lab_id: string;
   laboratory_name?: string | null;
   created_by_role: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   title: string;
   description: string | null;
   start_date: string;
@@ -491,6 +501,10 @@ export interface DashboardExpiringPromotion {
   title: string;
   lab_id: string;
   laboratory_name: string | null;
+  created_by_role?: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   end_date: string;
   days_left: number;
   status: PromoStatus;
@@ -517,6 +531,10 @@ export interface CalendarPromotion {
   title: string;
   lab_id: string;
   laboratory_name: string | null;
+  created_by_role?: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   start_date: string;
   end_date: string;
   status: PromoStatus;
@@ -565,6 +583,10 @@ export interface ActivePromotionExecutionView {
   title: string;
   lab_id: string;
   laboratory_name: string | null;
+  created_by_role?: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   mechanic: PromoMechanic | null;
 }
 
@@ -643,6 +665,9 @@ export interface PromoMechanicPayload {
 export interface PromotionPayload {
   lab_id: string;
   created_by_role?: SourceRole;
+  created_by_identifier?: string | null;
+  created_by_responsible?: string | null;
+  created_by_brand?: string | null;
   title: string;
   description?: string | null;
   start_date: string;

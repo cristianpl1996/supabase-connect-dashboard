@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { formatApiErrorMessage } from "@/lib/errors";
 import { Megaphone, Copy, Download, Sparkles, Loader2, ImageIcon, Save, Camera } from "lucide-react";
 import { format } from "date-fns";
 import html2canvas from "html2canvas";
@@ -20,6 +23,7 @@ export default function Marketing() {
   const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState("");
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,15 +53,12 @@ export default function Marketing() {
 
   async function fetchPromotions() {
     setIsLoadingPromotions(true);
+    setLoadError(null);
     try {
       setPromotions(await listMarketingPromotions());
     } catch (error) {
       console.error("Error fetching promotions:", error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las promociones desde la API",
-        variant: "destructive",
-      });
+      setLoadError(formatApiErrorMessage(error));
     } finally {
       setIsLoadingPromotions(false);
     }
@@ -238,6 +239,11 @@ export default function Marketing() {
         </div>
       </div>
 
+      {loadError && (
+        <ModuleErrorCard message={loadError} onRetry={() => void fetchPromotions()} loading={isLoadingPromotions} />
+      )}
+
+      <ErrorDisabledContent disabled={!!loadError} className="space-y-5 sm:space-y-6">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Seleccionar Promocion</CardTitle>
@@ -410,6 +416,7 @@ export default function Marketing() {
           </CardContent>
         </Card>
       )}
+      </ErrorDisabledContent>
     </div>
   );
 }

@@ -17,6 +17,9 @@ import { Wallet, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Plus, File
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
+import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { formatApiErrorMessage } from '@/lib/errors';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -29,6 +32,7 @@ export default function WalletPage() {
   const [walletView, setWalletView] = useState<LaboratoryWalletView | null>(null);
   const [isLoadingLabs, setIsLoadingLabs] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'ingreso' | 'egreso'>('ingreso');
   const [adjustmentReason, setAdjustmentReason] = useState('');
@@ -56,6 +60,7 @@ export default function WalletPage() {
 
   async function fetchLaboratories() {
     setIsLoadingLabs(true);
+    setLoadError(null);
     if (user?.role === 'promotor' && user.laboratory_id) {
       setSelectedLabId(user.laboratory_id);
       setIsLoadingLabs(false);
@@ -66,11 +71,7 @@ export default function WalletPage() {
       setLaboratories(data);
     } catch (error) {
       console.error('Error fetching laboratories:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudieron cargar los laboratorios desde la API',
-        variant: 'destructive',
-      });
+      setLoadError(formatApiErrorMessage(error));
     } finally {
       setIsLoadingLabs(false);
     }
@@ -78,17 +79,14 @@ export default function WalletPage() {
 
   async function fetchWalletData(labId: string) {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await getLaboratoryWallet(labId);
       setWalletView(data);
       setSelectedLabName(data.laboratory.name);
     } catch (error) {
       console.error('Error fetching wallet data:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo cargar la billetera desde la API',
-        variant: 'destructive',
-      });
+      setLoadError(formatApiErrorMessage(error));
       setWalletView(null);
     } finally {
       setIsLoading(false);
@@ -255,6 +253,7 @@ export default function WalletPage() {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6">
+      <ErrorDisabledContent disabled={!!loadError}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <Wallet className="h-8 w-8 text-primary" />
@@ -361,7 +360,17 @@ export default function WalletPage() {
           </div>
         )}
       </div>
+      </ErrorDisabledContent>
 
+      {loadError && (
+        <ModuleErrorCard
+          message={loadError}
+          onRetry={() => selectedLabId ? void fetchWalletData(selectedLabId) : void fetchLaboratories()}
+          loading={isLoading || isLoadingLabs}
+        />
+      )}
+
+      <ErrorDisabledContent disabled={!!loadError} className="space-y-6">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Seleccionar Laboratorio</CardTitle>
@@ -514,6 +523,7 @@ export default function WalletPage() {
           )}
         </>
       ) : null}
+      </ErrorDisabledContent>
     </div>
   );
 }
