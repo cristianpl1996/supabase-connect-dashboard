@@ -231,6 +231,7 @@ export default function Marketing() {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
+      <ErrorDisabledContent disabled={!!loadError}>
       <div className="flex min-w-0 items-center gap-3">
         <Megaphone className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
         <div className="min-w-0">
@@ -238,6 +239,7 @@ export default function Marketing() {
           <p className="text-muted-foreground">Genera materiales de venta profesionales en segundos</p>
         </div>
       </div>
+      </ErrorDisabledContent>
 
       {loadError && (
         <ModuleErrorCard message={loadError} onRetry={() => void fetchPromotions()} loading={isLoadingPromotions} />

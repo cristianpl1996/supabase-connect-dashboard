@@ -82,6 +82,21 @@ const ACCOUNTING_TREATMENTS = [
   { value: 'nota_credito_posterior', label: 'Nota Credito Posterior' },
 ];
 
+const formFocusClasses = [
+  '[&_input:focus-visible]:!border-primary/60',
+  '[&_input:focus-visible]:!ring-1',
+  '[&_input:focus-visible]:!ring-primary/20',
+  '[&_input:focus-visible]:!ring-offset-0',
+  '[&_textarea:focus-visible]:!border-primary/60',
+  '[&_textarea:focus-visible]:!ring-1',
+  '[&_textarea:focus-visible]:!ring-primary/20',
+  '[&_textarea:focus-visible]:!ring-offset-0',
+  '[&_[role=combobox]:focus]:!border-primary/60',
+  '[&_[role=combobox]:focus]:!ring-1',
+  '[&_[role=combobox]:focus]:!ring-primary/20',
+  '[&_[role=combobox]:focus]:!ring-offset-0',
+].join(' ');
+
 export function PromotionFormSheet({
   open,
   onOpenChange,
@@ -127,6 +142,9 @@ export function PromotionFormSheet({
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [spendableBalance, setSpendableBalance] = useState<number | null>(null);
+  const visibleProductOptions = productOptions.filter(
+    (product) => !selectedProductSkus.includes(product.product_sku),
+  );
 
   useEffect(() => {
     if (open && editingPromo) {
@@ -234,14 +252,20 @@ export function PromotionFormSheet({
   }, [editingPromo?.id, labId, estimatedCost, open]);
 
   useEffect(() => {
-    if (!open || productSearch.trim().length < 2) {
+    if (!open) {
       setProductOptions([]);
       return;
     }
+    const term = productSearch.trim();
+    if (term.length === 1) return;
+
     const timer = window.setTimeout(async () => {
       setLoadingProductOptions(true);
       try {
-        const data = await listProducts({ search: productSearch.trim(), limit: 10 });
+        const data = await listProducts({
+          search: term || undefined,
+          limit: term ? 10 : 8,
+        });
         setProductOptions(data);
       } catch {
         setProductOptions([]);
@@ -484,7 +508,7 @@ export function PromotionFormSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+      <SheetContent className={`w-full overflow-y-auto sm:max-w-2xl ${formFocusClasses}`}>
         <SheetHeader>
           <SheetTitle>{isEditing ? 'Editar Promocion' : 'Nueva Promocion'}</SheetTitle>
           <SheetDescription>
@@ -500,7 +524,7 @@ export function PromotionFormSheet({
         ) : (
           <div className="mt-6">
             <Accordion type="multiple" defaultValue={['general', 'products', 'scope', 'mechanics', 'financial']} className="space-y-4">
-              <AccordionItem value="general" className="border rounded-lg px-4">
+              <AccordionItem value="general" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-primary" />
@@ -557,7 +581,7 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="products" className="border rounded-lg px-4">
+              <AccordionItem value="products" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Target className="h-4 w-4 text-primary" />
@@ -573,9 +597,9 @@ export function PromotionFormSheet({
                     <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
                   </div>
                   {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos...</p>}
-                  {productOptions.length > 0 && (
+                  {visibleProductOptions.length > 0 && (
                     <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
-                      {productOptions.map((product) => (
+                      {visibleProductOptions.map((product) => (
                         <button
                           key={product.product_sku}
                           type="button"
@@ -602,7 +626,7 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="scope" className="border rounded-lg px-4">
+              <AccordionItem value="scope" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Target className="h-4 w-4 text-primary" />
@@ -627,9 +651,9 @@ export function PromotionFormSheet({
                         <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
                       </div>
                       {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos...</p>}
-                      {productOptions.length > 0 && (
+                      {visibleProductOptions.length > 0 && (
                         <div className="rounded-md border divide-y">
-                          {productOptions.map((product) => (
+                          {visibleProductOptions.map((product) => (
                             <button
                               key={product.product_sku}
                               type="button"
@@ -717,7 +741,7 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="mechanics" className="border rounded-lg px-4">
+              <AccordionItem value="mechanics" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-amber-500" />
@@ -803,7 +827,7 @@ export function PromotionFormSheet({
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="financial" className="border rounded-lg px-4">
+              <AccordionItem value="financial" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />

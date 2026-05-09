@@ -165,12 +165,12 @@ const Settings = () => {
           </Card>
 
           {/* Impact Summary */}
-          <Card className="border-amber-200 bg-amber-50/50">
+          <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-500/35 dark:bg-amber-500/10">
             <CardContent className="flex items-start gap-3 pt-6">
-              <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-300" />
               <div className="space-y-1">
-                <p className="font-medium text-foreground">Impacto en la Billetera</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-foreground dark:text-amber-50">Impacto en la Billetera</p>
+                <p className="text-sm text-muted-foreground dark:text-amber-100/75">
                   Solo los conceptos marcados como <strong>"Gastable"</strong> se sumarán
                   al saldo disponible en la Billetera. Si un concepto está apagado, su valor
                   aparecerá en el sistema como referencia pero <strong>no se podrá usar para

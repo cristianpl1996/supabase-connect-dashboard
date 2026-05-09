@@ -57,12 +57,12 @@ function PopoverSearch({
   placeholder?: string;
 }) {
   return (
-    <div className="px-2 py-2 border-b border-gray-100">
+    <div className="border-b border-gray-100 px-2 py-2 dark:border-border">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
         <input
           autoFocus
-          className="w-full h-7 pl-7 pr-2 text-xs rounded-md border border-gray-200 bg-white outline-none focus:border-primary transition-colors"
+          className="h-7 w-full rounded-md border border-gray-200 bg-white pl-7 pr-2 text-xs text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-primary dark:border-border dark:bg-background dark:text-foreground dark:placeholder:text-muted-foreground"
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -71,7 +71,7 @@ function PopoverSearch({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-muted-foreground dark:hover:text-foreground"
           >
             <X className="h-3 w-3" />
           </button>
@@ -128,7 +128,7 @@ function RepMultiSelect({
           className={triggerClassName ?? "h-8 min-w-[200px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-            <Users className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <Users className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
             {selectedIds.length > 0 && (
               <div className="flex -space-x-1 shrink-0">
                 {selectedIds.slice(0, 3).map((id) => {
@@ -136,29 +136,29 @@ function RepMultiSelect({
                   return rep ? (
                     <span
                       key={id}
-                      className="h-3.5 w-3.5 rounded-full ring-1 ring-white"
+                      className="h-3.5 w-3.5 rounded-full ring-1 ring-white dark:ring-background"
                       style={{ backgroundColor: rep.color }}
                     />
                   ) : null;
                 })}
               </div>
             )}
-            <span className="truncate text-gray-700">{label}</span>
+            <span className="truncate text-gray-700 dark:text-foreground">{label}</span>
           </div>
-          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent className="w-72 p-0" align="start" sideOffset={4}>
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
-          <span className="text-xs font-semibold text-gray-600">Representantes</span>
+        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-border">
+          <span className="text-xs font-semibold text-gray-600 dark:text-muted-foreground">Representantes</span>
           {selectedIds.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
               disabled={disabled}
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-700 dark:text-muted-foreground dark:hover:text-foreground"
             >
               <X className="h-3 w-3" /> Limpiar
             </button>
@@ -171,7 +171,7 @@ function RepMultiSelect({
         {/* Rep list */}
         <div className="max-h-56 overflow-y-auto py-1">
           {filtered.length === 0 && (
-            <p className="px-3 py-3 text-xs text-gray-400 text-center">Sin resultados</p>
+            <p className="px-3 py-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
           )}
           {filtered.map((rep) => {
             const checked = selectedIds.includes(rep.id);
@@ -181,7 +181,7 @@ function RepMultiSelect({
                 type="button"
                 onClick={() => toggle(rep.id)}
                 disabled={disabled}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-accent"
               >
                 <Checkbox
                   checked={checked}
@@ -192,7 +192,7 @@ function RepMultiSelect({
                   className="h-2.5 w-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: rep.color }}
                 />
-                <span className="flex-1 truncate text-[12px] text-gray-700 leading-tight">
+                <span className="flex-1 truncate text-[12px] leading-tight text-gray-700 dark:text-foreground">
                   {rep.name}
                 </span>
                 {checked && <Check className="h-3 w-3 shrink-0" style={{ color: rep.color }} />}
@@ -202,8 +202,8 @@ function RepMultiSelect({
         </div>
 
         {/* Footer */}
-        <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/60">
-          <p className="text-[10px] text-gray-400">
+        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 dark:border-border dark:bg-muted/30">
+          <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
             {selectedIds.length === 0
               ? `${salesReps.length} representantes disponibles`
               : `${selectedIds.length} de ${salesReps.length} seleccionados`}
@@ -256,23 +256,23 @@ function SearchableSelect({
           className={triggerClassName ?? "h-8 w-[175px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-gray-400"}`} />
-            <span className={`truncate ${active ? "text-gray-900 font-medium" : "text-gray-600"}`}>{label}</span>
+            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-gray-400 dark:text-muted-foreground"}`} />
+            <span className={`truncate ${active ? "font-medium text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}>{label}</span>
           </div>
-          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent className="w-60 p-0" align="start" sideOffset={4}>
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
-          <span className="text-xs font-semibold text-gray-600">{placeholder}</span>
+        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-border">
+          <span className="text-xs font-semibold text-gray-600 dark:text-muted-foreground">{placeholder}</span>
           {active && (
             <button
               type="button"
               onClick={() => { onChange(""); setOpen(false); }}
               disabled={disabled}
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-700 dark:text-muted-foreground dark:hover:text-foreground"
             >
               <X className="h-3 w-3" /> Limpiar
             </button>
@@ -288,14 +288,14 @@ function SearchableSelect({
             type="button"
             onClick={() => { onChange(""); setSearch(""); setOpen(false); }}
             disabled={disabled}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${!active ? "font-semibold text-gray-900" : "text-gray-600"}`}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-gray-50 dark:hover:bg-accent ${!active ? "font-semibold text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}
           >
             <span className="flex-1">{allLabel}</span>
             {!active && <Check className="h-3 w-3 text-primary shrink-0" />}
           </button>
 
           {filtered.length === 0 && (
-            <p className="px-3 py-3 text-xs text-gray-400 text-center">Sin resultados</p>
+            <p className="px-3 py-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
           )}
           {filtered.map((o) => (
             <button
@@ -303,7 +303,7 @@ function SearchableSelect({
               type="button"
               onClick={() => { onChange(o); setSearch(""); setOpen(false); }}
               disabled={disabled}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-colors ${value === o ? "font-semibold text-gray-900" : "text-gray-600"}`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-gray-50 dark:hover:bg-accent ${value === o ? "font-semibold text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}
             >
               <span className="flex-1 truncate">{o}</span>
               {value === o && <Check className="h-3 w-3 text-primary shrink-0" />}
@@ -311,8 +311,8 @@ function SearchableSelect({
           ))}
         </div>
 
-        <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/60">
-          <p className="text-[10px] text-gray-400">
+        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-2 dark:border-border dark:bg-muted/30">
+          <p className="text-[10px] text-gray-400 dark:text-muted-foreground">
             {!active ? `${options.length} opciones disponibles` : `Filtrando: ${value}`}
           </p>
         </div>
@@ -348,7 +348,7 @@ function RangeInputs({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+      <Label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground">
         <Icon className="h-3 w-3" />
         {label}
       </Label>
@@ -395,14 +395,14 @@ export function FilterPanel({
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 bg-white dark:border-border dark:bg-background">
 
       {/* ── Single compact row ── */}
       <div className="flex flex-wrap items-center gap-2 px-3 py-2 lg:flex-nowrap">
 
         {/* Search — toma todo el espacio sobrante */}
         <div className="relative min-w-full flex-1 sm:min-w-[280px] lg:min-w-[320px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 dark:text-muted-foreground" />
           <Input
             className="pl-8 pr-7 h-8 text-sm"
             placeholder="Nombre, NIT, dirección…"
@@ -415,7 +415,7 @@ export function FilterPanel({
               type="button"
               onClick={() => onFilter("search", "")}
               disabled={disabled}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-muted-foreground dark:hover:text-foreground"
             >
               <X className="h-3 w-3" />
             </button>
@@ -473,7 +473,7 @@ export function FilterPanel({
             size="sm"
             onClick={onReset}
             disabled={disabled}
-            className="h-8 shrink-0 gap-1.5 px-2.5 text-sm text-gray-600"
+            className="h-8 shrink-0 gap-1.5 px-2.5 text-sm text-gray-600 dark:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
             <span>Limpiar</span>
@@ -489,7 +489,7 @@ export function FilterPanel({
 
       {/* ── Advanced (ranges only) ── */}
       {advancedOpen && (
-        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3">
+        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3 dark:border-border dark:bg-card">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <RangeInputs
               label="Días sin comprar"
@@ -531,9 +531,9 @@ export function FilterPanel({
       )}
 
       {/* ── Stats ── */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 bg-gray-50/80 px-3 py-1">
-        <p className="text-xs text-gray-500">
-          <span className="font-semibold text-gray-800">{filteredCount}</span>
+      <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 bg-gray-50/80 px-3 py-1 dark:border-border dark:bg-background">
+        <p className="text-xs text-gray-500 dark:text-muted-foreground">
+          <span className="font-semibold text-gray-800 dark:text-foreground">{filteredCount}</span>
           {activeFilterCount > 0 && <span> de {totalCount}</span>}
           <span> {filteredCount === 1 ? "cliente" : "clientes"}</span>
         </p>

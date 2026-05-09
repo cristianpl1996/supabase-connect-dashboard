@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PromoterProvider } from "@/contexts/PromoterContext";
 import { PromoterRouteGuard } from "@/components/layout/PromoterRouteGuard";
@@ -27,7 +28,13 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      storageKey="ivanagro-theme"
+    >
+      <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -67,7 +74,8 @@ const App = () => (
           </PromoterProvider>
         </AuthProvider>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

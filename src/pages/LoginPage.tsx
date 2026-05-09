@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -12,6 +12,9 @@ import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import logoIco from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
+import bgImage2 from "@/assets/background2.png";
+
+const loginBackgrounds = [bgImage, bgImage2];
 
 const schema = z.object({
   username: z.string().min(1, "El usuario es requerido"),
@@ -27,6 +30,22 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [selectedBackground] = useState(() => (
+    loginBackgrounds[Math.floor(Math.random() * loginBackgrounds.length)]
+  ));
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains("dark");
+
+    root.classList.remove("dark");
+    root.classList.add("light");
+
+    return () => {
+      root.classList.remove("light");
+      if (hadDark) root.classList.add("dark");
+    };
+  }, []);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<FormValues>({ resolver: zodResolver(schema) });
@@ -38,11 +57,6 @@ export default function LoginPage() {
       toast.success("Inicio de sesión exitoso", {
         description: "Bienvenido al backoffice de Ivanagro.",
         duration: 3000,
-        style: {
-          background: "#f0fdf4",
-          border: "1px solid #bbf7d0",
-          color: "#15803d",
-        },
       });
       navigate(from, { replace: true });
     } catch (err) {
@@ -55,7 +69,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="light min-h-screen flex bg-gray-50 text-gray-900">
 
       {/* ── Left panel — background + animated shapes ─────────────────────── */}
       <style>{`
@@ -71,12 +85,41 @@ export default function LoginPage() {
           50%    {border-radius:50% 60% 30% 60% / 30% 40% 70% 60%}
           75%    {border-radius:60% 30% 60% 40% / 70% 50% 40% 50%}
         }
+        .login-light-scope input {
+          background-color: #ffffff !important;
+          color: #111827 !important;
+          border-color: #d1d5db !important;
+          caret-color: #111827;
+          box-shadow: none;
+        }
+        .login-light-scope input::placeholder {
+          color: #9ca3af !important;
+          opacity: 1;
+        }
+        .login-light-scope input:focus,
+        .login-light-scope input:focus-visible {
+          background-color: #ffffff !important;
+          color: #111827 !important;
+          border-color: #16a34a !important;
+          outline: none !important;
+          box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.16) !important;
+        }
+        .login-light-scope input:-webkit-autofill,
+        .login-light-scope input:-webkit-autofill:hover,
+        .login-light-scope input:-webkit-autofill:focus,
+        .login-light-scope input:-webkit-autofill:active {
+          -webkit-text-fill-color: #111827 !important;
+          caret-color: #111827 !important;
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+          box-shadow: 0 0 0 1000px #ffffff inset !important;
+          transition: background-color 9999s ease-out;
+        }
       `}</style>
 
       <div
         className="hidden lg:block lg:w-[55%] relative overflow-hidden"
         style={{
-          backgroundImage: `url(${bgImage})`,
+          backgroundImage: `url(${selectedBackground})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -94,87 +137,87 @@ export default function LoginPage() {
 
         {/* Orb 1 — large top-left, slow float */}
         <div style={{
-          position:"absolute", top:"-80px", left:"-80px",
-          width:"420px", height:"420px", borderRadius:"50%",
-          background:"radial-gradient(circle at 40% 40%, rgba(74,222,128,0.25), rgba(21,128,61,0.08))",
-          filter:"blur(48px)",
-          animation:"float-slow 9s ease-in-out infinite",
+          position: "absolute", top: "-80px", left: "-80px",
+          width: "420px", height: "420px", borderRadius: "50%",
+          background: "radial-gradient(circle at 40% 40%, rgba(74,222,128,0.25), rgba(21,128,61,0.08))",
+          filter: "blur(48px)",
+          animation: "float-slow 9s ease-in-out infinite",
         }} />
 
         {/* Orb 2 — medium right, medium float + drift */}
         <div style={{
-          position:"absolute", top:"30%", right:"-100px",
-          width:"360px", height:"360px", borderRadius:"50%",
-          background:"radial-gradient(circle at 60% 60%, rgba(167,243,208,0.20), rgba(6,78,59,0.06))",
-          filter:"blur(56px)",
-          animation:"float-medium 7s ease-in-out infinite, drift-x 11s ease-in-out infinite",
+          position: "absolute", top: "30%", right: "-100px",
+          width: "360px", height: "360px", borderRadius: "50%",
+          background: "radial-gradient(circle at 60% 60%, rgba(167,243,208,0.20), rgba(6,78,59,0.06))",
+          filter: "blur(56px)",
+          animation: "float-medium 7s ease-in-out infinite, drift-x 11s ease-in-out infinite",
         }} />
 
         {/* Orb 3 — small bottom center */}
         <div style={{
-          position:"absolute", bottom:"-60px", left:"35%",
-          width:"280px", height:"280px", borderRadius:"50%",
-          background:"radial-gradient(circle, rgba(52,211,153,0.22), transparent 70%)",
-          filter:"blur(40px)",
-          animation:"float-fast 6s ease-in-out infinite",
+          position: "absolute", bottom: "-60px", left: "35%",
+          width: "280px", height: "280px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(52,211,153,0.22), transparent 70%)",
+          filter: "blur(40px)",
+          animation: "float-fast 6s ease-in-out infinite",
         }} />
 
         {/* Orb 4 — accent mid-left */}
         <div style={{
-          position:"absolute", top:"55%", left:"5%",
-          width:"180px", height:"180px", borderRadius:"50%",
-          background:"radial-gradient(circle, rgba(110,231,183,0.18), transparent 70%)",
-          filter:"blur(32px)",
-          animation:"float-slow 10s ease-in-out infinite 2s",
+          position: "absolute", top: "55%", left: "5%",
+          width: "180px", height: "180px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(110,231,183,0.18), transparent 70%)",
+          filter: "blur(32px)",
+          animation: "float-slow 10s ease-in-out infinite 2s",
         }} />
 
         {/* Morphing shape — center */}
         <div style={{
-          position:"absolute", top:"22%", left:"18%",
-          width:"220px", height:"220px",
-          background:"rgba(255,255,255,0.04)",
-          border:"1px solid rgba(255,255,255,0.10)",
-          backdropFilter:"blur(2px)",
-          animation:"morph 14s ease-in-out infinite, pulse-soft 8s ease-in-out infinite",
+          position: "absolute", top: "22%", left: "18%",
+          width: "220px", height: "220px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          backdropFilter: "blur(2px)",
+          animation: "morph 14s ease-in-out infinite, pulse-soft 8s ease-in-out infinite",
         }} />
 
         {/* Spinning ring — top right */}
         <div style={{
-          position:"absolute", top:"8%", right:"12%",
-          width:"140px", height:"140px", borderRadius:"50%",
-          border:"1.5px solid rgba(255,255,255,0.12)",
-          animation:"spin-slow 20s linear infinite",
+          position: "absolute", top: "8%", right: "12%",
+          width: "140px", height: "140px", borderRadius: "50%",
+          border: "1.5px solid rgba(255,255,255,0.12)",
+          animation: "spin-slow 20s linear infinite",
         }}>
           {/* inner dot */}
           <div style={{
-            position:"absolute", top:"10px", left:"50%", transform:"translateX(-50%)",
-            width:"6px", height:"6px", borderRadius:"50%",
-            background:"rgba(255,255,255,0.5)",
+            position: "absolute", top: "10px", left: "50%", transform: "translateX(-50%)",
+            width: "6px", height: "6px", borderRadius: "50%",
+            background: "rgba(255,255,255,0.5)",
           }} />
         </div>
 
         {/* Small ring — bottom left */}
         <div style={{
-          position:"absolute", bottom:"15%", left:"10%",
-          width:"80px", height:"80px", borderRadius:"50%",
-          border:"1px solid rgba(255,255,255,0.15)",
-          animation:"spin-slow 14s linear infinite reverse",
+          position: "absolute", bottom: "15%", left: "10%",
+          width: "80px", height: "80px", borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.15)",
+          animation: "spin-slow 14s linear infinite reverse",
         }} />
 
         {/* Floating particles */}
         {[
-          { top:"15%",  left:"60%",  size:6,  delay:"0s",   dur:"5s"  },
-          { top:"42%",  left:"25%",  size:4,  delay:"1.5s", dur:"6s"  },
-          { top:"68%",  left:"72%",  size:5,  delay:"3s",   dur:"7s"  },
-          { top:"80%",  left:"40%",  size:3,  delay:"0.8s", dur:"5.5s"},
-          { top:"30%",  left:"80%",  size:4,  delay:"2s",   dur:"8s"  },
+          { top: "15%", left: "60%", size: 6, delay: "0s", dur: "5s" },
+          { top: "42%", left: "25%", size: 4, delay: "1.5s", dur: "6s" },
+          { top: "68%", left: "72%", size: 5, delay: "3s", dur: "7s" },
+          { top: "80%", left: "40%", size: 3, delay: "0.8s", dur: "5.5s" },
+          { top: "30%", left: "80%", size: 4, delay: "2s", dur: "8s" },
         ].map((p, i) => (
           <div key={i} style={{
-            position:"absolute", top:p.top, left:p.left,
-            width:`${p.size}px`, height:`${p.size}px`, borderRadius:"50%",
-            background:"rgba(255,255,255,0.55)",
-            boxShadow:"0 0 6px 2px rgba(255,255,255,0.25)",
-            animation:`float-slow ${p.dur} ease-in-out infinite ${p.delay}`,
+            position: "absolute", top: p.top, left: p.left,
+            width: `${p.size}px`, height: `${p.size}px`, borderRadius: "50%",
+            background: "rgba(255,255,255,0.55)",
+            boxShadow: "0 0 6px 2px rgba(255,255,255,0.25)",
+            animation: `float-slow ${p.dur} ease-in-out infinite ${p.delay}`,
           }} />
         ))}
       </div>
@@ -189,7 +232,7 @@ export default function LoginPage() {
           </div>
 
           {/* Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg px-9 py-9 space-y-6">
+          <div className="login-light-scope bg-white rounded-2xl border border-gray-200 shadow-lg px-9 py-9 space-y-6">
 
             <div className="space-y-1.5 text-center">
               <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
@@ -215,7 +258,7 @@ export default function LoginPage() {
                   autoComplete="username"
                   autoFocus
                   placeholder="Ej: carlos.martinez"
-                  className="h-11 text-sm rounded-xl border-gray-300 bg-white placeholder:text-gray-400 focus-visible:ring-primary"
+                  className="h-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0"
                   {...register("username")}
                 />
                 {errors.username && (
@@ -236,7 +279,7 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     placeholder="Ingresa tu contraseña"
-                    className="h-11 pr-11 text-sm rounded-xl border-gray-300 bg-white placeholder:text-gray-400 focus-visible:ring-primary"
+                    className="h-11 pr-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0"
                     {...register("password")}
                   />
                   <button
@@ -258,7 +301,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full h-12 text-sm font-semibold rounded-xl"
+                className="h-12 w-full rounded-xl bg-[#0a963f] text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#087f35] focus-visible:ring-2 focus-visible:ring-[#0a963f]/30 focus-visible:ring-offset-2 disabled:bg-gray-200 disabled:text-gray-500"
                 disabled={isSubmitting}
               >
                 {isSubmitting

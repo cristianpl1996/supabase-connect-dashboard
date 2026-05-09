@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
   getProductsPage,
+  getSupabaseProduct,
   listTotal,
   ProductCatalogItem,
   ProductInventoryLocation,
   ProductListParams,
+  SupabaseProduct,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,6 +24,7 @@ import {
   BadgeCheck,
   Boxes,
   Eye,
+  ImageOff,
   Layers3,
   Loader2,
   Package,
@@ -33,8 +36,15 @@ import {
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { formatApiErrorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 200;
+const SUPABASE_PUBLIC_URL = (
+  import.meta.env.VITE_SUPABASE_PUBLIC_URL as string | undefined
+) ?? "https://supabase.bettercode.com.co";
+const PRODUCT_IMAGE_BUCKET = (
+  import.meta.env.VITE_SUPABASE_PRODUCT_IMAGE_BUCKET as string | undefined
+) ?? "product-images";
 const CORE_PRODUCT_FIELDS = new Set([
   "product_sku",
   "product_commercial_name",
@@ -52,6 +62,7 @@ const CORE_PRODUCT_FIELDS = new Set([
   "is_discontinued",
   "product_is_catalog_verified",
   "product_is_discontinued",
+  "external_product_id",
   "metadata",
   "total_units_available",
   "units_available_in_stock",
@@ -190,8 +201,26 @@ function labelFor(key: string) {
 function formatField(value: unknown) {
   if (typeof value === "boolean") return value ? "Si" : "No";
   if (typeof value === "number") return Number.isInteger(value) ? value.toLocaleString("es-CO") : value.toLocaleString("es-CO", { maximumFractionDigits: 2 });
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  if (typeof value === "object" && value !== null) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Objeto no disponible";
+    }
+  }
   return text(value);
+}
+
+function resolveExternalProductImageUrl(imagePath?: unknown) {
+  if (typeof imagePath !== "string") return null;
+  const path = imagePath.trim();
+  if (!path) return null;
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+
+  const cleanBase = SUPABASE_PUBLIC_URL.replace(/\/+$/, "");
+  const cleanBucket = PRODUCT_IMAGE_BUCKET.replace(/^\/+|\/+$/g, "");
+  const cleanPath = path.replace(/^\/+/, "");
+  return `${cleanBase}/storage/v1/object/public/${cleanBucket}/${cleanPath}`;
 }
 
 export default function Products() {
@@ -215,6 +244,10 @@ export default function Products() {
   const [minUnits, setMinUnits] = useState("");
   const [maxUnits, setMaxUnits] = useState("");
   const [selected, setSelected] = useState<ProductCatalogItem | null>(null);
+  const [externalProduct, setExternalProduct] = useState<SupabaseProduct | null>(null);
+  const [externalProductLoading, setExternalProductLoading] = useState(false);
+  const [externalProductError, setExternalProductError] = useState<string | null>(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   const buildParams = useCallback((offset: number): ProductListParams => ({
     sku: sku.trim() || undefined,
@@ -292,6 +325,44 @@ export default function Products() {
     return () => observer.disconnect();
   }, [fetchPage, hasMore, loadingInitial, loadingMore, products.length]);
 
+  useEffect(() => {
+    const externalId = selected?.external_product_id;
+    setExternalProduct(null);
+    setExternalProductError(null);
+    setImageLoadFailed(false);
+
+    if (!selected || !externalId) {
+      setExternalProductLoading(false);
+      return;
+    }
+
+    const productId = Number(externalId);
+    if (!Number.isFinite(productId)) {
+      setExternalProductLoading(false);
+      setExternalProductError("ID externo invalido");
+      return;
+    }
+
+    let cancelled = false;
+    setExternalProductLoading(true);
+    getSupabaseProduct(productId)
+      .then((product) => {
+        if (cancelled) return;
+        setExternalProduct(product);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setExternalProductError(formatApiErrorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setExternalProductLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
   const brands = useMemo(() => uniqueValues(products, "product_brand_name"), [products]);
   const categories = useMemo(() => uniqueValues(products, "product_category"), [products]);
   const lines = useMemo(() => uniqueValues(products, "product_line_name"), [products]);
@@ -303,6 +374,7 @@ export default function Products() {
   const averageLocations = products.length > 0 ? inventoryLocations / products.length : 0;
   const selectedInventories = normalizeInventories(selected);
   const selectedPriceLists = normalizePriceLists(selected);
+  const externalImageUrl = resolveExternalProductImageUrl(externalProduct?.image_path);
   const priceListColumns = selectedPriceLists.length > 0 ? ["sap_price_list", "sap_price"] : [];
   const selectedStatus = selected ? productStatus(selected) : null;
   const additionalFields = selected
@@ -352,12 +424,14 @@ export default function Products() {
 
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-5 sm:space-y-6">
+      <ErrorDisabledContent disabled={!!error}>
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Catalogo de Productos</h1>
           <p className="text-muted-foreground">Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales.</p>
         </div>
       </div>
+      </ErrorDisabledContent>
 
       {error && (
         <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
@@ -583,18 +657,35 @@ export default function Products() {
         <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-2xl sm:p-5">
           {selected && (
             <>
-              <SheetHeader>
-                <div className="min-w-0 space-y-1 pr-6">
-                  <SheetTitle className="truncate text-base">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
-                  <SheetDescription>SKU: {selected.product_sku} · Marca: {text(selected.product_brand_name)}</SheetDescription>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
-                    {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
+              <SheetHeader className="pr-0">
+                <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 pr-8">
+                    <SheetTitle className="truncate text-base">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
+                    <SheetDescription>SKU: {selected.product_sku} - Marca: {text(selected.product_brand_name)}</SheetDescription>
+                  </div>
+                  <div className="flex w-full items-start justify-between gap-2 pt-1">
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                      {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
+                      {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
+                    </div>
+                    <Badge variant={selected.external_product_id ? "outline" : "secondary"} className="shrink-0">
+                      {selected.external_product_id ? `ID ${selected.external_product_id}` : "Sin ID externo"}
+                    </Badge>
                   </div>
                 </div>
               </SheetHeader>
 
               <div className="mt-4 space-y-4">
+                <ProductExternalMedia
+                  catalogProduct={selected}
+                  externalProduct={externalProduct}
+                  imageUrl={externalImageUrl}
+                  loading={externalProductLoading}
+                  error={externalProductError}
+                  imageLoadFailed={imageLoadFailed}
+                  onImageError={() => setImageLoadFailed(true)}
+                />
+
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                   <ProfileMetric label="Disponible" value={formatCount(numberValue(selected.total_units_available ?? selected.units_available_in_stock))} />
                   <ProfileMetric label="Bodegas" value={formatCount(numberValue(selected.inventory_locations_count))} />
@@ -817,6 +908,80 @@ function ProfileMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-card p-2.5">
       <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-base font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ProductExternalMedia({
+  catalogProduct,
+  externalProduct,
+  imageUrl,
+  loading,
+  error,
+  imageLoadFailed,
+  onImageError,
+}: {
+  catalogProduct: ProductCatalogItem;
+  externalProduct: SupabaseProduct | null;
+  imageUrl: string | null;
+  loading: boolean;
+  error: string | null;
+  imageLoadFailed: boolean;
+  onImageError: () => void;
+}) {
+  const showImage = Boolean(imageUrl && !imageLoadFailed);
+  const officialBrand = externalProduct?.product_brand_name || catalogProduct.product_brand_name;
+
+  return (
+    <div className="rounded-md border bg-card p-3">
+      <div className="grid gap-2 sm:grid-cols-[9rem_1fr]">
+        <div
+          className={cn(
+            "flex min-h-[7.75rem] w-full items-center justify-center overflow-hidden rounded-md border",
+            showImage ? "bg-white" : "bg-muted/35",
+          )}
+        >
+          {loading ? (
+            <div className="h-full w-full animate-pulse bg-muted" />
+          ) : showImage ? (
+            <img
+              src={imageUrl}
+              alt={text(catalogProduct.product_commercial_name, "Producto")}
+              className="h-full w-full object-contain p-2"
+              onError={onImageError}
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ImageOff className="h-9 w-9" />
+              <span className="text-xs font-medium">Sin imagen</span>
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          {error ? (
+            <div className="flex min-h-[7.75rem] items-center rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              No se pudo cargar el producto externo: {error}
+            </div>
+          ) : (
+            <div className="grid h-full gap-2 text-sm sm:grid-cols-2">
+              <ExternalProductFact label="Marca oficial" value={officialBrand} />
+              <ExternalProductFact label="Categoria" value={externalProduct?.product_category} />
+              <ExternalProductFact label="Presentacion" value={externalProduct?.product_presentation} />
+              <ExternalProductFact label="Activo" value={externalProduct?.product_active_ingredient} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExternalProductFact({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="flex min-h-[3.625rem] min-w-0 flex-col justify-center rounded-md bg-muted/35 px-3 py-2">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate font-medium text-foreground">{text(value)}</p>
     </div>
   );
 }

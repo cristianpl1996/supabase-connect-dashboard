@@ -212,6 +212,7 @@ export async function getMapCustomersBatch(offset: number): Promise<CustomerReco
 // Commercial domain: laboratories + plans
 export interface Laboratory {
   id: string;
+  external_brand_id: number | null;
   erp_code: string | null;
   name: string;
   tax_id: string | null;
@@ -221,11 +222,34 @@ export interface Laboratory {
   created_at: string;
 }
 
+export interface SupabaseBrand {
+  id: number;
+  name: string | null;
+  type?: string | null;
+  code?: string | null;
+  trained?: boolean | null;
+  is_verified?: boolean | null;
+  required_product_fields?: unknown;
+  [key: string]: unknown;
+}
+
+export interface SupabaseProduct {
+  id: number;
+  product_commercial_name?: string | null;
+  product_brand_name?: string | null;
+  product_category?: string | null;
+  product_presentation?: string | null;
+  product_active_ingredient?: string | null;
+  product_is_catalog_verified?: boolean | null;
+  image_path?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ProductCatalogItem {
   product_sku: string;
   product_commercial_name?: string | null;
   product_brand_name?: string | null;
-  brand_original_product_id?: string | null;
+  external_product_id?: string | null;
   product_industry_sector?: string | null;
   product_category?: string | null;
   product_line_name?: string | null;
@@ -320,12 +344,21 @@ export interface InventoryListParams {
 }
 
 export interface LaboratoryPayload {
+  external_brand_id: number;
   erp_code: string | null;
-  name: string;
   tax_id?: string | null;
   logo_url: string | null;
   brand_color: string | null;
   annual_goal: number | null;
+}
+
+export interface SupabaseBrandListParams {
+  search?: string;
+  type?: string;
+  is_verified?: boolean;
+  trained?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
 export interface PlanFund {
@@ -735,6 +768,10 @@ export function getProduct(sku: string): Promise<ProductCatalogItem> {
   return apiDetail<ProductCatalogItem>(`/api/v1/products/${encodeURIComponent(sku)}`);
 }
 
+export function getSupabaseProduct(productId: number): Promise<SupabaseProduct> {
+  return apiDetail<SupabaseProduct>(`/api/v1/supabase/products/${productId}`);
+}
+
 export function listInventory(params: InventoryListParams = {}): Promise<InventoryItem[]> {
   return apiList<InventoryItem>(withQuery("/api/v1/inventory", {
     sku: params.sku,
@@ -754,6 +791,17 @@ export function updateInventoryItem(inventoryId: number, units_available_in_stoc
     method: "PATCH",
     body: JSON.stringify({ units_available_in_stock }),
   });
+}
+
+export function listSupabaseBrands(params: SupabaseBrandListParams = {}): Promise<SupabaseBrand[]> {
+  return apiList<SupabaseBrand>(withQuery("/api/v1/supabase/brands", {
+    search: params.search,
+    type: params.type,
+    is_verified: params.is_verified,
+    trained: params.trained,
+    limit: params.limit ?? 1000,
+    offset: params.offset ?? 0,
+  }));
 }
 
 export function listLaboratories(params: LaboratoryListParams = {}): Promise<Laboratory[]> {

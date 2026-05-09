@@ -8,6 +8,7 @@ import {
 
 export interface Laboratory {
   id: string;
+  external_brand_id: number | null;
   erp_code: string | null;
   name: string;
   tax_id: string | null;
@@ -18,7 +19,7 @@ export interface Laboratory {
 }
 
 export interface LaboratoryFormData {
-  name: string;
+  external_brand_id: number;
   erp_code: string;
   logo_url: string;
   brand_color: string;
@@ -47,7 +48,7 @@ export function useLaboratories() {
 
   const createLab = useCallback(async (formData: LaboratoryFormData) => {
     const data = await createLaboratoryRequest({
-      name: formData.name,
+      external_brand_id: formData.external_brand_id,
       erp_code: formData.erp_code || null,
       tax_id: null,
       logo_url: formData.logo_url || null,
@@ -60,7 +61,7 @@ export function useLaboratories() {
 
   const updateLab = useCallback(async (id: string, formData: LaboratoryFormData) => {
     const data = await updateLaboratoryRequest(id, {
-      name: formData.name,
+      external_brand_id: formData.external_brand_id,
       erp_code: formData.erp_code || null,
       tax_id: null,
       logo_url: formData.logo_url || null,

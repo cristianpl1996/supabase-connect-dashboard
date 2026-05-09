@@ -7,6 +7,7 @@ export type PromotionTargetScope = 'all' | 'customers' | 'customer_segment' | 'p
 
 export interface Laboratory {
   id: string;
+  external_brand_id: number | null;
   erp_code: string | null;
   name: string;
   tax_id: string | null;
@@ -22,7 +23,7 @@ export interface Product {
   name: string;
   category: string | null;
   brand_id: string | null;
-  brand_original_product_id?: string | null;
+  external_product_id?: string | null;
   current_stock: number;
   unit_cost: number | null;
   is_active: boolean;

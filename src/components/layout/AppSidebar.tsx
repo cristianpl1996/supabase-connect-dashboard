@@ -80,12 +80,21 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50 bg-sidebar shadow-sm">
-      <SidebarHeader className="flex items-center justify-center p-4 pb-3">
+      <SidebarHeader
+        className={cn(
+          "flex items-center justify-center",
+          isCollapsed ? "px-1 py-3" : "p-4 pb-3",
+        )}
+      >
         <Link to="/home" className="flex items-center justify-center" aria-label="Ir a inicio">
           {isCollapsed ? (
-            <img src={logo} alt="Ivanagro" className="h-8 w-auto" />
+            <img
+              src={logo}
+              alt="Ivanagro"
+              className="h-11 w-auto max-w-none object-contain transition dark:brightness-0 dark:invert"
+            />
           ) : (
-            <img src={logoIco} alt="Ivanagro" className="h-16 w-auto object-contain" />
+            <img src={logoIco} alt="Ivanagro" className="h-16 w-auto object-contain transition dark:brightness-0 dark:invert" />
           )}
         </Link>
       </SidebarHeader>
@@ -134,7 +143,7 @@ export function AppSidebar() {
             </TooltipContent>
           </Tooltip>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/40 px-0.5 py-2.5">
+          <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/40 px-0.5 py-2.5 dark:bg-transparent">
             <Avatar className="h-7 w-7 shrink-0 ring-2 ring-border/30">
               <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">{initials}</AvatarFallback>
             </Avatar>

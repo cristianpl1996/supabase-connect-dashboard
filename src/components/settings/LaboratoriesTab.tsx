@@ -40,11 +40,11 @@ export function LaboratoriesTab() {
   const handleFormSubmit = async (data: Parameters<typeof createLab>[0]) => {
     try {
       if (editingLab) {
-        await updateLab(editingLab.id, data);
-        toast.success(`Laboratorio "${data.name}" actualizado`);
+        const updated = await updateLab(editingLab.id, data);
+        toast.success(`Laboratorio "${updated.name}" actualizado`);
       } else {
-        await createLab(data);
-        toast.success(`Laboratorio "${data.name}" creado`);
+        const created = await createLab(data);
+        toast.success(`Laboratorio "${created.name}" creado`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -119,6 +119,7 @@ export function LaboratoriesTab() {
                   <TableHead className="w-[60px]">Logo</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>ID Externo (SAP)</TableHead>
+                  <TableHead>Brand Externa</TableHead>
                   <TableHead>Color</TableHead>
                   <TableHead className="text-right">Meta Anual</TableHead>
                   <TableHead className="text-right w-[120px]">Acciones</TableHead>
@@ -146,6 +147,17 @@ export function LaboratoriesTab() {
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {lab.external_brand_id ? (
+                        <Badge variant="secondary" className="font-mono text-xs">
+                          {lab.external_brand_id}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Sin enlazar
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -200,6 +212,9 @@ export function LaboratoriesTab() {
         open={formOpen}
         onOpenChange={setFormOpen}
         laboratory={editingLab}
+        usedExternalBrandIds={laboratories
+          .map((lab) => lab.external_brand_id)
+          .filter((id): id is number => id != null)}
         onSubmit={handleFormSubmit}
       />
 

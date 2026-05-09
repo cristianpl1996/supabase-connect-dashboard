@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Bell, LogOut, Menu } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 
 import logo from "@/assets/logo.png";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,6 +11,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -21,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/api";
+
+const currentYear = new Date().getFullYear();
 
 function getInitials(name?: string, username?: string): string {
   const source = name ?? username ?? "U";
@@ -40,7 +44,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const isMobile = useIsMobile();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { resolvedTheme, setTheme } = useTheme();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const showFooter = !isMobile && pathname !== "/map";
+  const isDarkTheme = resolvedTheme === "dark";
 
   const initials = getInitials(user?.full_name, user?.username);
   const displayName = user?.full_name ?? user?.username ?? "Usuario";
@@ -102,7 +110,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 className="shrink-0 p-0"
                 aria-label="Ir a inicio"
               >
-                <img src={logo} alt="Ivanagro" className="h-8 w-auto object-contain" />
+                <img
+                  src={logo}
+                  alt="Ivanagro"
+                  className="h-8 w-auto object-contain transition dark:brightness-0 dark:invert"
+                />
               </button>
             )}
 
@@ -114,6 +126,30 @@ export function AppLayout({ children }: AppLayoutProps) {
             )}
 
             <div className="flex-1" />
+
+            <div
+              className="flex h-9 items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2 text-muted-foreground shadow-sm"
+              title={isDarkTheme ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            >
+              <Sun
+                className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  !isDarkTheme && "text-primary",
+                )}
+              />
+              <Switch
+                checked={isDarkTheme}
+                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                aria-label="Cambiar tema"
+                className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
+              />
+              <Moon
+                className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  isDarkTheme && "text-primary",
+                )}
+              />
+            </div>
 
             <DropdownMenu
               open={isNotificationsOpen}
@@ -212,19 +248,28 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
-                  className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  className="cursor-pointer gap-2 font-medium text-destructive focus:bg-destructive/10 focus:text-destructive dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20 dark:hover:text-red-200 dark:focus:bg-red-500/20 dark:focus:text-red-200"
                   onClick={handleLogout}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-4 w-4 text-current" />
                   Cerrar sesion
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </header>
 
-          <main className="min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 md:px-8 md:py-8 xl:px-10">
+          <main className="min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 md:px-8 md:pb-8 md:pt-8 xl:px-10">
             {children}
           </main>
+
+          {showFooter && (
+            <footer className="border-t border-border/60 bg-background/95 px-3 py-5 text-xs text-muted-foreground sm:px-5 md:px-8 xl:px-10">
+              <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-center text-center">
+                <p>&copy; {currentYear} Ivanagro S.A. Derechos reservados.</p>
+              </div>
+            </footer>
+          )}
+
           {isMobile && <MobileBottomNav />}
         </SidebarInset>
       </div>
