@@ -44,6 +44,29 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+async function publicApiFetch<T>(path: string, options: RequestInit = {}, ecommerceToken?: string | null): Promise<T> {
+  const headers = new Headers(options.headers ?? undefined);
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (ecommerceToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${ecommerceToken}`);
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = body?.detail ?? body?.message ?? `Error ${res.status}`;
+    throw new ApiError(res.status, typeof message === "string" ? message : JSON.stringify(message));
+  }
+
+  return res.json() as Promise<T>;
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export interface LoginRequest {
   username: string;
@@ -74,6 +97,151 @@ export function login(credentials: LoginRequest): Promise<TokenResponse> {
     method: "POST",
     body: JSON.stringify(credentials),
   });
+}
+
+// Public e-commerce
+export interface EcommerceCustomer {
+  id: number;
+  government_id?: string | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  business_type?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
+export interface EcommerceSession {
+  ecommerce_token: string;
+  expires_at: string;
+  customer: EcommerceCustomer;
+}
+
+export interface EcommerceProduct {
+  product_sku: string;
+  product_commercial_name?: string | null;
+  product_technical_description?: string | null;
+  product_unit_of_measurement?: string | null;
+  product_brand_name?: string | null;
+  external_product_id?: string | null;
+  product_industry_sector?: string | null;
+  product_category?: string | null;
+  product_target_species?: string | null;
+  product_target_animal_species?: string | null;
+  product_line_name?: string | null;
+  product_is_catalog_verified?: boolean | null;
+  product_is_discontinued?: boolean | null;
+  total_units_available?: number | null;
+  inventory_locations_count?: number | null;
+  price?: number | null;
+  price_list?: string | null;
+  can_add_to_cart?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface EcommerceFilterOptions {
+  brands: string[];
+  categories: string[];
+}
+
+export interface EcommerceProductParams {
+  search?: string;
+  brand_name?: string;
+  category?: string;
+  in_stock_only?: boolean;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export interface EcommerceCartItemInput {
+  sku: string;
+  quantity: number;
+}
+
+export interface EcommerceCartQuoteItem {
+  line_number: number;
+  sku: string;
+  product_name?: string | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  price_list?: string | null;
+  available: number;
+  can_add_to_cart: boolean;
+}
+
+export interface EcommerceCartQuote {
+  items: EcommerceCartQuoteItem[];
+  subtotal: number;
+  total: number;
+  errors: Array<{ sku: string; message: string }>;
+}
+
+export interface EcommerceCheckoutPayload {
+  items: EcommerceCartItemInput[];
+  contact_name: string;
+  contact_phone: string;
+  contact_email?: string;
+  delivery_address: string;
+  payment_method?: string;
+  observations?: string;
+}
+
+export interface EcommerceOrderDraft {
+  id: string;
+  reference: string;
+  status: string;
+  customer: EcommerceCustomer;
+  items: EcommerceCartQuoteItem[];
+  subtotal: number;
+  total: number;
+}
+
+export function createEcommerceSession(customer_government_id: string): Promise<EcommerceSession> {
+  return publicApiFetch<ApiDetailResponse<EcommerceSession>>("/api/v1/e-commerce/session", {
+    method: "POST",
+    body: JSON.stringify({ customer_government_id }),
+  }).then((res) => res.data);
+}
+
+export function getEcommerceProductsPage(token: string, params: EcommerceProductParams = {}): Promise<ApiListResponse<EcommerceProduct>> {
+  return publicApiFetch<ApiListResponse<EcommerceProduct>>(withQuery("/api/v1/e-commerce/products", {
+    search: params.search,
+    brand_name: params.brand_name,
+    category: params.category,
+    in_stock_only: params.in_stock_only,
+    sort_by: params.sort_by,
+    sort_dir: params.sort_dir,
+    limit: params.limit ?? 24,
+    offset: params.offset ?? 0,
+  }), {}, token);
+}
+
+export function getEcommerceProduct(token: string, sku: string): Promise<EcommerceProduct> {
+  return publicApiFetch<ApiDetailResponse<EcommerceProduct>>(`/api/v1/e-commerce/products/${encodeURIComponent(sku)}`, {}, token)
+    .then((res) => res.data);
+}
+
+export function getEcommerceFilterOptions(token: string): Promise<EcommerceFilterOptions> {
+  return publicApiFetch<ApiDetailResponse<EcommerceFilterOptions>>("/api/v1/e-commerce/products/filter-options", {}, token)
+    .then((res) => res.data);
+}
+
+export function quoteEcommerceCart(token: string, items: EcommerceCartItemInput[]): Promise<EcommerceCartQuote> {
+  return publicApiFetch<ApiDetailResponse<EcommerceCartQuote>>("/api/v1/e-commerce/cart/quote", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  }, token).then((res) => res.data);
+}
+
+export function checkoutEcommerce(token: string, payload: EcommerceCheckoutPayload): Promise<EcommerceOrderDraft> {
+  return publicApiFetch<ApiDetailResponse<EcommerceOrderDraft>>("/api/v1/e-commerce/checkout", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, token).then((res) => res.data);
 }
 
 // ─── Generic paginated response ───────────────────────────────────────────────

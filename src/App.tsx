@@ -22,6 +22,7 @@ import MapPage from "./pages/MapPage";
 import Products from "./pages/Products";
 import Customers from "./pages/Customers";
 import Orders from "./pages/Orders";
+import ECommerce from "./pages/ECommerce";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
@@ -46,6 +47,7 @@ const App = () => (
             <Routes>
               {/* Public routes — no auth required */}
               <Route path="/unsubscribe" element={<Unsubscribe />} />
+              <Route path="/e-commerce" element={<ECommerce />} />
               <Route path="/login" element={<LoginPage />} />
 
               {/* All app routes — require valid session */}
