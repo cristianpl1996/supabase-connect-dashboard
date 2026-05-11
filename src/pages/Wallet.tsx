@@ -269,13 +269,25 @@ export default function WalletPage() {
                     Nuevo Ajuste
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="p-0 sm:max-w-xl">
+                  <div className="px-5 pb-3 pt-5">
                   <DialogHeader>
-                    <DialogTitle>Registrar Ajuste Manual</DialogTitle>
-                    <DialogDescription>Nota credito o debito al saldo del laboratorio</DialogDescription>
+                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Wallet className="h-5 w-5" />
+                    </div>
+                    <DialogTitle>Registrar ajuste manual</DialogTitle>
+                    <DialogDescription>Nota credito o debito al saldo del laboratorio seleccionado.</DialogDescription>
                   </DialogHeader>
+                  </div>
 
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-4 px-5 py-4">
+                    <div className="rounded-md border bg-card p-3">
+                      <p className="text-xs font-medium uppercase text-muted-foreground">Laboratorio</p>
+                      <p className="mt-1 font-semibold">{walletView?.laboratory.name ?? 'Laboratorio seleccionado'}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Saldo disponible actual: {formatCurrency(availableBalance)}</p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Tipo de Ajuste</Label>
                       <Select value={adjustmentType} onValueChange={(v) => setAdjustmentType(v as 'ingreso' | 'egreso')} disabled={isLoading || isSavingAdjustment}>
@@ -290,22 +302,23 @@ export default function WalletPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Motivo</Label>
-                      <Textarea
-                        placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123..."
-                        value={adjustmentReason}
-                        onChange={(e) => setAdjustmentReason(e.target.value)}
-                        disabled={isLoading || isSavingAdjustment}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
                       <Label>Valor</Label>
                       <Input
                         type="number"
                         placeholder="0"
                         value={adjustmentAmount}
                         onChange={(e) => setAdjustmentAmount(e.target.value)}
+                        disabled={isLoading || isSavingAdjustment}
+                      />
+                    </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Motivo</Label>
+                      <Textarea
+                        placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123..."
+                        value={adjustmentReason}
+                        onChange={(e) => setAdjustmentReason(e.target.value)}
                         disabled={isLoading || isSavingAdjustment}
                       />
                     </div>
@@ -336,7 +349,7 @@ export default function WalletPage() {
                     </div>
                   </div>
 
-                  <DialogFooter>
+                  <DialogFooter className="border-t bg-muted/30 px-5 py-4">
                     <Button variant="outline" onClick={() => setIsAdjustmentOpen(false)} disabled={isSavingAdjustment}>
                       Cancelar
                     </Button>

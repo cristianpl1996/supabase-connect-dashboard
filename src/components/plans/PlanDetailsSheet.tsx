@@ -1,17 +1,9 @@
-import { useEffect, useState } from 'react';
-import { getPlan } from '@/lib/api';
-import { AnnualPlan, PlanFund } from '@/types/database';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { Loader2, TrendingUp, Percent, DollarSign } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from "react";
+import { getPlan } from "@/lib/api";
+import { AnnualPlan, PlanFund } from "@/types/database";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Loader2, Building2, CalendarDays, DollarSign, FileText, Percent, Target, WalletCards } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface PlanDetailsSheetProps {
   open: boolean;
@@ -20,199 +12,223 @@ interface PlanDetailsSheetProps {
   labName?: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  activo: { label: 'Activo', variant: 'default' },
-  negociacion: { label: 'En Negociacion', variant: 'secondary' },
-  cerrado: { label: 'Cerrado', variant: 'outline' },
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  activo: { label: "Activo", variant: "default" },
+  negociacion: { label: "En negociacion", variant: "secondary" },
+  cerrado: { label: "Cerrado", variant: "outline" },
 };
+
+const BAR_COLORS = ["bg-primary", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-pink-500"];
+const STRIPED_BAR_CLASS = "bg-[linear-gradient(45deg,rgba(255,255,255,.24)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.24)_50%,rgba(255,255,255,.24)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] motion-safe:animate-[progress-stripes_1s_linear_infinite]";
 
 export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDetailsSheetProps) {
   const [funds, setFunds] = useState<PlanFund[]>([]);
   const [loading, setLoading] = useState(false);
+  const [barsReady, setBarsReady] = useState(false);
 
   useEffect(() => {
     if (open && plan) {
+      setBarsReady(false);
       const fetchPlan = async () => {
         setLoading(true);
         try {
           const details = await getPlan(plan.id);
           setFunds(details.funds || []);
         } catch (err) {
-          console.error('Error loading funds:', err);
+          console.error("Error loading funds:", err);
         } finally {
           setLoading(false);
         }
       };
-      fetchPlan();
+      void fetchPlan();
     }
   }, [open, plan]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  useEffect(() => {
+    if (!open || loading) return;
+    const timer = window.setTimeout(() => setBarsReady(true), 120);
+    return () => window.clearTimeout(timer);
+  }, [open, loading, funds.length]);
+
+  if (!plan) return null;
+
+  const formatCurrency = (value: number) => new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 
   const resolvedFunds = funds.map((fund) => {
-    const resolvedAmount = fund.amount_type === 'porcentaje'
-      ? (plan?.total_purchase_goal || 0) * (fund.amount_value || 0) / 100
+    const resolvedAmount = fund.amount_type === "porcentaje"
+      ? (plan.total_purchase_goal || 0) * (fund.amount_value || 0) / 100
       : fund.amount_value || 0;
     return { ...fund, resolvedAmount };
   });
 
-  const totalBudget = plan?.total_budget_allocated || 0;
-  const statusConfig = STATUS_CONFIG[plan?.status || 'activo'] || STATUS_CONFIG.activo;
-
-  if (!plan) return null;
+  const totalBudget = plan.total_budget_allocated || 0;
+  const purchaseGoal = plan.total_purchase_goal || 0;
+  const statusConfig = STATUS_CONFIG[plan.status || "activo"] || STATUS_CONFIG.activo;
+  const fundedPercent = purchaseGoal > 0 ? Math.min((totalBudget / purchaseGoal) * 100, 100) : 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <div className="flex items-center gap-2">
-            <SheetTitle className="text-xl">{labName || plan.laboratory_name || 'Laboratorio'}</SheetTitle>
-            <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
-          </div>
-          <SheetDescription>
-            Plan Ano {plan.year}
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-6 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                <TrendingUp className="h-3 w-3" />
-                Meta de Compra
+      <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
+        <div className="bg-background px-4 pb-3 pt-5 sm:px-6">
+          <SheetHeader className="text-left">
+            <div className="pr-8">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                  <Badge variant="outline">{plan.year}</Badge>
+                </div>
+                <div className="min-w-0">
+                  <SheetTitle className="truncate text-xl font-bold sm:text-2xl">
+                    {plan.name || `Plan ${plan.year}`}
+                  </SheetTitle>
+                  <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="font-medium text-foreground">{labName || plan.laboratory_name || "Laboratorio"}</span>
+                    <span className="hidden text-muted-foreground sm:inline">/</span>
+                    <span>Plan comercial anual</span>
+                  </SheetDescription>
+                </div>
               </div>
-              <p className="text-lg font-bold text-foreground">
-                {formatCurrency(plan.total_purchase_goal || 0)}
-              </p>
             </div>
-            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                <DollarSign className="h-3 w-3" />
-                Presupuesto Total
-              </div>
-              <p className="text-lg font-bold text-foreground">
-                {formatCurrency(totalBudget)}
-              </p>
-            </div>
+          </SheetHeader>
+        </div>
+
+        <div className="space-y-5 px-4 py-4 sm:px-6">
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            <PlanMetric icon={WalletCards} label="Presupuesto" value={formatCurrency(totalBudget)} note={`${funds.length} fondos`} />
+            <PlanMetric icon={Target} label="Meta de compra" value={formatCurrency(purchaseGoal)} note="Objetivo negociado" />
+            <PlanMetric icon={DollarSign} label="Cobertura" value={`${fundedPercent.toFixed(1)}%`} note="Presupuesto sobre meta" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PlanMetric icon={Building2} label="Laboratorio" value={labName || plan.laboratory_name || "N/A"} note="Aliado comercial" />
+            <PlanMetric icon={CalendarDays} label="Vigencia" value={String(plan.year)} note="Periodo del plan" />
           </div>
 
-          <Separator />
+          <section className="rounded-md border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold">Datos del acuerdo</h3>
+              </div>
+              {plan.contract_pdf_url && <Badge variant="outline">Contrato cargado</Badge>}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <PlanFact label="Responsable" value={plan.created_by_responsible} />
+              <PlanFact label="Identificador" value={plan.created_by_identifier} />
+              <PlanFact label="Marca origen" value={plan.created_by_brand} />
+              <PlanFact label="Creado" value={plan.created_at ? new Date(plan.created_at).toLocaleDateString("es-CO") : null} />
+            </div>
+          </section>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-              Desglose de Fondos ({funds.length})
-            </h3>
+          <section className="rounded-md border bg-card p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold">Fondos del plan</h3>
+              </div>
+              <Badge variant="secondary">{funds.length} conceptos</Badge>
+            </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
-            ) : funds.length === 0 ? (
-              <div className="text-center py-8 border border-dashed rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  Este plan no tiene fondos asignados
-                </p>
+            ) : resolvedFunds.length === 0 ? (
+              <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                Este plan no tiene fondos asignados.
               </div>
             ) : (
               <div className="space-y-4">
-                {resolvedFunds.map((fund) => {
-                  const percentage = totalBudget > 0
-                    ? (fund.resolvedAmount / totalBudget) * 100
-                    : 0;
-
-                  return (
-                    <div key={fund.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm text-foreground">
-                            {fund.concept}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {fund.amount_type === 'porcentaje' ? (
-                              <><Percent className="h-3 w-3 mr-1" />{fund.amount_value}%</>
-                            ) : (
-                              <><DollarSign className="h-3 w-3 mr-1" />Fijo</>
-                            )}
-                          </Badge>
-                        </div>
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {formatCurrency(fund.resolvedAmount)}
-                        </span>
-                      </div>
-                      <Progress value={percentage} className="h-2" />
-                      <p className="text-xs text-muted-foreground text-right">
-                        {percentage.toFixed(1)}% del presupuesto total
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {funds.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                  Distribucion Visual
-                </h3>
-                <div className="flex h-6 rounded-lg overflow-hidden">
+                <div className="flex h-7 overflow-hidden rounded-md bg-muted">
                   {resolvedFunds.map((fund, index) => {
-                    const percentage = totalBudget > 0
-                      ? (fund.resolvedAmount / totalBudget) * 100
-                      : 0;
-
-                    const colors = [
-                      'bg-primary',
-                      'bg-blue-500',
-                      'bg-green-500',
-                      'bg-amber-500',
-                      'bg-purple-500',
-                      'bg-pink-500',
-                    ];
-
+                    const percentage = totalBudget > 0 ? (fund.resolvedAmount / totalBudget) * 100 : 0;
                     return (
                       <div
                         key={fund.id}
-                        className={`${colors[index % colors.length]} transition-all`}
-                        style={{ width: `${percentage}%` }}
+                        className={`${BAR_COLORS[index % BAR_COLORS.length]} ${STRIPED_BAR_CLASS} transition-[width] duration-700 ease-out`}
+                        style={{ width: barsReady ? `${percentage}%` : "0%" }}
                         title={`${fund.concept}: ${formatCurrency(fund.resolvedAmount)}`}
                       />
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {resolvedFunds.map((fund, index) => {
-                    const colors = [
-                      'bg-primary',
-                      'bg-blue-500',
-                      'bg-green-500',
-                      'bg-amber-500',
-                      'bg-purple-500',
-                      'bg-pink-500',
-                    ];
 
+                <div className="grid gap-3">
+                  {resolvedFunds.map((fund, index) => {
+                    const percentage = totalBudget > 0 ? (fund.resolvedAmount / totalBudget) * 100 : 0;
                     return (
-                      <div key={fund.id} className="flex items-center gap-1.5 text-xs">
-                        <div className={`w-3 h-3 rounded ${colors[index % colors.length]}`} />
-                        <span className="text-muted-foreground">{fund.concept}</span>
+                      <div key={fund.id} className="rounded-md border p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2.5 w-2.5 rounded-full ${BAR_COLORS[index % BAR_COLORS.length]}`} />
+                              <p className="truncate font-semibold">{fund.concept}</p>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              <Badge variant="outline" className="gap-1">
+                                {fund.amount_type === "porcentaje" ? <Percent className="h-3 w-3" /> : <DollarSign className="h-3 w-3" />}
+                                {fund.amount_type === "porcentaje" ? `${fund.amount_value}%` : "Fijo"}
+                              </Badge>
+                              <Badge variant="secondary">{fund.budget_period || "annual"}</Badge>
+                            </div>
+                          </div>
+                          <div className="text-left sm:text-right">
+                            <p className="font-mono font-bold">{formatCurrency(fund.resolvedAmount)}</p>
+                            <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}% del presupuesto</p>
+                          </div>
+                        </div>
+                        <AnimatedProgress value={percentage} active={barsReady} className="mt-3" />
                       </div>
                     );
                   })}
                 </div>
               </div>
-            </>
-          )}
+            )}
+          </section>
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function PlanMetric({ icon: Icon, label, value, note }: { icon: React.ElementType; label: string; value: string; note: string }) {
+  return (
+    <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+          <p className="mt-2 break-words text-2xl font-bold leading-tight text-foreground">{value}</p>
+        </div>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-2 truncate text-xs text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
+function AnimatedProgress({ value, active, className = "" }: { value: number; active: boolean; className?: string }) {
+  return (
+    <div className={`h-2 overflow-hidden rounded-full bg-muted ${className}`}>
+      <div
+        className={`h-full rounded-full bg-primary ${STRIPED_BAR_CLASS} transition-[width] duration-700 ease-out`}
+        style={{ width: active ? `${Math.max(0, Math.min(value, 100))}%` : "0%" }}
+      />
+    </div>
+  );
+}
+
+function PlanFact({ label, value }: { label: string; value: unknown }) {
+  const display = value === null || value === undefined || value === "" ? "N/A" : String(value);
+  return (
+    <div className="rounded-md bg-muted/35 px-3 py-2">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium">{display}</p>
+    </div>
   );
 }

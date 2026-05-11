@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { ArrowUp, Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 
@@ -47,6 +47,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { pathname } = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const showFooter = !isMobile && pathname !== "/map";
   const isDarkTheme = resolvedTheme === "dark";
 
@@ -88,6 +89,28 @@ export function AppLayout({ children }: AppLayoutProps) {
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
     }
+  };
+
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        setShowBackToTop(window.scrollY > 520);
+        ticking = false;
+      });
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [pathname]);
+
+  const scrollToPageTop = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
 
   return (
@@ -271,6 +294,32 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
 
           {isMobile && <MobileBottomNav />}
+
+          <div
+            className={cn(
+              "fixed right-4 z-50 transition-all duration-300 ease-out md:right-6",
+              isMobile ? "bottom-[calc(5.9rem+env(safe-area-inset-bottom))]" : "bottom-6",
+              showBackToTop ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-4 scale-90 opacity-0",
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full bg-primary/30 motion-safe:animate-ping"
+            />
+            <Button
+              type="button"
+              size="icon"
+              aria-label="Volver al inicio"
+              title="Volver al inicio"
+              onClick={scrollToPageTop}
+              className={cn(
+                "relative rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform duration-200 hover:scale-105 hover:bg-primary/90 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                isMobile ? "h-12 w-12" : "h-11 w-11",
+              )}
+            >
+              <ArrowUp className={cn(isMobile ? "h-5 w-5" : "h-5 w-5")} />
+            </Button>
+          </div>
         </SidebarInset>
       </div>
     </SidebarProvider>

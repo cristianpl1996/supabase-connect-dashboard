@@ -54,13 +54,10 @@ function NavItem({ item, isCollapsed }: NavItemProps) {
           className={cn(
             "relative overflow-hidden",
             isActive
-              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              ? "bg-gradient-to-r from-primary/12 via-primary/8 to-transparent text-primary hover:from-primary/16 hover:via-primary/10 hover:text-primary"
               : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
           )}
         >
-          {isActive && !isCollapsed && (
-            <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
-          )}
           <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
           <span className="truncate">{item.title}</span>
         </Link>

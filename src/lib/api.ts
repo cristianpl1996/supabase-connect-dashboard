@@ -169,6 +169,91 @@ export interface CustomerTopProduct {
   last_purchase_date: string | null;
 }
 
+export interface OrderLineItem {
+  id: number;
+  commercial_order_id: number;
+  product_catalog_code?: string | null;
+  sold_product_sku_at_order?: string | null;
+  sold_product_name_at_order?: string | null;
+  sold_service_internal_code?: string | null;
+  sold_service_name?: string | null;
+  line_num?: number | null;
+  warehouse_code?: string | null;
+  line_item_status_code?: string | null;
+  line_item_discount_applied?: number | null;
+  line_item_bonus_applied?: number | null;
+  line_item_vat_percentage?: number | null;
+  line_item_quantity_sold?: number | null;
+  line_item_unit_price_before_taxes?: number | null;
+  line_item_total_price_after_taxes?: number | null;
+  product_recommended_reapplication_frequency?: string | null;
+  line_item_is_part_of_active_campaign?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface Order {
+  id: number;
+  source_sale_id?: number | null;
+  distributor_id?: number | null;
+  customer_id?: number | null;
+  sales_representative_id?: number | null;
+  sales_representative_name?: string | null;
+  sales_representative_email?: string | null;
+  sales_representative_phone?: string | null;
+  order_taking_person_name?: string | null;
+  order_number: string;
+  buyer_internal_code_at_sale?: string | null;
+  buyer_full_name_at_sale?: string | null;
+  buyer_cellphone_at_sale?: string | null;
+  buyer_email_at_sale?: string | null;
+  order_status_code?: string | null;
+  order_delivery_address?: string | null;
+  order_payment_method?: string | null;
+  order_additional_observations?: string | null;
+  order_origin_channel?: string | null;
+  order_origin_platform?: string | null;
+  sap_doc_date?: string | null;
+  sell_at?: string | null;
+  doc_total?: number | null;
+  sale_invoice_number?: string | null;
+  sale_status_code?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  line_items_count?: number | null;
+  line_items_total_quantity?: number | null;
+  line_items_total_amount?: number | null;
+  line_items?: OrderLineItem[];
+  [key: string]: unknown;
+}
+
+export interface OrderListParams {
+  search?: string;
+  customer_id?: number;
+  sales_representative_id?: number;
+  status?: string;
+  origin_channel?: string;
+  origin_platform?: string;
+  payment_method?: string;
+  invoice_number?: string;
+  has_observations?: boolean;
+  date_from?: string;
+  date_to?: string;
+  min_total?: number;
+  max_total?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export interface OrderFilterOptions {
+  statuses: string[];
+  origin_channels: string[];
+  payment_methods: string[];
+}
+
 export async function getCustomersPage(params: CustomerParams = {}): Promise<ApiListResponse<CustomerRecord>> {
   const qs = new URLSearchParams();
   if (params.search)        qs.set("search", params.search);
@@ -252,6 +337,36 @@ export function listCustomerTopProducts(customerId: number, limit = 10): Promise
     limit,
     offset: 0,
   }));
+}
+
+export function getOrdersPage(params: OrderListParams = {}): Promise<ApiListResponse<Order>> {
+  return apiFetch<ApiListResponse<Order>>(withQuery("/api/v1/orders", {
+    search: params.search,
+    customer_id: params.customer_id,
+    sales_representative_id: params.sales_representative_id,
+    status: params.status,
+    origin_channel: params.origin_channel,
+    origin_platform: params.origin_platform,
+    payment_method: params.payment_method,
+    invoice_number: params.invoice_number,
+    has_observations: params.has_observations,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    min_total: params.min_total,
+    max_total: params.max_total,
+    sort_by: params.sort_by,
+    sort_dir: params.sort_dir,
+    limit: params.limit ?? 100,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function getOrder(orderId: number): Promise<Order> {
+  return apiDetail<Order>(`/api/v1/orders/${orderId}`);
+}
+
+export function getOrderFilterOptions(): Promise<OrderFilterOptions> {
+  return apiDetail<OrderFilterOptions>("/api/v1/orders/filter-options");
 }
 
 /** Fetches one page from /api/v1/customers-map (only records with coordinates). */

@@ -132,6 +132,15 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  @keyframes progress-stripes {
+    from {
+      background-position: 1rem 0;
+    }
+    to {
+      background-position: 0 0;
+    }
+  }
+
   .scrollbar-none {
     scrollbar-width: none;
   }

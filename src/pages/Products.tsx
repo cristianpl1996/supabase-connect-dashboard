@@ -711,28 +711,32 @@ export default function Products() {
       </Card>
 
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-2xl sm:p-5">
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
           {selected && (
             <>
-              <SheetHeader className="pr-0">
-                <div className="min-w-0 space-y-1">
-                  <div className="min-w-0 pr-8">
-                    <SheetTitle className="truncate text-base">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
-                    <SheetDescription>SKU: {selected.product_sku} - Marca: {text(selected.product_brand_name)}</SheetDescription>
-                  </div>
-                  <div className="flex w-full items-start justify-between gap-2 pt-1">
-                    <div className="flex min-w-0 flex-wrap gap-1.5">
-                      {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
-                      {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
+              <div className="bg-background px-4 pb-4 pt-5 sm:px-6">
+                <SheetHeader className="text-left">
+                  <div className="pr-8">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
+                        {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
+                        {selected.product_category && <Badge variant="secondary">{text(selected.product_category)}</Badge>}
+                      </div>
+                      <div className="min-w-0">
+                        <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
+                        <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                          <span className="font-mono font-medium text-foreground">SKU {selected.product_sku}</span>
+                          <span className="hidden text-muted-foreground sm:inline">/</span>
+                          <span>{text(selected.product_brand_name, "Marca no registrada")}</span>
+                        </SheetDescription>
+                      </div>
                     </div>
-                    <Badge variant={selected.external_product_id ? "outline" : "secondary"} className="shrink-0">
-                      {selected.external_product_id ? `ID ${selected.external_product_id}` : "Sin ID externo"}
-                    </Badge>
                   </div>
-                </div>
-              </SheetHeader>
+                </SheetHeader>
+              </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="space-y-5 px-4 py-4 sm:px-6">
                 <ProductExternalMedia
                   catalogProduct={selected}
                   externalProduct={externalProduct}
@@ -743,7 +747,7 @@ export default function Products() {
                   onImageError={() => setImageLoadFailed(true)}
                 />
 
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <ProfileMetric label="Disponible" value={formatCount(numberValue(selected.total_units_available ?? selected.units_available_in_stock))} />
                   <ProfileMetric label="Bodegas" value={formatCount(numberValue(selected.inventory_locations_count))} />
                   <ProfileMetric label="Comprometido" value={formatCount(numberValue(selected.committed_quantity))} />
@@ -751,28 +755,38 @@ export default function Products() {
                 </div>
 
                 <Tabs defaultValue="summary">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="summary">Resumen</TabsTrigger>
-                    <TabsTrigger value="inventories">Inventarios</TabsTrigger>
-                    <TabsTrigger value="prices">Precios SAP</TabsTrigger>
-                    <TabsTrigger value="details">Datos adicionales</TabsTrigger>
+                  <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/70 p-1">
+                    <TabsTrigger value="summary" className="h-10">Resumen</TabsTrigger>
+                    <TabsTrigger value="inventories" className="h-10">Inventarios</TabsTrigger>
+                    <TabsTrigger value="prices" className="h-10">Precios SAP</TabsTrigger>
+                    <TabsTrigger value="details" className="h-10">Datos adicionales</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="summary" className="mt-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <InfoPanel icon={Package} title="Descripcion" rows={[
-                        ["Descripcion tecnica", selected.product_technical_description],
-                        ["Frecuencia recomendada", selected.product_recommended_application_frequency],
-                        ["SKUs sustitutos", selected.product_substitute_skus],
-                      ]} />
-                      <InfoPanel icon={Tags} title="Clasificacion" rows={[
-                        ["Marca", selected.product_brand_name],
-                        ["Categoria", selected.product_category],
-                        ["Linea", selected.product_line_name],
-                        ["Especie", selected.product_target_species ?? selected.product_target_animal_species],
-                        ["Sector", selected.product_industry_sector],
-                        ["Unidad", selected.product_unit_of_measurement],
-                      ]} />
+                  <TabsContent value="summary" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
+                    <div className="grid items-stretch gap-3 lg:grid-cols-2">
+                      <InfoPanel
+                        icon={Package}
+                        title="Descripcion"
+                        rows={[
+                          ["Descripcion tecnica", selected.product_technical_description],
+                          ["Frecuencia recomendada", selected.product_recommended_application_frequency],
+                          ["SKUs sustitutos", selected.product_substitute_skus],
+                        ]}
+                      />
+                      <InfoPanel
+                        icon={Tags}
+                        title="Clasificacion"
+                        rows={[
+                          ["Marca", selected.product_brand_name],
+                          ["Categoria", selected.product_category],
+                          ["Linea", selected.product_line_name],
+                          ["Especie", selected.product_target_species ?? selected.product_target_animal_species],
+                          ["Sector", selected.product_industry_sector],
+                          ["Unidad", selected.product_unit_of_measurement],
+                        ]}
+                      />
+                    </div>
+                    <div>
                       <InfoPanel icon={Boxes} title="Inventario agregado" rows={[
                         ["Disponible", selected.total_units_available ?? selected.units_available_in_stock],
                         ["Pedido", selected.ordered_quantity],
@@ -784,7 +798,7 @@ export default function Products() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="inventories" className="mt-3">
+                  <TabsContent value="inventories" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
                     {selectedInventories.length === 0 ? (
                       <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene inventarios registrados.</div>
                     ) : (
@@ -811,7 +825,7 @@ export default function Products() {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="prices" className="mt-3">
+                  <TabsContent value="prices" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
                     {selectedPriceLists.length === 0 || priceListColumns.length === 0 ? (
                       <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene listas de precio SAP registradas.</div>
                     ) : (
@@ -837,13 +851,13 @@ export default function Products() {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="details" className="mt-3">
+                  <TabsContent value="details" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
                     {additionalFields.length === 0 ? (
                       <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">No hay campos adicionales con informacion para este producto.</div>
                     ) : (
                       <div className="grid gap-2 sm:grid-cols-2">
                         {additionalFields.map(([key, value]) => (
-                          <div key={key} className="rounded-md border p-3">
+                          <div key={key} className="rounded-md border bg-card p-3 shadow-sm">
                             <p className="text-xs text-muted-foreground">{labelFor(key)}</p>
                             <p className="break-words text-sm font-medium">{formatField(value)}</p>
                           </div>
@@ -962,9 +976,9 @@ function ProductRangeFilter({
 
 function ProfileMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-card p-2.5">
-      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-base font-bold text-foreground">{value}</p>
+    <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-2 break-words text-xl font-bold leading-tight text-foreground">{value}</p>
     </div>
   );
 }
@@ -990,11 +1004,11 @@ function ProductExternalMedia({
   const officialBrand = externalProduct?.product_brand_name || catalogProduct.product_brand_name;
 
   return (
-    <div className="rounded-md border bg-card p-3">
-      <div className="grid gap-2 sm:grid-cols-[9rem_1fr]">
+    <div className="rounded-md border bg-card p-4 shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
         <div
           className={cn(
-            "flex min-h-[7.75rem] w-full items-center justify-center overflow-hidden rounded-md border",
+            "flex min-h-[9rem] w-full items-center justify-center overflow-hidden rounded-md border",
             showImage ? "bg-white" : "bg-muted/35",
           )}
         >
@@ -1017,7 +1031,7 @@ function ProductExternalMedia({
 
         <div className="min-w-0">
           {error ? (
-            <div className="flex min-h-[7.75rem] items-center rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            <div className="flex min-h-[9rem] items-center rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
               No se pudo cargar el producto externo: {error}
             </div>
           ) : (
@@ -1036,9 +1050,18 @@ function ProductExternalMedia({
 
 function ExternalProductFact({ label, value }: { label: string; value: unknown }) {
   return (
-    <div className="flex min-h-[3.625rem] min-w-0 flex-col justify-center rounded-md bg-muted/35 px-3 py-2">
+    <div className="flex min-h-[4rem] min-w-0 flex-col justify-center rounded-md bg-muted/35 px-3 py-2">
       <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate font-medium text-foreground">{text(value)}</p>
+      <p className="mt-1 break-words font-medium text-foreground">{text(value)}</p>
+    </div>
+  );
+}
+
+function ProductFact({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="min-h-[4rem] rounded-md bg-muted/35 px-3 py-2">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">{formatField(value)}</p>
     </div>
   );
 }
@@ -1055,17 +1078,17 @@ function InfoPanel({
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
 
   return (
-    <div className="rounded-md border p-3">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="rounded-md border bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
         <Icon className="h-4 w-4 text-primary" />
         <p className="font-semibold">{title}</p>
       </div>
       {visibleRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin informacion disponible.</p>
       ) : (
-        <div className="space-y-1.5 text-sm">
+        <div className="grid gap-3 sm:grid-cols-2">
           {visibleRows.map(([label, value]) => (
-            <p key={label} className="break-words"><span className="text-muted-foreground">{label}:</span> {formatField(value)}</p>
+            <ProductFact key={label} label={label} value={value} />
           ))}
         </div>
       )}

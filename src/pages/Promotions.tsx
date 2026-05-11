@@ -457,13 +457,8 @@ const Promotions = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="flex min-h-7 flex-wrap items-center gap-2 text-sm">
-            {activeFilterTags.length === 0 ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <SlidersHorizontal className="h-4 w-4" />
-                <span>Filtros aplicados a la informacion cargada en la tabla.</span>
-              </div>
-            ) : (
+          {activeFilterTags.length > 0 && (
+            <div className="flex min-h-7 flex-wrap items-center gap-2 text-sm">
               <>
                 {activeFilterTags.map((filter) => (
                   <button
@@ -490,8 +485,8 @@ const Promotions = () => {
                   Limpiar
                 </Button>
               </>
-            )}
-          </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="px-4 pb-5 pt-0 sm:px-5">
           {loading ? (

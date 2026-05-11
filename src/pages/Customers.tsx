@@ -746,32 +746,38 @@ export default function Customers() {
       </Card>
 
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-2xl sm:p-5">
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
           {selected && (
             <>
-              <SheetHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <SheetTitle className="truncate text-base">{field(currentProfile, "customer_full_name", "Cliente sin nombre")}</SheetTitle>
-                    <SheetDescription>
-                      {field(currentProfile, "customer_government_id")}
-                    </SheetDescription>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {profileStatus && <Badge variant={profileStatus.variant}>{profileStatus.label}</Badge>}
-                      {profileSegment && <Badge variant="secondary">{profileSegment}</Badge>}
-                      {profileCluster && <Badge variant="outline">{profileCluster}</Badge>}
+              <div className="bg-background px-4 pb-4 pt-5 sm:px-6">
+                <SheetHeader className="text-left">
+                  <div className="pr-8">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {profileStatus && <Badge variant={profileStatus.variant}>{profileStatus.label}</Badge>}
+                        {profileSegment && <Badge variant="secondary">{profileSegment}</Badge>}
+                        {profileCluster && <Badge variant="outline">{profileCluster}</Badge>}
+                      </div>
+                      <div className="min-w-0">
+                        <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{field(currentProfile, "customer_full_name", "Cliente sin nombre")}</SheetTitle>
+                        <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                          <span className="font-medium text-foreground">{field(currentProfile, "customer_government_id")}</span>
+                          <span className="hidden text-muted-foreground sm:inline">/</span>
+                          <span>{field(currentProfile, "customer_business_type")}</span>
+                        </SheetDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => copyText(field(currentProfile, "customer_government_id", ""), "NIT")} title="Copiar NIT"><Copy className="h-4 w-4" /> NIT</Button>
+                        {field(currentProfile, "customer_email", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Email"><a href={`mailto:${field(currentProfile, "customer_email", "")}`}><Mail className="h-4 w-4" /> Email</a></Button>}
+                        {field(currentProfile, "customer_cellphone", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Llamar"><a href={`tel:${field(currentProfile, "customer_cellphone_country_dial_code", "")}${field(currentProfile, "customer_cellphone", "")}`}><Phone className="h-4 w-4" /> Llamar</a></Button>}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-1 pr-6">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copyText(field(currentProfile, "customer_government_id", ""), "NIT")} title="Copiar NIT"><Copy className="h-4 w-4" /></Button>
-                    {field(currentProfile, "customer_email", "") && <Button variant="outline" size="icon" className="h-8 w-8" asChild title="Email"><a href={`mailto:${field(currentProfile, "customer_email", "")}`}><Mail className="h-4 w-4" /></a></Button>}
-                    {field(currentProfile, "customer_cellphone", "") && <Button variant="outline" size="icon" className="h-8 w-8" asChild title="Llamar"><a href={`tel:${field(currentProfile, "customer_cellphone_country_dial_code", "")}${field(currentProfile, "customer_cellphone", "")}`}><Phone className="h-4 w-4" /></a></Button>}
-                  </div>
-                </div>
-              </SheetHeader>
+                </SheetHeader>
+              </div>
 
-              <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <div className="space-y-5 px-4 py-4 sm:px-6">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <ProfileMetric label="Ingresos" value={money(currentProfile?.customer_total_lifetime_revenue)} />
                   <ProfileMetric label="Compras" value={numeric(currentProfile?.customer_total_number_of_purchases).toLocaleString("es-CO")} />
                   <ProfileMetric label="Ticket prom." value={money(currentProfile?.customer_average_purchase_ticket_amount)} />
@@ -779,14 +785,14 @@ export default function Customers() {
                 </div>
 
                 <Tabs defaultValue="summary">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="summary" className="min-w-max snap-start">Resumen</TabsTrigger>
-                    <TabsTrigger value="performance" className="min-w-max snap-start">Rendimiento</TabsTrigger>
-                    <TabsTrigger value="products" className="min-w-max snap-start">Productos top</TabsTrigger>
+                  <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted/70 p-1">
+                    <TabsTrigger value="summary" className="h-10 min-w-max snap-start">Resumen</TabsTrigger>
+                    <TabsTrigger value="performance" className="h-10 min-w-max snap-start">Rendimiento</TabsTrigger>
+                    <TabsTrigger value="products" className="h-10 min-w-max snap-start">Productos top</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="summary" className="mt-3 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                  <TabsContent value="summary" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
+                    <div className="grid items-stretch gap-3 lg:grid-cols-2">
                       <InfoPanel icon={Building2} title="Identidad comercial" rows={[
                         ["Tipo de negocio", field(currentProfile, "customer_business_type")],
                         ["Documento / NIT", field(currentProfile, "customer_government_id")],
@@ -797,6 +803,8 @@ export default function Customers() {
                         ["Departamento", field(currentProfile, "customer_business_state")],
                         ["Direccion", field(currentProfile, "customer_business_address")],
                       ]} />
+                    </div>
+                    <div>
                       <InfoPanel icon={WalletCards} title="Contacto" rows={[
                         ["Email", field(currentProfile, "customer_email")],
                         ["Celular", `${field(currentProfile, "customer_cellphone_country_dial_code", "")} ${field(currentProfile, "customer_cellphone")}`],
@@ -804,7 +812,7 @@ export default function Customers() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="performance" className="mt-3 space-y-3">
+                  <TabsContent value="performance" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <InsightCard title="Estado comercial" value={profileStatus?.label || "N/A"} note="Basado en dias desde la ultima compra" icon={Activity} />
                       <InsightCard title="Oportunidad" value={numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener"} note="Prioriza seguimiento segun recencia" icon={TrendingUp} />
@@ -813,7 +821,7 @@ export default function Customers() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="products" className="mt-3 space-y-2">
+                  <TabsContent value="products" className="mt-4 space-y-2 focus-visible:ring-0 focus-visible:ring-offset-0">
                     {topProducts.length > 0 ? (
                       <div className="overflow-hidden rounded-md border">
                         <div className="grid grid-cols-[2.5rem_1fr_5rem] bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
@@ -946,9 +954,18 @@ function RangeFilter({
 
 function ProfileMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-card p-2.5">
-      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-base font-bold text-foreground">{value}</p>
+    <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-2 break-words text-xl font-bold leading-tight text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function CustomerFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-h-[4rem] rounded-md bg-muted/35 px-3 py-2">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">{value || "N/A"}</p>
     </div>
   );
 }
@@ -963,11 +980,11 @@ function InfoPanel({
   rows: Array<[string, string]>;
 }) {
   return (
-    <div className="rounded-md border p-3">
-      <div className="mb-2 flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /><p className="font-semibold">{title}</p></div>
-      <div className="space-y-1.5 text-sm">
+    <div className="rounded-md border bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /><p className="font-semibold">{title}</p></div>
+      <div className="grid gap-3 sm:grid-cols-2">
         {rows.map(([label, value]) => (
-          <p key={label} className="break-words"><span className="text-muted-foreground">{label}:</span> {value}</p>
+          <CustomerFact key={label} label={label} value={value} />
         ))}
       </div>
     </div>
@@ -986,13 +1003,13 @@ function InsightCard({
   note: string;
 }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
       <div className="mb-1.5 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{title}</p>
         <Icon className="h-4 w-4 text-primary" />
       </div>
-      <p className="text-lg font-bold">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+      <p className="break-words text-xl font-bold leading-tight">{value}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{note}</p>
     </div>
   );
 }
