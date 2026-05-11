@@ -4,8 +4,11 @@ import {
   CustomerParams,
   CustomerRecord,
   CustomerTopProduct,
+  getAllRepresentatives,
+  getCustomerFilterOptions,
   getCustomersPage,
   listTotal,
+  Representative,
   SaleRecord,
   TracingRecord,
 } from "@/lib/api";
@@ -22,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
   Activity,
+  ArrowUpAZ,
   BarChart3,
   Building2,
   Copy,
@@ -45,6 +49,7 @@ import { toast } from "sonner";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
+import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE_SIZE = 200;
@@ -111,8 +116,10 @@ function money(value: unknown) {
   }).format(numeric(value));
 }
 
-function uniqueValues(items: CustomerRecord[], key: string) {
-  return Array.from(new Set(items.map((item) => field(item, key, "")).filter(Boolean))).sort();
+function representativeOption(representative: Representative): [string, string] | null {
+  const id = String(representative.sales_representative_id ?? representative.id ?? "");
+  const name = String(representative.sales_rep_full_name ?? "");
+  return id && name ? [id, name] : null;
 }
 
 function customerKey(customer: CustomerRecord) {
@@ -197,6 +204,14 @@ function extractTopProducts(customer: CustomerRecord | null): CustomerTopProduct
   return [];
 }
 
+function customerSortParams(value: string): Pick<CustomerParams, "sort_by" | "sort_dir"> {
+  if (value === "name_desc") return { sort_by: "name", sort_dir: "desc" };
+  if (value === "revenue_desc") return { sort_by: "revenue", sort_dir: "desc" };
+  if (value === "purchases_desc") return { sort_by: "purchases", sort_dir: "desc" };
+  if (value === "recent_purchase") return { sort_by: "days_since_last_purchase", sort_dir: "asc" };
+  return { sort_by: "name", sort_dir: "asc" };
+}
+
 export default function Customers() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -204,6 +219,10 @@ export default function Customers() {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [totalCustomers, setTotalCustomers] = useState<number | null>(null);
+  const [filterOptions, setFilterOptions] = useState({
+    businessTypes: [] as string[],
+    representatives: [] as Array<[string, string]>,
+  });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = useState("");
@@ -221,6 +240,7 @@ export default function Customers() {
   const [maxTicket, setMaxTicket] = useState("");
   const [minDays, setMinDays] = useState("");
   const [maxDays, setMaxDays] = useState("");
+  const [sortOrder, setSortOrder] = useState("name_asc");
 
   const [selected, setSelected] = useState<CustomerRecord | null>(null);
   const [sales] = useState<SaleRecord[]>([]);
@@ -242,6 +262,7 @@ export default function Customers() {
     max_average_ticket: optionalNumber(maxTicket),
     min_days_since_last_purchase: optionalNumber(minDays),
     max_days_since_last_purchase: optionalNumber(maxDays),
+    ...customerSortParams(sortOrder),
     limit: PAGE_SIZE,
     offset,
   }), [
@@ -259,6 +280,7 @@ export default function Customers() {
     minTicket,
     salesRepId,
     search,
+    sortOrder,
     stateName,
   ]);
 
@@ -303,6 +325,31 @@ export default function Customers() {
   }, [fetchPage]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    Promise.allSettled([getCustomerFilterOptions(), getAllRepresentatives()]).then(([typesResult, repsResult]) => {
+      if (cancelled) return;
+
+      setFilterOptions({
+        businessTypes:
+          typesResult.status === "fulfilled" && Array.isArray(typesResult.value.business_types)
+            ? typesResult.value.business_types
+            : [],
+        representatives:
+          repsResult.status === "fulfilled"
+            ? repsResult.value
+                .map(representativeOption)
+                .filter((item): item is [string, string] => item !== null)
+            : [],
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const target = sentinelRef.current;
     if (!target) return;
     const observer = new IntersectionObserver((entries) => {
@@ -315,16 +362,13 @@ export default function Customers() {
     return () => observer.disconnect();
   }, [customers.length, fetchPage, hasMore, loadingInitial, loadingMore]);
 
-  const businessTypes = useMemo(() => uniqueValues(customers, "customer_business_type"), [customers]);
-  const representatives = useMemo(() => {
-    const seen = new Map<string, string>();
-    customers.forEach((customer) => {
-      const id = field(customer, "sales_representative_id", "");
-      const name = field(customer, "sales_rep_full_name", "");
-      if (id && name) seen.set(id, name);
-    });
-    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [customers]);
+  const businessTypes = filterOptions.businessTypes;
+  const representatives = filterOptions.representatives;
+  const businessTypeOptions = useMemo(() => businessTypes.map((item) => ({ value: item, label: item })), [businessTypes]);
+  const representativeOptions = useMemo(
+    () => representatives.map(([id, name]) => ({ value: id, label: name })),
+    [representatives],
+  );
 
   const totalRevenue = customers.reduce((sum, item) => sum + numeric(item.customer_total_lifetime_revenue), 0);
   const totalPurchases = customers.reduce((sum, item) => sum + numeric(item.customer_total_number_of_purchases), 0);
@@ -466,18 +510,41 @@ export default function Customers() {
 
       <Card className="overflow-hidden">
         <CardHeader className="space-y-4 p-4 sm:p-6">
-          <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_260px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_260px_240px_auto]">
             <div className="relative min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(event) => setSearch(event.target.value)} disabled={loadingInitial} placeholder="Buscar por nombre, NIT, email o celular" className="h-10 pl-9" />
             </div>
-            <Select value={businessType} onValueChange={setBusinessType} disabled={loadingInitial}>
-              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Tipo" /></SelectTrigger>
-              <SelectContent><SelectItem value="all">Todos los tipos</SelectItem>{businessTypes.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={salesRepId || "all"} onValueChange={(value) => setSalesRepId(value === "all" ? "" : value)} disabled={loadingInitial}>
-              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Representante" /></SelectTrigger>
-              <SelectContent><SelectItem value="all">Todos los representantes</SelectItem>{representatives.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
+            <SearchableSelect
+              value={businessType}
+              onValueChange={setBusinessType}
+              options={businessTypeOptions}
+              allLabel="Todos los tipos"
+              searchPlaceholder="Buscar tipo..."
+              emptyLabel="No hay tipos"
+              disabled={loadingInitial}
+            />
+            <SearchableSelect
+              value={salesRepId || "all"}
+              onValueChange={(value) => setSalesRepId(value === "all" ? "" : value)}
+              options={representativeOptions}
+              allLabel="Todos los representantes"
+              searchPlaceholder="Buscar representante..."
+              emptyLabel="No hay representantes"
+              disabled={loadingInitial}
+            />
+            <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
+              <SelectTrigger className="h-10 w-full">
+                <ArrowUpAZ className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name_asc">Ordenar por nombre A-Z</SelectItem>
+                <SelectItem value="name_desc">Ordenar por nombre Z-A</SelectItem>
+                <SelectItem value="revenue_desc">Ordenar por ingresos</SelectItem>
+                <SelectItem value="purchases_desc">Ordenar por compras</SelectItem>
+                <SelectItem value="recent_purchase">Ordenar por compra reciente</SelectItem>
+              </SelectContent>
             </Select>
             <Popover>
               <PopoverTrigger asChild>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
+  getProductFilterOptions,
   getProductsPage,
   getSupabaseProduct,
   listTotal,
@@ -21,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
+  ArrowUpAZ,
   BadgeCheck,
   Boxes,
   Eye,
@@ -36,6 +38,7 @@ import {
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
+import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { formatApiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
@@ -224,6 +227,13 @@ function resolveExternalProductImageUrl(imagePath?: unknown) {
   return `${cleanBase}/storage/v1/object/public/${cleanBucket}/${cleanPath}`;
 }
 
+function productSortParams(value: string): Pick<ProductListParams, "sort_by" | "sort_dir"> {
+  if (value === "name_desc") return { sort_by: "name", sort_dir: "desc" };
+  if (value === "available_desc") return { sort_by: "available", sort_dir: "desc" };
+  if (value === "available_asc") return { sort_by: "available", sort_dir: "asc" };
+  return { sort_by: "name", sort_dir: "asc" };
+}
+
 export default function Products() {
   const [products, setProducts] = useState<ProductCatalogItem[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -231,6 +241,7 @@ export default function Products() {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
+  const [filterOptions, setFilterOptions] = useState({ brands: [] as string[], categories: [] as string[] });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = useState("");
@@ -242,6 +253,7 @@ export default function Products() {
   const [status, setStatus] = useState("all");
   const [verification, setVerification] = useState("all");
   const [inventoryStatus, setInventoryStatus] = useState("all");
+  const [sortOrder, setSortOrder] = useState("name_asc");
   const [minUnits, setMinUnits] = useState("");
   const [maxUnits, setMaxUnits] = useState("");
   const [selected, setSelected] = useState<ProductCatalogItem | null>(null);
@@ -263,9 +275,10 @@ export default function Products() {
     in_stock_only: inventoryStatus === "in_stock" ? true : undefined,
     min_units: optionalNumber(minUnits),
     max_units: optionalNumber(maxUnits),
+    ...productSortParams(sortOrder),
     limit: PAGE_SIZE,
     offset,
-  }), [brand, category, inventoryStatus, line, maxUnits, minUnits, search, sku, species, status, verification]);
+  }), [brand, category, inventoryStatus, line, maxUnits, minUnits, search, sku, sortOrder, species, status, verification]);
 
   const fetchPage = useCallback(async (offset: number, mode: "reset" | "append") => {
     if (mode === "reset") {
@@ -311,6 +324,25 @@ export default function Products() {
     const timer = window.setTimeout(() => fetchPage(0, "reset"), 250);
     return () => window.clearTimeout(timer);
   }, [fetchPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getProductFilterOptions()
+      .then((options) => {
+        if (cancelled) return;
+        setFilterOptions({
+          brands: Array.isArray(options.brands) ? options.brands : [],
+          categories: Array.isArray(options.categories) ? options.categories : [],
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setFilterOptions({ brands: [], categories: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const target = sentinelRef.current;
@@ -364,10 +396,13 @@ export default function Products() {
     };
   }, [selected]);
 
-  const brands = useMemo(() => uniqueValues(products, "product_brand_name"), [products]);
-  const categories = useMemo(() => uniqueValues(products, "product_category"), [products]);
+  const brands = filterOptions.brands;
+  const categories = filterOptions.categories;
+  const brandOptions = useMemo(() => brands.map((item) => ({ value: item, label: item })), [brands]);
+  const categoryOptions = useMemo(() => categories.map((item) => ({ value: item, label: item })), [categories]);
   const lines = useMemo(() => uniqueValues(products, "product_line_name"), [products]);
   const speciesOptions = useMemo(() => uniqueValues(products, "product_target_species"), [products]);
+  const visibleBrandCount = useMemo(() => uniqueValues(products, "product_brand_name").length, [products]);
   const totalStock = products.reduce((sum, item) => sum + numberValue(item.total_units_available ?? item.units_available_in_stock), 0);
   const inventoryLocations = products.reduce((sum, item) => sum + numberValue(item.inventory_locations_count), 0);
   const productsWithStock = products.filter((item) => numberValue(item.total_units_available ?? item.units_available_in_stock) > 0).length;
@@ -442,23 +477,45 @@ export default function Products() {
         <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "..." : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
         <KpiCard title="Con stock disponible" value={`${stockCoverage}%`} note={`${formatCount(productsWithStock)} SKUs con unidades`} icon={Boxes} loading={loadingInitial} />
         <KpiCard title="Bodegas con inventario" value={formatCount(inventoryLocations)} note={`${averageLocations.toLocaleString("es-CO", { maximumFractionDigits: 1 })} bodegas por SKU visible`} icon={Layers3} loading={loadingInitial} />
-        <KpiCard title="Marcas visibles" value={formatCount(brands.length)} note="Segun filtros actuales" icon={Tags} loading={loadingInitial} />
+        <KpiCard title="Marcas visibles" value={formatCount(visibleBrandCount)} note="Segun filtros actuales" icon={Tags} loading={loadingInitial} />
       </div>
 
       <Card className="overflow-hidden">
         <CardHeader className="space-y-4 p-4 sm:p-6">
-          <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_220px_auto]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_220px_220px_auto]">
             <div className="relative min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(event) => setSearch(event.target.value)} disabled={loadingInitial} placeholder="Buscar SKU, producto, marca, categoria o bodega" className="h-10 pl-9" />
             </div>
-            <Select value={brand} onValueChange={setBrand} disabled={loadingInitial}>
-              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Marca" /></SelectTrigger>
-              <SelectContent><SelectItem value="all">Todas las marcas</SelectItem>{brands.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={category} onValueChange={setCategory} disabled={loadingInitial}>
-              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Categoria" /></SelectTrigger>
-              <SelectContent><SelectItem value="all">Todas las categorias</SelectItem>{categories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+            <SearchableSelect
+              value={brand}
+              onValueChange={setBrand}
+              options={brandOptions}
+              allLabel="Todas las marcas"
+              searchPlaceholder="Buscar marca..."
+              emptyLabel="No hay marcas"
+              disabled={loadingInitial}
+            />
+            <SearchableSelect
+              value={category}
+              onValueChange={setCategory}
+              options={categoryOptions}
+              allLabel="Todas las categorias"
+              searchPlaceholder="Buscar categoria..."
+              emptyLabel="No hay categorias"
+              disabled={loadingInitial}
+            />
+            <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
+              <SelectTrigger className="h-10 w-full">
+                <ArrowUpAZ className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name_asc">Ordenar por nombre A-Z</SelectItem>
+                <SelectItem value="name_desc">Ordenar por nombre Z-A</SelectItem>
+                <SelectItem value="available_desc">Ordenar por disponible mayor</SelectItem>
+                <SelectItem value="available_asc">Ordenar por disponible menor</SelectItem>
+              </SelectContent>
             </Select>
             <Popover>
               <PopoverTrigger asChild>

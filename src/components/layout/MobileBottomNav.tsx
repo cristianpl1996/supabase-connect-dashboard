@@ -11,6 +11,21 @@ function isRouteActive(pathname: string, url: string) {
   return pathname === url || (url !== "/home" && pathname.startsWith(url));
 }
 
+const mobileNavItemClass =
+  "h-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[11px] font-medium leading-none transition-colors";
+
+const mobileNavItemActiveClass =
+  "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 hover:bg-primary/15 hover:text-primary dark:bg-sidebar-accent dark:text-sidebar-accent-foreground dark:ring-sidebar-border dark:hover:bg-sidebar-accent dark:hover:text-sidebar-accent-foreground";
+
+const mobileNavItemInactiveClass =
+  "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground";
+
+const mobileDrawerItemActiveClass =
+  "border-primary/30 bg-primary/10 text-primary shadow-sm hover:bg-primary/15 hover:text-primary dark:border-sidebar-border dark:bg-sidebar-accent dark:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent dark:hover:text-sidebar-accent-foreground";
+
+const mobileDrawerItemInactiveClass =
+  "border-sidebar-border bg-sidebar text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground";
+
 export function MobileBottomNav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
@@ -27,8 +42,8 @@ export function MobileBottomNav() {
               variant="ghost"
               asChild
               className={cn(
-                "h-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[11px] font-medium leading-none",
-                active ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70",
+                mobileNavItemClass,
+                active ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
               )}
             >
               <Link to={item.url} aria-current={active ? "page" : undefined}>
@@ -44,8 +59,8 @@ export function MobileBottomNav() {
             <Button
               variant="ghost"
               className={cn(
-                "h-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[11px] font-medium leading-none",
-                moreActive || open ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70",
+                mobileNavItemClass,
+                moreActive || open ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
               )}
             >
               <MoreHorizontal className="h-5 w-5 shrink-0" />
@@ -63,9 +78,7 @@ export function MobileBottomNav() {
                     asChild
                     className={cn(
                       "relative h-20 min-w-0 flex-col items-center justify-center gap-2 rounded-xl px-2 text-center text-xs",
-                      active
-                        ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                        : "bg-sidebar text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      active ? mobileDrawerItemActiveClass : mobileDrawerItemInactiveClass,
                     )}
                   >
                     <Link to={item.url} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined}>

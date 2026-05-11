@@ -130,6 +130,8 @@ export interface CustomerParams {
   max_average_ticket?: number;
   min_days_since_last_purchase?: number;
   max_days_since_last_purchase?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }
@@ -139,6 +141,24 @@ export type CustomerRecord = Record<string, unknown>;
 
 export type SaleRecord = Record<string, unknown>;
 export type TracingRecord = Record<string, unknown>;
+
+export interface CustomerFilterOptions {
+  business_types: string[];
+}
+
+export interface Representative {
+  id: number;
+  sales_representative_id?: number;
+  distributor_id?: number | null;
+  sales_rep_full_name?: string | null;
+  sales_rep_coverage_area?: string | null;
+  sales_rep_cellphone?: string | null;
+  sales_rep_email?: string | null;
+  sales_rep_profile_type?: string | null;
+  sales_rep_status?: string | null;
+  sales_rep_job_title?: string | null;
+  [key: string]: unknown;
+}
 
 export interface CustomerTopProduct {
   product_sku: string | null;
@@ -166,6 +186,8 @@ export async function getCustomersPage(params: CustomerParams = {}): Promise<Api
   if (params.max_average_ticket !== undefined) qs.set("max_average_ticket", String(params.max_average_ticket));
   if (params.min_days_since_last_purchase !== undefined) qs.set("min_days_since_last_purchase", String(params.min_days_since_last_purchase));
   if (params.max_days_since_last_purchase !== undefined) qs.set("max_days_since_last_purchase", String(params.max_days_since_last_purchase));
+  if (params.sort_by) qs.set("sort_by", params.sort_by);
+  if (params.sort_dir) qs.set("sort_dir", params.sort_dir);
   qs.set("limit",  String(params.limit  ?? 100));
   qs.set("offset", String(params.offset ?? 0));
   return apiFetch<ApiListResponse<CustomerRecord>>(`/api/v1/customers?${qs}`);
@@ -174,6 +196,36 @@ export async function getCustomersPage(params: CustomerParams = {}): Promise<Api
 export async function listCustomers(params: CustomerParams = {}): Promise<CustomerRecord[]> {
   const res = await getCustomersPage(params);
   return listResults(res);
+}
+
+export function getCustomerFilterOptions(): Promise<CustomerFilterOptions> {
+  return apiDetail<CustomerFilterOptions>("/api/v1/customers/filter-options");
+}
+
+export async function getAllRepresentatives(): Promise<Representative[]> {
+  const pageSize = 200;
+  const first = await apiFetch<ApiListResponse<Representative>>(withQuery("/api/v1/representatives", {
+    limit: pageSize,
+    offset: 0,
+  }));
+  const total = listTotal(first);
+  const pages = [first.data ?? []];
+
+  if (total !== null && total > pageSize) {
+    const requests: Array<Promise<ApiListResponse<Representative>>> = [];
+    for (let offset = pageSize; offset < total; offset += pageSize) {
+      requests.push(apiFetch<ApiListResponse<Representative>>(withQuery("/api/v1/representatives", {
+        limit: pageSize,
+        offset,
+      })));
+    }
+    const rest = await Promise.all(requests);
+    rest.forEach((page) => pages.push(page.data ?? []));
+  }
+
+  return pages
+    .flat()
+    .sort((a, b) => String(a.sales_rep_full_name ?? "").localeCompare(String(b.sales_rep_full_name ?? ""), "es-CO"));
 }
 
 export function getCustomer(customerId: number): Promise<CustomerRecord> {
@@ -295,9 +347,13 @@ export interface ProductInventoryLocation {
   maximal_stock?: number | null;
   minimal_stock?: number | null;
   standard_average_price?: number | null;
-  source_metadata?: unknown;
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+export interface ProductFilterOptions {
+  brands: string[];
+  categories: string[];
 }
 
 export interface ProductListParams {
@@ -313,6 +369,8 @@ export interface ProductListParams {
   in_stock_only?: boolean;
   min_units?: number;
   max_units?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }
@@ -740,6 +798,8 @@ export function listProducts(params: ProductListParams = {}): Promise<ProductCat
     in_stock_only: params.in_stock_only,
     min_units: params.min_units,
     max_units: params.max_units,
+    sort_by: params.sort_by,
+    sort_dir: params.sort_dir,
     limit: params.limit ?? 100,
     offset: params.offset ?? 0,
   }));
@@ -759,9 +819,15 @@ export function getProductsPage(params: ProductListParams = {}): Promise<ApiList
     in_stock_only: params.in_stock_only,
     min_units: params.min_units,
     max_units: params.max_units,
+    sort_by: params.sort_by,
+    sort_dir: params.sort_dir,
     limit: params.limit ?? 100,
     offset: params.offset ?? 0,
   }));
+}
+
+export function getProductFilterOptions(): Promise<ProductFilterOptions> {
+  return apiDetail<ProductFilterOptions>("/api/v1/products/filter-options");
 }
 
 export function getProduct(sku: string): Promise<ProductCatalogItem> {
