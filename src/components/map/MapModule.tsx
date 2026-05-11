@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Map as MapIcon } from "lucide-react";
 import { useMapLocations } from "@/hooks/useMapLocations";
+import { PageHeader } from "@/components/common/PageHeader";
 import { FilterPanel } from "./FilterPanel";
 import { MapStatusBar } from "./MapStatusBar";
 import { MapView } from "./MapView";
@@ -30,24 +31,21 @@ export function MapModule({ data, title = "Mapa de Clientes", isLoading = false,
         "sales_rep_ids",
         filters.sales_rep_ids.includes(id)
           ? filters.sales_rep_ids.filter((s) => s !== id)
-          : [...filters.sales_rep_ids, id]
+          : [...filters.sales_rep_ids, id],
       );
     },
-    [filters.sales_rep_ids, setFilter]
+    [filters.sales_rep_ids, setFilter],
   );
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-background">
-
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-3 py-3 dark:border-border dark:bg-background sm:px-4">
-        <MapIcon className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold text-foreground sm:text-3xl">{title}</h1>
-          <p className="text-sm text-muted-foreground">
-            {allCustomers.length.toLocaleString("es-CO")} clientes · {options.salesReps.length} representantes
-          </p>
-        </div>
+      <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-3 dark:border-border dark:bg-background sm:px-4">
+        <PageHeader
+          icon={MapIcon}
+          title={title}
+          description={`${allCustomers.length.toLocaleString("es-CO")} clientes - ${options.salesReps.length} representantes`}
+        />
       </div>
 
       {/* Filters */}
@@ -76,10 +74,10 @@ export function MapModule({ data, title = "Mapa de Clientes", isLoading = false,
       </div>
 
       {/* Map */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative min-h-0 flex-1">
         {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 animate-pulse dark:bg-background">
-            <span className="text-sm text-gray-400">Cargando mapa…</span>
+          <div className="absolute inset-0 flex animate-pulse items-center justify-center bg-gray-100 dark:bg-background">
+            <span className="text-sm text-gray-400">Cargando mapa...</span>
           </div>
         ) : (
           <MapView

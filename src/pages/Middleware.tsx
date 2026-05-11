@@ -19,6 +19,7 @@ import { toast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { formatApiErrorMessage } from "@/lib/errors";
+import { PageHeader } from "@/components/common/PageHeader";
 
 export default function Middleware() {
   const [executions, setExecutions] = useState<PromoExecution[]>([]);
@@ -129,16 +130,17 @@ export default function Middleware() {
           <ArrowLeft className="mr-1 h-4 w-4" />
           Volver al Dashboard
         </Link>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Middleware de Ejecucion</h1>
-            <p className="mt-1 text-muted-foreground">Monitor de pedidos simulados y ejecuciones promocionales desde la API.</p>
-          </div>
+        <PageHeader
+          icon={Server}
+          title="Middleware de Ejecucion"
+          description="Monitor de pedidos simulados y ejecuciones promocionales desde la API."
+          actions={(
           <Button onClick={simulateSAPOrder} disabled={simulating} className="gap-2">
             <Zap className="h-4 w-4" />
             {simulating ? "Procesando..." : "Simular Pedido SAP"}
           </Button>
-        </div>
+          )}
+        />
       </div>
       </ErrorDisabledContent>
 

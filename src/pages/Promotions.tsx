@@ -23,6 +23,7 @@ import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { PageHeader } from '@/components/common/PageHeader';
 import { formatApiErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import {
@@ -306,12 +307,12 @@ const Promotions = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6 sm:space-y-8">
       <ErrorDisabledContent disabled={!!error}>
-      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Gestion de Promociones</h1>
-          <p className="text-muted-foreground mt-1">Crea y administra promociones comerciales</p>
-        </div>
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
+      <PageHeader
+        icon={Tag}
+        title="Gestion de Promociones"
+        description="Crea y administra promociones comerciales"
+        actions={(
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
           <input
             type="file"
             ref={fileInputRef}
@@ -327,8 +328,9 @@ const Promotions = () => {
             <Plus className="h-4 w-4" />
             Nueva Promocion
           </Button>
-        </div>
-      </div>
+          </div>
+        )}
+      />
       </ErrorDisabledContent>
 
       {error && (

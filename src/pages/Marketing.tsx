@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { PageHeader } from "@/components/common/PageHeader";
 import { formatApiErrorMessage } from "@/lib/errors";
 import { Megaphone, Copy, Download, Sparkles, Loader2, ImageIcon, Save, Camera } from "lucide-react";
 import { format } from "date-fns";
@@ -232,13 +233,11 @@ export default function Marketing() {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!loadError}>
-      <div className="flex min-w-0 items-center gap-3">
-        <Megaphone className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold sm:text-3xl">Kit de Difusion</h1>
-          <p className="text-muted-foreground">Genera materiales de venta profesionales en segundos</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Megaphone}
+        title="Kit de Difusion"
+        description="Genera materiales de venta profesionales en segundos"
+      />
       </ErrorDisabledContent>
 
       {loadError && (

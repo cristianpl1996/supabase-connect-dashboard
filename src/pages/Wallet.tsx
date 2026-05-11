@@ -19,6 +19,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { PageHeader } from '@/components/common/PageHeader';
 import { formatApiErrorMessage } from '@/lib/errors';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -254,16 +255,11 @@ export default function WalletPage() {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6">
       <ErrorDisabledContent disabled={!!loadError}>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Wallet className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Billetera y Control de Saldos</h1>
-            <p className="text-muted-foreground">Control financiero por laboratorio</p>
-          </div>
-        </div>
-
-        {selectedLabId && (
+      <PageHeader
+        icon={Wallet}
+        title="Billetera y Control de Saldos"
+        description="Control financiero por laboratorio"
+        actions={selectedLabId && (
           <div className="flex gap-2">
             {canCreateAdjustments && (
               <Dialog open={isAdjustmentOpen} onOpenChange={setIsAdjustmentOpen}>
@@ -359,7 +355,7 @@ export default function WalletPage() {
             </Button>
           </div>
         )}
-      </div>
+      />
       </ErrorDisabledContent>
 
       {loadError && (

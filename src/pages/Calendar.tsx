@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
+import { PageHeader } from '@/components/common/PageHeader';
 import { formatApiErrorMessage } from '@/lib/errors';
 import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, Layers, Info } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addMonths, subMonths, differenceInDays, isBefore, isAfter } from 'date-fns';
@@ -169,12 +170,12 @@ const Calendar = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!error}>
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Calendario Comercial</h1>
-          <p className="text-muted-foreground mt-1">Linea de tiempo de promociones con deteccion de canibalizacion</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        icon={CalendarDays}
+        title="Calendario Comercial"
+        description="Linea de tiempo de promociones con deteccion de canibalizacion"
+        actions={(
+          <div className="flex items-center gap-3">
           <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={loading}>
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Filtrar categoria" />
@@ -188,8 +189,9 @@ const Calendar = () => {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+          </div>
+        )}
+      />
       </ErrorDisabledContent>
 
       {error && (

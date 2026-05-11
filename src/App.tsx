@@ -9,6 +9,7 @@ import { PromoterProvider } from "@/contexts/PromoterContext";
 import { PromoterRouteGuard } from "@/components/layout/PromoterRouteGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/layout/AuthGuard";
+import { ScrollToTop } from "@/components/common/ScrollToTop";
 import Index from "./pages/Index";
 import Plans from "./pages/Plans";
 import Promotions from "./pages/Promotions";
@@ -38,6 +39,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <PromoterProvider>
             <Routes>

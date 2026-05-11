@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { PageHeader } from "@/components/common/PageHeader";
 import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE_SIZE = 200;
@@ -431,12 +432,11 @@ export default function Customers() {
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!error}>
-      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Clientes</h1>
-          <p className="text-muted-foreground">Analiza, segmenta y prioriza clientes comerciales</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={UserRound}
+        title="Clientes"
+        description="Analiza, segmenta y prioriza clientes comerciales"
+      />
       </ErrorDisabledContent>
 
       {error && (

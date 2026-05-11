@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { PageHeader } from "@/components/common/PageHeader";
 import { formatApiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
@@ -425,12 +426,11 @@ export default function Products() {
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!error}>
-      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Catalogo de Productos</h1>
-          <p className="text-muted-foreground">Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales.</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Package}
+        title="Catalogo de Productos"
+        description="Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales."
+      />
       </ErrorDisabledContent>
 
       {error && (

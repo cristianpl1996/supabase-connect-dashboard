@@ -23,6 +23,7 @@ import { PlanFormSheet } from "@/components/plans/PlanFormSheet";
 import { PlanDetailsSheet } from "@/components/plans/PlanDetailsSheet";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { PageHeader } from "@/components/common/PageHeader";
 import { formatApiErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 import {
@@ -211,11 +212,11 @@ const Plans = () => {
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-8">
       {/* Header */}
       <ErrorDisabledContent disabled={!!error}>
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Planes y Negociaciones</h1>
-          <p className="text-muted-foreground mt-1">Gestión de Negociaciones Anuales por Laboratorio</p>
-        </div>
+      <PageHeader
+        icon={FileText}
+        title="Planes y Negociaciones"
+        description="Gestión de Negociaciones Anuales por Laboratorio"
+        actions={(
         <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] md:w-auto">
           <div className="relative flex-1 md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -232,7 +233,8 @@ const Plans = () => {
             Nuevo Plan Año
           </Button>
         </div>
-      </div>
+        )}
+      />
       </ErrorDisabledContent>
 
       {/* Error Display */}

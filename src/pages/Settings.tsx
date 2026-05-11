@@ -12,6 +12,7 @@ import { LaboratoriesTab } from '@/components/settings/LaboratoriesTab';
 import { UserFormDialog } from '@/components/settings/UserFormDialog';
 import { useUsers, type UserRole } from '@/hooks/useUsers';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/common/PageHeader';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -53,15 +54,11 @@ const Settings = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex min-w-0 items-center gap-3">
-        <SettingsIcon className="h-7 w-7 shrink-0 text-primary sm:h-8 sm:w-8" />
-        <div className="min-w-0">
-          <h1 className="text-3xl font-bold text-foreground">Configuración</h1>
-          <p className="text-muted-foreground">
-            Controla las reglas financieras y accesos del sistema
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="Configuración"
+        description="Controla las reglas financieras y accesos del sistema"
+      />
 
       <Tabs defaultValue="budget" className="space-y-6">
         <TabsList className="w-full">

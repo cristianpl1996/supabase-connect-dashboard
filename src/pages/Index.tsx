@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { PageHeader } from "@/components/common/PageHeader";
 import { formatApiErrorMessage } from "@/lib/errors";
 import {
   TrendingUp,
@@ -18,6 +19,7 @@ import {
   FileText,
   Megaphone,
   ArrowRight,
+  LayoutDashboard,
 } from "lucide-react";
 
 const quickActionButtonClass =
@@ -56,12 +58,11 @@ const Index = () => {
   if (loading) {
     return (
       <div className="mx-auto max-w-screen-2xl space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inicio - Dashboard</h1>
-          <p className="text-muted-foreground">
-            Panorama general de todos los laboratorios {"\u2022"} {dashboardDate}
-          </p>
-        </div>
+        <PageHeader
+          icon={LayoutDashboard}
+          title="Inicio - Dashboard"
+          description={<>Panorama general de todos los laboratorios {"\u2022"} {dashboardDate}</>}
+        />
 
         <div className="grid gap-4 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -131,18 +132,21 @@ const Index = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-8">
       <ErrorDisabledContent disabled={!!error}>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inicio - Dashboard</h1>
-          <p className="text-muted-foreground">
-            Panorama general de todos los laboratorios • {" "}
-            {new Date().toLocaleDateString("es-CO", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
+        <PageHeader
+          icon={LayoutDashboard}
+          title="Inicio - Dashboard"
+          description={(
+            <>
+              Panorama general de todos los laboratorios •{" "}
+              {new Date().toLocaleDateString("es-CO", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </>
+          )}
+        />
       </ErrorDisabledContent>
 
       {error && (
