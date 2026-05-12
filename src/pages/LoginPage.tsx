@@ -12,9 +12,7 @@ import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import logoIco from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
-import bgImage2 from "@/assets/background2.png";
 
-const loginBackgrounds = [bgImage, bgImage2];
 
 const schema = z.object({
   username: z.string().min(1, "El usuario es requerido"),
@@ -30,9 +28,6 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [selectedBackground] = useState(() => (
-    loginBackgrounds[Math.floor(Math.random() * loginBackgrounds.length)]
-  ));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -119,7 +114,7 @@ export default function LoginPage() {
       <div
         className="hidden lg:block lg:w-[55%] relative overflow-hidden"
         style={{
-          backgroundImage: `url(${selectedBackground})`,
+          backgroundImage: `url(${bgImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}

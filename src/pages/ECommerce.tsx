@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   ArrowUp,
   BadgeCheck,
   Building2,
@@ -18,6 +17,7 @@ import {
   Plus,
   ScanLine,
   Search,
+  SearchX,
   ShoppingCart,
   Sparkles,
   Store,
@@ -26,8 +26,11 @@ import {
   Truck,
   Trash2,
   UserRound,
+  AlertCircle,
+  ArrowDownAZ,
+  X,
 } from "lucide-react";
-
+import { Switch } from "@/components/ui/switch";
 import logoFull from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
 import bgImage2 from "@/assets/background2.png";
@@ -64,7 +67,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 48;
 const SESSION_KEY = "ivanagro_ecommerce_session";
 const CART_KEY = "ivanagro_ecommerce_cart";
 
@@ -135,6 +138,7 @@ export default function ECommerce() {
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState("name_asc");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [withPriceOnly, setWithPriceOnly] = useState(false);
   const [filters, setFilters] = useState({ brands: [] as string[], categories: [] as string[] });
 
   const [cart, setCart] = useState<EcommerceCartItemInput[]>(() => loadStoredCart());
@@ -191,6 +195,7 @@ export default function ECommerce() {
         brand_name: brand === "all" ? undefined : brand,
         category: category === "all" ? undefined : category,
         in_stock_only: inStockOnly || undefined,
+        with_price_only: withPriceOnly || undefined,
         ...sortParams,
         limit: PAGE_SIZE,
         offset,
@@ -207,7 +212,7 @@ export default function ECommerce() {
         setLoadingProducts(false);
       }
     }
-  }, [brand, category, inStockOnly, search, sortParams, token]);
+  }, [brand, category, inStockOnly, withPriceOnly, search, sortParams, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -377,7 +382,7 @@ export default function ECommerce() {
           @keyframes ecommerce-pulse { 0%,100%{opacity:.24} 50%{opacity:.44} }
         `}</style>
         <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-6 sm:px-6 lg:px-8">
-          <div className="grid w-full gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+          <div className="grid w-full gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-stretch">
             <section
               className="relative overflow-hidden rounded-lg border border-emerald-900/15 bg-emerald-950 p-5 text-white shadow-[0_28px_80px_-48px_rgba(0,80,45,.9)] sm:p-7 lg:min-h-[33rem]"
               style={{
@@ -436,8 +441,8 @@ export default function ECommerce() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-lg border bg-card shadow-[0_24px_70px_-48px_rgba(0,0,0,.6)]">
-              <div className="bg-[linear-gradient(135deg,hsl(var(--primary)/0.10),transparent_55%)] p-5 sm:p-7">
+            <section className="flex flex-col overflow-hidden rounded-lg border bg-card shadow-[0_24px_70px_-48px_rgba(0,0,0,.6)]">
+              <div className="flex flex-1 flex-col justify-center bg-[linear-gradient(135deg,hsl(var(--primary)/0.10),transparent_55%)] p-5 sm:p-7">
                 <div className="mb-6 space-y-5">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.08))] text-primary shadow-[0_16px_36px_-24px_hsl(var(--primary))] ring-1 ring-primary/15">
                     <UserRound className="h-7 w-7" strokeWidth={2.2} />
@@ -475,12 +480,13 @@ export default function ECommerce() {
                 </form>
 
                 <div className="mt-6 grid gap-3 border-t pt-5 sm:grid-cols-2">
-                  <AccessNote icon={Building2} title="Cuenta comercial" text="El acceso se asocia al cliente registrado." />
-                  <AccessNote icon={Tags} title="Precio vigente" text="La API recalcula antes de crear el pedido." />
+                  <AccessNote icon={Building2} title="Cuenta comercial" text="El acceso se asocia al cliente registrado en la plataforma." />
+                  <AccessNote icon={Tags} title="Precios vigentes" text="Consulte siempre los mejores precios de los productos." />
                 </div>
                 <div className="mt-5 rounded-md border bg-background/75 p-3">
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial.
+                  <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
+
+                    <AlertCircle className="h-10 w-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a travez de nuestros canales de comunicación.
                   </p>
                   <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
                     <a href="mailto:comercial@ivanagro.com">
@@ -498,41 +504,54 @@ export default function ECommerce() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8f7] text-foreground dark:bg-[#08110d]">
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-background px-4 py-3 shadow-sm dark:bg-[#0b1510]">
-        <div className="mx-auto flex max-w-screen-2xl items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border bg-background shadow-sm">
+        <div className="mx-auto flex max-w-screen-2xl items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3 mb-1">
             <img src={logoFull} alt="Ivanagro" className="h-11 w-auto object-contain dark:brightness-0 dark:invert sm:h-12" />
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-full bg-background/85"
+          <div
+            className="flex h-9 items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2 text-muted-foreground shadow-sm"
             title={isDarkTheme ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-            onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
           >
-            {isDarkTheme ? <Sun className="h-4 w-4 text-primary" /> : <Moon className="h-4 w-4" />}
-          </Button>
+            <Sun
+              className={cn(
+                "h-3.5 w-3.5 transition-colors",
+                !isDarkTheme && "text-primary",
+              )}
+            />
+            <Switch
+              checked={isDarkTheme}
+              onCheckedChange={(checked) => setTheme(isDarkTheme ? "light" : "dark")}
+              aria-label="Cambiar tema"
+              className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
+            />
+            <Moon
+              className={cn(
+                "h-3.5 w-3.5 transition-colors",
+                isDarkTheme && "text-primary",
+              )}
+            />
+          </div>
 
-          <Button
-            className="relative h-10 w-10 rounded-full shadow-[0_10px_28px_-16px_hsl(var(--primary))]"
-            size="icon"
+          <button
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground ring-2 ring-border/40 shadow-sm transition hover:bg-muted hover:text-foreground"
             title="Abrir carrito"
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
             {cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-emerald-100 px-1.5 text-[10px] font-bold text-emerald-950 ring-2 ring-background">
+              <span className="absolute -right-0.5 -top-0.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground ring-2 ring-background">
                 {cartCount}
               </span>
             )}
-          </Button>
+          </button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Cuenta de cliente">
-                <Avatar className="h-10 w-10 cursor-pointer ring-2 ring-border/40 shadow-sm">
+                <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/40 shadow-sm">
                   <AvatarFallback className="bg-primary/10 text-base font-bold text-primary">
                     {initials(session.customer.name)}
                   </AvatarFallback>
@@ -561,15 +580,15 @@ export default function ECommerce() {
           <div className="bg-[linear-gradient(135deg,hsl(var(--primary)/0.10),hsl(var(--primary)/0.025)_44%,transparent)] px-4 py-4 sm:px-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h1 className="flex items-center gap-2 text-2xl font-bold"><Store className="h-6 w-6 text-primary" /> E-commerce</h1>
-                <p className="text-sm text-muted-foreground">Productos, disponibilidad y precios para {session.customer.name}.</p>
+                <h1 className="flex items-center gap-2 text-xl font-bold sm:text-3xl"><Store className="h-6 w-6 text-primary" /> E-commerce</h1>
+                <p className="text-sm text-muted-foreground ml-8 mt-1">Productos, disponibilidad, precios y promociones.</p>
               </div>
-              <div className="rounded-full border bg-background/80 px-3 py-1 text-sm font-medium text-muted-foreground">
+              <div className="w-fit rounded-full border bg-background/80 px-3 py-1 text-sm font-medium text-muted-foreground">
                 {totalProducts === null ? products.length : totalProducts.toLocaleString("es-CO")} productos
               </div>
             </div>
           </div>
-          <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-[minmax(16rem,1fr)_13rem_13rem_12rem_auto]">
+          <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-[minmax(14rem,1fr)_12rem_12rem_11rem_auto]">
             <div className="relative h-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar SKU, producto, marca o categoria" className="h-11 bg-background pl-9" />
@@ -589,7 +608,12 @@ export default function ECommerce() {
               </SelectContent>
             </Select>
             <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Ordenar" /></SelectTrigger>
+              <SelectTrigger className="h-11 w-full lg:w-44 bg-background">
+                <div className="flex items-center gap-2">
+                  <ArrowDownAZ className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Ordenar por" />
+                </div>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="name_asc">Nombre A-Z</SelectItem>
                 <SelectItem value="price_asc">Menor precio</SelectItem>
@@ -597,21 +621,100 @@ export default function ECommerce() {
                 <SelectItem value="available_desc">Mayor stock</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="button" variant={inStockOnly ? "default" : "outline"} className={cn("h-11 gap-2", !inStockOnly && "bg-background")} onClick={() => setInStockOnly((value) => !value)}>
-              <Filter className="h-4 w-4" />
-              Con stock
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant={inStockOnly ? "default" : "outline"} className={cn("h-11 flex-1 gap-2", !inStockOnly && "bg-background")} onClick={() => setInStockOnly((value) => !value)}>
+                <Filter className="h-4 w-4" />
+                Con stock
+              </Button>
+              <Button type="button" variant={withPriceOnly ? "default" : "outline"} className={cn("h-11 flex-1 gap-2", !withPriceOnly && "bg-background")} onClick={() => setWithPriceOnly((value) => !value)}>
+                <Filter className="h-4 w-4" />
+                Con precio
+              </Button>
+            </div>
           </div>
+          {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
+            <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3 sm:px-5">
+              {search && (
+                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
+                  Búsqueda: {search}
+                  <button onClick={() => setSearch("")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {brand !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
+                  Marca: {brand}
+                  <button onClick={() => setBrand("all")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {category !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
+                  Categoría: {category}
+                  <button onClick={() => setCategory("all")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {inStockOnly && (
+                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
+                  Solo con stock
+                  <button onClick={() => setInStockOnly(false)} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {withPriceOnly && (
+                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
+                  Solo con precio
+                  <button onClick={() => setWithPriceOnly(false)} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-[14px] font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSearch("");
+                  setBrand("all");
+                  setCategory("all");
+                  setInStockOnly(false);
+                  setWithPriceOnly(false);
+                }}
+              >
+                <X className="mr-1 h-3.5 w-3.5" />
+                Limpiar
+              </Button>
+            </div>
+          )}
         </section>
 
         {productError && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{productError}</div>}
 
         {loadingProducts ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-56 animate-pulse rounded-lg bg-muted" />)}
+            {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-56 animate-pulse rounded-lg bg-muted/80 dark:bg-muted/20" />)}
           </div>
         ) : products.length === 0 ? (
-          <div className="rounded-lg border bg-card p-10 text-center text-muted-foreground">No encontramos productos con estos filtros.</div>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/50 px-6 py-20 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/80">
+              <SearchX className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="mb-1 text-lg font-semibold text-foreground">No se encontraron productos</h3>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Intenta ajustar tus filtros de búsqueda o cambiar de categoría.
+            </p>
+            {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
+              <Button
+                variant="outline"
+                className="mt-6"
+                onClick={() => {
+                  setSearch("");
+                  setBrand("all");
+                  setCategory("all");
+                  setInStockOnly(false);
+                  setWithPriceOnly(false);
+                }}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -637,22 +740,9 @@ export default function ECommerce() {
         )}
       </main>
 
-      <Button
-        className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full shadow-[0_18px_45px_-20px_hsl(var(--primary))] md:hidden"
-        size="icon"
-        onClick={() => setCartOpen(true)}
-      >
-        <ShoppingCart className="h-5 w-5" />
-        {cartCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-emerald-100 px-1.5 text-[10px] font-bold text-emerald-950 ring-2 ring-background">
-            {cartCount}
-          </span>
-        )}
-      </Button>
-
       {showBackToTop && (
         <Button
-          className="fixed bottom-20 right-5 z-40 h-12 w-12 rounded-full shadow-[0_18px_45px_-20px_hsl(var(--primary))] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 md:bottom-6"
+          className="fixed bottom-6 right-5 z-40 h-12 w-12 rounded-full shadow-[0_18px_45px_-20px_hsl(var(--primary))] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
           size="icon"
           title="Volver arriba"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -799,8 +889,8 @@ export default function ECommerce() {
 function AccessMetric({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
     <div className="group min-h-[6.25rem] overflow-hidden rounded-md border border-white/18 bg-white/12 p-4 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/18">
-      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-white/16 text-emerald-100 shadow-sm transition group-hover:scale-105">
-        <Icon className="h-4 w-4" />
+      <div className="mb-3 flex h-10 w-10 items-center justify-center border border-white/16 rounded-md bg-white/16 text-emerald-100 shadow-sm transition group-hover:scale-105">
+        <Icon className="h-5 w-5" />
       </div>
       <p className="text-[11px] font-medium text-white/68">{label}</p>
       <p className="mt-1 text-base font-bold text-white sm:text-lg">{value}</p>
@@ -836,7 +926,7 @@ function ProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; on
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
   return (
-    <article className="group flex min-h-[22rem] flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_22px_55px_-36px_hsl(var(--primary))]">
+    <article className="group flex min-h-[22rem] flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-white/5">
       <button
         type="button"
         onClick={onOpen}
@@ -850,7 +940,7 @@ function ProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; on
 
       <div className="flex min-w-0 flex-1 flex-col p-4">
         <div className="mb-3 flex min-h-6 flex-wrap gap-1.5">
-          {product.product_category && <Badge variant="secondary" className="max-w-full truncate">{product.product_category}</Badge>}
+          {product.product_category && <Badge variant="secondary" className="max-w-full truncate dark:bg-white/10 dark:text-white dark:hover:bg-white/20">{product.product_category}</Badge>}
           {!hasPrice && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">Sin precio</Badge>}
           {hasPrice && stock > 0 && <Badge className="bg-primary/10 text-primary hover:bg-primary/10">Disponible</Badge>}
         </div>
@@ -885,12 +975,12 @@ function ProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; on
               <Search className="h-4 w-4" />
             </Button>
             <Button
-              className="h-11 rounded-md font-bold shadow-[0_16px_35px_-24px_hsl(var(--primary))]"
+              className="h-11 rounded-md font-bold shadow-sm transition-shadow hover:shadow-md"
               onClick={onAdd}
               disabled={!canAdd}
             >
-              <ShoppingCart className="h-4 w-4" />
-              {canAdd ? "Agregar" : hasPrice ? "Sin stock" : "Consultar"}
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              {canAdd ? "Añadir" : hasPrice ? "Sin stock" : "Añadir"}
             </Button>
           </div>
           {!canAdd && (

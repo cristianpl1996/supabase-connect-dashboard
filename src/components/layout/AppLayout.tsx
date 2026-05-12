@@ -115,7 +115,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <SidebarProvider defaultOpen={!isMobile}>
-      <div className="flex min-h-screen w-full overflow-x-hidden">
+      <div className="flex min-h-screen w-full overflow-clip">
         {!isMobile && <AppSidebar />}
         <SidebarInset className="min-w-0 flex-1">
           <header
@@ -123,7 +123,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               "sticky top-0 z-20 flex h-14 min-w-0 items-center gap-3 border-b px-5 sm:px-5 lg:px-6",
               isMobile
                 ? "border-sidebar-border bg-sidebar text-sidebar-foreground"
-                : "border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+                : "border-border/60 bg-background",
             )}
           >
             {isMobile && (

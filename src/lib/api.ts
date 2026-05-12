@@ -150,6 +150,7 @@ export interface EcommerceProductParams {
   brand_name?: string;
   category?: string;
   in_stock_only?: boolean;
+  with_price_only?: boolean;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   limit?: number;
@@ -213,6 +214,7 @@ export function getEcommerceProductsPage(token: string, params: EcommerceProduct
     brand_name: params.brand_name,
     category: params.category,
     in_stock_only: params.in_stock_only,
+    with_price_only: params.with_price_only,
     sort_by: params.sort_by,
     sort_dir: params.sort_dir,
     limit: params.limit ?? 24,
