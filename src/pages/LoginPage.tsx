@@ -48,7 +48,7 @@ export default function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      await login(values);
+      await login({ username: values.username, password: values.password });
       toast.success("Inicio de sesión exitoso", {
         description: "Bienvenido al backoffice de Ivanagro.",
         duration: 3000,
