@@ -1,12 +1,14 @@
+import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
-  ArrowUp,
   BadgeCheck,
   Building2,
   CheckCircle2,
-  Filter,
+  ChevronDown,
+  LayoutGrid,
+  List,
   LogOut,
   Loader2,
   LockKeyhole,
@@ -17,9 +19,10 @@ import {
   Plus,
   ScanLine,
   Search,
-  SearchX,
   ShoppingCart,
+  SlidersHorizontal,
   Sparkles,
+  Star,
   Store,
   Sun,
   Tags,
@@ -27,7 +30,6 @@ import {
   Trash2,
   UserRound,
   AlertCircle,
-  UserX,
   ArrowDownAZ,
   X,
 } from "lucide-react";
@@ -54,7 +56,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -133,9 +150,10 @@ export default function ECommerce() {
   const [products, setProducts] = useState<EcommerceProduct[]>([]);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
-  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [productError, setProductError] = useState<string | null>(null);
-  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [brand, setBrand] = useState("all");
@@ -193,16 +211,27 @@ export default function ECommerce() {
     if (sort === "price_asc") return { sort_by: "price", sort_dir: "asc" as const };
     if (sort === "price_desc") return { sort_by: "price", sort_dir: "desc" as const };
     if (sort === "available_desc") return { sort_by: "available", sort_dir: "desc" as const };
+    if (sort === "name_desc") return { sort_by: "name", sort_dir: "desc" as const };
     return { sort_by: "name", sort_dir: "asc" as const };
   }, [sort]);
 
-  const fetchProducts = useCallback(async (offset = 0, append = false) => {
+  const totalPages = useMemo(() =>
+    totalProducts === null ? 1 : Math.max(1, Math.ceil(totalProducts / PAGE_SIZE)),
+    [totalProducts]);
+
+  const activeFilters = useMemo(() => {
+    const chips: Array<{ key: string; label: string; clear: () => void }> = [];
+    if (search) chips.push({ key: "search", label: `Búsqueda: ${search}`, clear: () => { setSearch(""); setSearchInput(""); } });
+    if (brand !== "all") chips.push({ key: "brand", label: `Marca: ${brand}`, clear: () => setBrand("all") });
+    if (category !== "all") chips.push({ key: "category", label: `Categoría: ${category}`, clear: () => setCategory("all") });
+    if (inStockOnly) chips.push({ key: "stock", label: "Solo con stock", clear: () => setInStockOnly(false) });
+    if (withPriceOnly) chips.push({ key: "price", label: "Solo con precio", clear: () => setWithPriceOnly(false) });
+    return chips;
+  }, [search, brand, category, inStockOnly, withPriceOnly]);
+
+  const fetchProducts = useCallback(async (page: number) => {
     if (!token) return;
-    if (append) {
-      setLoadingMoreProducts(true);
-    } else {
-      setLoadingProducts(true);
-    }
+    setLoadingProducts(true);
     setProductError(null);
     try {
       const response = await getEcommerceProductsPage(token, {
@@ -213,52 +242,26 @@ export default function ECommerce() {
         with_price_only: withPriceOnly || undefined,
         ...sortParams,
         limit: PAGE_SIZE,
-        offset,
+        offset: (page - 1) * PAGE_SIZE,
       });
-      const nextProducts = response.data ?? [];
-      setProducts((prev) => append ? [...prev, ...nextProducts] : nextProducts);
+      setProducts(response.data ?? []);
       setTotalProducts(listTotal(response));
     } catch (error) {
       setProductError(formatApiErrorMessage(error));
     } finally {
-      if (append) {
-        setLoadingMoreProducts(false);
-      } else {
-        setLoadingProducts(false);
-      }
+      setLoadingProducts(false);
     }
   }, [brand, category, inStockOnly, withPriceOnly, search, sortParams, token]);
 
   useEffect(() => {
     if (!token) return;
-    const timer = window.setTimeout(() => void fetchProducts(0, false), 250);
+    const timer = window.setTimeout(() => void fetchProducts(currentPage), 250);
     return () => window.clearTimeout(timer);
-  }, [fetchProducts, token]);
+  }, [fetchProducts, token, currentPage]);
 
   useEffect(() => {
-    if (!token) return;
-    const handleScroll = () => {
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const documentHeight = document.documentElement.scrollHeight;
-      const viewportBottom = window.innerHeight + scrollY;
-      setShowBackToTop(scrollY > 520);
-
-      const hasMore = totalProducts === null || products.length < totalProducts;
-      if (
-        hasMore &&
-        products.length > 0 &&
-        !loadingProducts &&
-        !loadingMoreProducts &&
-        viewportBottom >= documentHeight - 720
-      ) {
-        void fetchProducts(products.length, true);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [fetchProducts, loadingMoreProducts, loadingProducts, products.length, token, totalProducts]);
+    setCurrentPage(1);
+  }, [search, brand, category, inStockOnly, withPriceOnly, sort]);
 
   useEffect(() => {
     if (!token) return;
@@ -289,6 +292,20 @@ export default function ECommerce() {
       cancelled = true;
     };
   }, [cart, token]);
+
+  const clearAllFilters = () => {
+    setSearchInput("");
+    setSearch("");
+    setBrand("all");
+    setCategory("all");
+    setInStockOnly(false);
+    setWithPriceOnly(false);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const startSession = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -599,185 +616,111 @@ export default function ECommerce() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
-          <div className="bg-[linear-gradient(135deg,hsl(var(--primary)/0.10),hsl(var(--primary)/0.025)_44%,transparent)] px-4 py-4 sm:px-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h1 className="flex items-center gap-2 text-xl font-bold sm:text-3xl"><Store className="h-6 w-6 text-primary" /> E-commerce</h1>
-                <p className="text-sm text-muted-foreground ml-8 mt-1">Productos, disponibilidad, precios y promociones.</p>
+      <main className="mx-auto max-w-screen-2xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="flex gap-6 items-start">
+          {/* Desktop sidebar */}
+          <aside className="hidden lg:block w-[280px] shrink-0 sticky top-[4.5rem]">
+            <div className="rounded-l-lg border bg-card p-4 space-y-1 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
+              <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                Filtros
+              </h2>
+              <Separator style={{ marginTop: 0, marginBottom: "1rem" }} />
+              <EcommerceSidebarFilters
+                brandOptions={brandOptions}
+                categoryOptions={categoryOptions}
+                brand={brand}
+                category={category}
+                inStockOnly={inStockOnly}
+                withPriceOnly={withPriceOnly}
+                onBrandChange={setBrand}
+                onCategoryChange={setCategory}
+                onInStockChange={setInStockOnly}
+                onWithPriceChange={setWithPriceOnly}
+                onClear={clearAllFilters}
+                hasActiveFilters={activeFilters.length > 0}
+                disabled={loadingProducts}
+              />
+            </div>
+          </aside>
+          {/* Main content */}
+          <div className="flex-1 min-w-0 space-y-4">
+            <EcommerceResultsHeader
+              search={search}
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+              onSearchCommit={() => setSearch(searchInput.trim())}
+              onSearchClear={() => { setSearchInput(""); setSearch(""); }}
+              sort={sort}
+              onSortChange={setSort}
+              inStockOnly={inStockOnly}
+              withPriceOnly={withPriceOnly}
+              onInStockToggle={() => setInStockOnly((v) => !v)}
+              onWithPriceToggle={() => setWithPriceOnly((v) => !v)}
+              totalProducts={totalProducts}
+              currentPage={currentPage}
+              activeFilters={activeFilters}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+              onClear={clearAllFilters}
+              disabled={loadingProducts}
+            />
+            {productError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{productError}</div>
+            )}
+            {loadingProducts ? (
+              <EcommerceSkeletonGrid viewMode={viewMode} />
+            ) : products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-20 text-center">
+                <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  {activeFilters.length > 0 ? "No encontramos productos con los filtros aplicados." : "No hay productos disponibles en este momento."}
+                </p>
+                {activeFilters.length > 0 && (
+                  <Button variant="outline" className="mt-6" onClick={clearAllFilters}>
+                    <X className="mr-2 h-4 w-4" />Limpiar filtros
+                  </Button>
+                )}
               </div>
-              <div className="w-fit rounded-full border bg-background/80 px-3 py-1 text-sm font-medium text-muted-foreground">
-                {totalProducts === null ? products.length : totalProducts.toLocaleString("es-CO")} productos
-              </div>
-            </div>
-          </div>
-          <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-[minmax(14rem,1fr)_12rem_12rem_11rem_auto]">
-            <div className="relative h-full">
-              <button type="button" onClick={() => setSearch(searchInput.trim())} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground">
-                <Search className="h-4 w-4" />
-              </button>
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setSearch(searchInput.trim())} placeholder="Buscar SKU, producto, marca o categoria" className="h-11 bg-background pl-9 pr-9" />
-              {search && (
-                <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <Select value={brand} onValueChange={setBrand}>
-              <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Marca" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las marcas</SelectItem>
-                {brandOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Categoria" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las categorias</SelectItem>
-                {categoryOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="h-11 w-full lg:w-44 bg-background">
-                <div className="flex items-center gap-2">
-                  <ArrowDownAZ className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Ordenar por" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name_asc">Nombre A-Z</SelectItem>
-                <SelectItem value="price_asc">Menor precio</SelectItem>
-                <SelectItem value="price_desc">Mayor precio</SelectItem>
-                <SelectItem value="available_desc">Mayor stock</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant={inStockOnly ? "default" : "outline"} className={cn("h-11 flex-1 gap-2", !inStockOnly && "bg-background")} onClick={() => setInStockOnly((value) => !value)}>
-                <Filter className="h-4 w-4" />
-                Con stock
-              </Button>
-              <Button type="button" variant={withPriceOnly ? "default" : "outline"} className={cn("h-11 flex-1 gap-2", !withPriceOnly && "bg-background")} onClick={() => setWithPriceOnly((value) => !value)}>
-                <Filter className="h-4 w-4" />
-                Con precio
-              </Button>
-            </div>
-          </div>
-          {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
-            <div className="flex flex-wrap items-center gap-2 border-t px-4 py-4 sm:px-5">
-              {search && (
-                <button type="button" onClick={() => { setSearch(""); setSearchInput(""); }} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
-                  <span className="truncate">Búsqueda: {search}</span><X className="h-3 w-3 shrink-0" />
-                </button>
-              )}
-              {brand !== "all" && (
-                <button type="button" onClick={() => setBrand("all")} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
-                  <span className="truncate">Marca: {brand}</span><X className="h-3 w-3 shrink-0" />
-                </button>
-              )}
-              {category !== "all" && (
-                <button type="button" onClick={() => setCategory("all")} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
-                  <span className="truncate">Categoría: {category}</span><X className="h-3 w-3 shrink-0" />
-                </button>
-              )}
-              {inStockOnly && (
-                <button type="button" onClick={() => setInStockOnly(false)} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
-                  Solo con stock<X className="h-3 w-3 shrink-0" />
-                </button>
-              )}
-              {withPriceOnly && (
-                <button type="button" onClick={() => setWithPriceOnly(false)} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
-                  Solo con precio<X className="h-3 w-3 shrink-0" />
-                </button>
-              )}
-              <button
-                type="button"
-                className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearch("");
-                  setBrand("all");
-                  setCategory("all");
-                  setInStockOnly(false);
-                  setWithPriceOnly(false);
-                }}
-              >
-                <X className="h-3 w-3" />
-                Limpiar
-              </button>
-            </div>
-          )}
-        </section>
-
-        {productError && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{productError}</div>}
-
-        {loadingProducts ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-56 animate-pulse rounded-lg bg-muted/80 dark:bg-muted/20" />)}
-          </div>
-        ) : products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/50 px-6 py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full">
-              <SearchX className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <p className="max-w-md text-md text-muted-foreground">
-              No encontramos productos con los filtros aplicados
-            </p>
-            {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
-              <Button
-                variant="outline"
-                className="mt-6"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearch("");
-                  setBrand("all");
-                  setCategory("all");
-                  setInStockOnly(false);
-                  setWithPriceOnly(false);
-                }}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Limpiar filtros
-              </Button>
+            ) : (
+              <>
+                {viewMode === "grid" ? (
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {products.map((product) => (
+                      <EcommerceProductCard key={product.product_sku} product={product} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {products.map((product) => (
+                      <EcommerceProductListRow key={product.product_sku} product={product} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                    ))}
+                  </div>
+                )}
+                <EcommercePagination currentPage={currentPage} totalPages={totalPages} totalProducts={totalProducts} onPageChange={handlePageChange} />
+              </>
             )}
           </div>
-        ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {products.map((product) => (
-                <ProductCard key={product.product_sku} product={product} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
-              ))}
-            </div>
-            <div className="flex min-h-14 items-center justify-center">
-              {loadingMoreProducts ? (
-                <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  Cargando siguiente lote...
-                </div>
-              ) : totalProducts !== null && products.length >= totalProducts ? (
-                <p className="text-sm text-muted-foreground">Ya viste todos los productos disponibles.</p>
-              ) : (
-                <Button variant="outline" className="bg-background" onClick={() => fetchProducts(products.length, true)}>
-                  Cargar mas
-                </Button>
-              )}
-            </div>
-          </>
-        )}
+        </div>
       </main>
 
-      {showBackToTop && (
-        <Button
-          className="fixed bottom-6 right-5 z-40 h-12 w-12 rounded-full shadow-[0_18px_45px_-20px_hsl(var(--primary))] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-          size="icon"
-          title="Volver arriba"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        >
-          <span className="absolute inset-0 rounded-full bg-primary/25 motion-safe:animate-ping" />
-          <ArrowUp className="h-5 w-5" />
-        </Button>
-      )}
-
+      <MobileFiltersDrawer
+        open={mobileFiltersOpen}
+        onOpenChange={setMobileFiltersOpen}
+        brandOptions={brandOptions}
+        categoryOptions={categoryOptions}
+        brand={brand}
+        category={category}
+        inStockOnly={inStockOnly}
+        withPriceOnly={withPriceOnly}
+        onBrandChange={setBrand}
+        onCategoryChange={setCategory}
+        onInStockChange={setInStockOnly}
+        onWithPriceChange={setWithPriceOnly}
+        onClear={clearAllFilters}
+        hasActiveFilters={activeFilters.length > 0}
+      />
       <Sheet open={cartOpen} onOpenChange={setCartOpen}>
         <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-lg">
           <div className="border-b px-4 pb-4 pt-5 sm:px-6">
@@ -948,76 +891,511 @@ function AccessNote({ icon: Icon, title, text }: { icon: React.ElementType; titl
 }
 
 
-function ProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
+// ── Sidebar Filters ──────────────────────────────────────────────────────────
+
+interface SidebarFiltersProps {
+  brandOptions: string[];
+  categoryOptions: string[];
+  brand: string;
+  category: string;
+  inStockOnly: boolean;
+  withPriceOnly: boolean;
+  onBrandChange: (v: string) => void;
+  onCategoryChange: (v: string) => void;
+  onInStockChange: (v: boolean) => void;
+  onWithPriceChange: (v: boolean) => void;
+  onClear: () => void;
+  hasActiveFilters: boolean;
+  disabled?: boolean;
+}
+
+function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, category, inStockOnly, withPriceOnly, onBrandChange, onCategoryChange, onInStockChange, onWithPriceChange, onClear, hasActiveFilters, disabled }: SidebarFiltersProps) {
+  return (
+    <div className={cn("space-y-3", disabled && "pointer-events-none opacity-50")}>
+      {/* Marcas */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
+          <span className="flex items-center gap-2"><Tags className="h-3.5 w-3.5 text-muted-foreground" />Marcas</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <RadioGroup value={brand} onValueChange={onBrandChange} className="pt-1 space-y-0.5">
+            <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+              <RadioGroupItem value="all" id="brand-all" />
+              <Label htmlFor="brand-all" className="cursor-pointer text-sm font-normal">Todas las marcas</Label>
+            </div>
+            <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
+              {brandOptions.map((b) => (
+                <div key={b} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value={b} id={`brand-${b}`} />
+                  <Label htmlFor={`brand-${b}`} className="cursor-pointer truncate text-sm font-normal">{b}</Label>
+                </div>
+              ))}
+            </div>
+          </RadioGroup>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* Categorías */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
+          <span className="flex items-center gap-2"><Store className="h-3.5 w-3.5 text-muted-foreground" />Categorías</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <RadioGroup value={category} onValueChange={onCategoryChange} className="pt-1 space-y-0.5">
+            <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+              <RadioGroupItem value="all" id="cat-all" />
+              <Label htmlFor="cat-all" className="cursor-pointer text-sm font-normal">Todas las categorías</Label>
+            </div>
+            <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
+              {categoryOptions.map((c) => (
+                <div key={c} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value={c} id={`cat-${c}`} />
+                  <Label htmlFor={`cat-${c}`} className="cursor-pointer truncate text-sm font-normal">{c}</Label>
+                </div>
+              ))}
+            </div>
+          </RadioGroup>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* Disponibilidad */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
+          <span className="flex items-center gap-2"><Package className="h-3.5 w-3.5 text-muted-foreground" />Disponibilidad</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="flex items-center gap-2 pt-2 px-1 cursor-pointer" onClick={() => onInStockChange(!inStockOnly)}>
+            <Checkbox id="in-stock" checked={inStockOnly} onCheckedChange={(v) => onInStockChange(Boolean(v))} />
+            <Label htmlFor="in-stock" className="cursor-pointer text-sm font-normal">Con stock disponible</Label>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* Precio */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
+          <span className="flex items-center gap-2"><Sparkles className="h-3.5 w-3.5 text-muted-foreground" />Precio</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="flex items-center gap-2 pt-2 px-1 cursor-pointer" onClick={() => onWithPriceChange(!withPriceOnly)}>
+            <Checkbox id="with-price" checked={withPriceOnly} onCheckedChange={(v) => onWithPriceChange(Boolean(v))} />
+            <Label htmlFor="with-price" className="cursor-pointer text-sm font-normal">Con precio asignado</Label>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {hasActiveFilters && (
+        <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground hover:text-foreground" onClick={onClear}>
+          <X className="h-3.5 w-3.5" />Limpiar filtros
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── Results Header ────────────────────────────────────────────────────────────
+
+interface ResultsHeaderProps {
+  search: string;
+  searchInput: string;
+  onSearchInputChange: (v: string) => void;
+  onSearchCommit: () => void;
+  onSearchClear: () => void;
+  sort: string;
+  onSortChange: (v: string) => void;
+  inStockOnly: boolean;
+  withPriceOnly: boolean;
+  onInStockToggle: () => void;
+  onWithPriceToggle: () => void;
+  totalProducts: number | null;
+  currentPage: number;
+  activeFilters: Array<{ key: string; label: string; clear: () => void }>;
+  viewMode: "grid" | "list";
+  onViewModeChange: (v: "grid" | "list") => void;
+  onOpenMobileFilters: () => void;
+  onClear: () => void;
+  disabled?: boolean;
+}
+
+function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSearchCommit, onSearchClear, sort, onSortChange, inStockOnly, withPriceOnly, onInStockToggle, onWithPriceToggle, totalProducts, currentPage, activeFilters, viewMode, onViewModeChange, onOpenMobileFilters, onClear, disabled }: ResultsHeaderProps) {
+  const from = ((currentPage - 1) * PAGE_SIZE + 1).toLocaleString("es-CO");
+  const to = totalProducts !== null
+    ? Math.min(currentPage * PAGE_SIZE, totalProducts).toLocaleString("es-CO")
+    : (currentPage * PAGE_SIZE).toLocaleString("es-CO");
+
+  return (
+    <div className="space-y-3">
+      {/* Row 1: count + sort + view toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {totalProducts === null
+            ? <Skeleton className="inline-block h-4 w-40 align-middle" />
+            : <>Mostrando <span className="text-foreground">{from}–{to}</span> de <span className="text-foreground">{totalProducts.toLocaleString("es-CO")}</span> productos</>}
+        </p>
+        <div className="flex items-center gap-2">
+          <Select value={sort} onValueChange={onSortChange} disabled={disabled}>
+            <SelectTrigger className="h-9 w-44 bg-background text-sm">
+              <div className="flex items-center gap-2">
+                <ArrowDownAZ className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name_asc">Nombre A-Z</SelectItem>
+              <SelectItem value="name_desc">Nombre Z-A</SelectItem>
+              <SelectItem value="price_asc">Menor precio</SelectItem>
+              <SelectItem value="price_desc">Mayor precio</SelectItem>
+              <SelectItem value="available_desc">Mayor stock</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className={cn("hidden sm:flex rounded-md border bg-background overflow-hidden", disabled && "pointer-events-none opacity-50")}>
+            <button onClick={() => onViewModeChange("grid")} className={cn("flex h-9 w-9 items-center justify-center transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista cuadrícula" disabled={disabled}>
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button onClick={() => onViewModeChange("list")} className={cn("flex h-9 w-9 items-center justify-center transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista lista" disabled={disabled}>
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: search */}
+      <div className="relative">
+        <button onClick={onSearchCommit} disabled={disabled} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed">
+          <Search className="h-4 w-4" />
+        </button>
+        <input
+          value={searchInput}
+          onChange={(e) => onSearchInputChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSearchCommit()}
+          placeholder="Buscar por SKU, nombre, marca o categoría..."
+          disabled={disabled}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pl-9 pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        {search && (
+          <button onClick={onSearchClear} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Row 3: quick toggles */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" className="lg:hidden gap-2 h-8 bg-background" onClick={onOpenMobileFilters} disabled={disabled}>
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filtros
+          {activeFilters.length > 0 && <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{activeFilters.length}</span>}
+        </Button>
+        <Button variant={inStockOnly ? "default" : "outline"} size="sm" className={cn("h-8", !inStockOnly && "bg-background")} onClick={onInStockToggle} disabled={disabled}>Con stock</Button>
+        <Button variant={withPriceOnly ? "default" : "outline"} size="sm" className={cn("h-8", !withPriceOnly && "bg-background")} onClick={onWithPriceToggle} disabled={disabled}>Con precio</Button>
+        {activeFilters.length > 0 && (
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={onClear} disabled={disabled}>
+            <X className="h-3.5 w-3.5" />Limpiar filtros
+          </Button>
+        )}
+      </div>
+
+      {/* Row 4: active filter chips */}
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {activeFilters.map((chip) => (
+            <button key={chip.key} onClick={chip.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+              <span className="truncate max-w-[12rem]">{chip.label}</span>
+              <X className="h-3 w-3 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Product Card ──────────────────────────────────────────────────────────────
+
+function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
+  const isDiscontinued = Boolean(product.product_is_discontinued);
+
   return (
-    <article className="group flex min-h-[22rem] flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-white/5">
+    <article className="group flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md sm:flex-col">
+      {/* imagen: fila en mobile, columna en sm+ */}
       <button
         type="button"
         onClick={onOpen}
-        className="relative m-3 mb-0 flex h-32 items-center justify-center overflow-hidden rounded-md bg-[linear-gradient(135deg,hsl(var(--muted))_0%,hsl(var(--primary)/0.08)_100%)] transition group-hover:bg-[linear-gradient(135deg,hsl(var(--primary)/0.12)_0%,hsl(var(--muted))_100%)]"
+        className="relative flex shrink-0 items-center justify-center bg-muted/40 transition group-hover:bg-muted/60
+                   h-28 w-full sm:h-40 sm:w-full"
       >
-        <div className="absolute right-3 top-3 rounded-full bg-background/85 px-2 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm">
-          SKU
-        </div>
-        <Package className="h-11 w-11 text-primary transition duration-200 group-hover:scale-110" />
+        <Package className="h-10 w-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:h-12 sm:w-12" />
+        <span className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-0.5 text-[11px] font-mono font-medium text-muted-foreground shadow-sm">
+          {product.product_sku}
+        </span>
       </button>
 
-      <div className="flex min-w-0 flex-1 flex-col p-4">
-        <div className="mb-3 flex min-h-6 flex-wrap gap-1.5">
-          {product.product_category && <Badge variant="secondary" className="max-w-full truncate dark:bg-white/10 dark:text-white dark:hover:bg-white/20">{product.product_category}</Badge>}
-          {!hasPrice && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">Sin precio</Badge>}
-          {hasPrice && stock > 0 && <Badge className="bg-primary/10 text-primary hover:bg-primary/10">Disponible</Badge>}
-        </div>
-
+      <div className="flex flex-1 flex-col p-3 gap-1.5 sm:p-4">
         <button type="button" onClick={onOpen} className="text-left">
-          <h2 className="line-clamp-2 min-h-11 text-[0.98rem] font-bold leading-snug transition group-hover:text-primary">
+          <h2 className="line-clamp-2 text-sm font-semibold leading-snug group-hover:text-primary transition-colors">
             {text(product.product_commercial_name, "Producto sin nombre")}
           </h2>
         </button>
-        <p className="mt-1 text-xs text-muted-foreground">SKU: {product.product_sku}</p>
 
-        <div className="mt-4">
-          <p className={cn("text-2xl font-black tracking-tight", !hasPrice && "text-foreground")}>
-            {hasPrice ? money(product.price) : "Consultar precio"}
-          </p>
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">Inventario visible</p>
-            <span className={cn(
-              "rounded-full px-2 py-0.5 text-xs font-semibold",
-              stock > 0
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200"
-                : "bg-muted text-muted-foreground",
-            )}>
-              {stock.toLocaleString("es-CO")} und.
-            </span>
+        {product.product_brand_name && (
+          <div className="flex items-center gap-1">
+            <p className="truncate text-xs text-muted-foreground">{product.product_brand_name}</p>
+            <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
           </div>
+        )}
+
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+          ))}
         </div>
 
-        <div className="mt-auto pt-4">
-          <div className="grid grid-cols-[3rem_1fr] gap-2">
-            <Button variant="outline" size="icon" className="h-11 rounded-md bg-background" onClick={onOpen} title="Ver detalle">
-              <Search className="h-4 w-4" />
-            </Button>
-            <Button
-              className="h-11 rounded-md font-bold shadow-sm transition-shadow hover:shadow-md"
-              onClick={onAdd}
-              disabled={!canAdd}
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              {canAdd ? "Añadir" : hasPrice ? "Sin stock" : "Añadir"}
-            </Button>
+        <TooltipProvider delayDuration={300}>
+          <div className="flex gap-1 min-w-0 overflow-hidden">
+            {product.product_category && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary" className="min-w-0 max-w-[50%] overflow-hidden text-[11px] font-normal bg-primary/10 text-primary border-transparent dark:bg-primary/20 dark:text-primary"><span className="truncate">{product.product_category}</span></Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top"><p>{product.product_category}</p></TooltipContent>
+              </Tooltip>
+            )}
+            {product.product_line_name && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="min-w-0 max-w-[50%] overflow-hidden text-[11px] font-normal bg-primary/90 text-primary-foreground border-transparent"><span className="truncate">{product.product_line_name}</span></Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top"><p>{product.product_line_name}</p></TooltipContent>
+              </Tooltip>
+            )}
           </div>
-          {!canAdd && (
-            <p className="mt-2 text-center text-[11px] text-muted-foreground italic">
-              {hasPrice ? "No disponible para pedido en este momento." : "Precio no asignado para este cliente."}
-            </p>
+        </TooltipProvider>
+
+        {isDiscontinued && (
+          <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-700 text-[11px] dark:bg-amber-500/10 dark:text-amber-200">Descontinuado</Badge>
+        )}
+
+        <div className="mt-auto">
+          {hasPrice ? (
+            <>
+              <p className="text-lg font-black tracking-tight sm:text-xl">{money(product.price)}</p>
+              <p className="text-[11px] text-muted-foreground">Precio asignado</p>
+            </>
+          ) : (
+            <p className="text-sm font-semibold text-muted-foreground">Sin precio</p>
           )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Disponible</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", stock > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+            {stock > 0 ? `${stock.toLocaleString("es-CO")} und.` : "Sin stock"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-[2.25rem_1fr] gap-1.5 pt-1">
+          <Button variant="outline" size="icon" className="h-9 w-9 bg-background" onClick={onOpen} title="Ver detalle">
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button className="h-9 font-semibold text-xs sm:text-sm" onClick={onAdd} disabled={!canAdd}>
+            <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
+            {canAdd ? "Añadir" : hasPrice ? "Sin stock" : "Añadir"}
+          </Button>
         </div>
       </div>
     </article>
+  );
+}
+
+// ── Product List Row ──────────────────────────────────────────────────────────
+
+function EcommerceProductListRow({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
+  const hasPrice = product.price !== null && product.price !== undefined;
+  const stock = Number(product.total_units_available || 0);
+  const canAdd = Boolean(product.can_add_to_cart);
+
+  return (
+    <article className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40">
+        <Package className="h-6 w-6 text-muted-foreground/60" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onOpen} className="truncate text-sm font-semibold hover:text-primary transition-colors text-left">
+            {text(product.product_commercial_name, "Producto sin nombre")}
+          </button>
+          <span className="shrink-0 font-mono text-[11px] bg-background/90 border rounded-md px-1.5 py-0.5 text-muted-foreground">{product.product_sku}</span>
+        </div>
+        <TooltipProvider delayDuration={300}>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            {product.product_brand_name && (
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                {product.product_brand_name}
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
+              </span>
+            )}
+            {product.product_category && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary" className="min-w-0 max-w-[140px] overflow-hidden text-[11px] font-normal bg-primary/10 text-primary border-transparent dark:bg-primary/20 dark:text-primary">
+                    <span className="truncate">{product.product_category}</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top"><p>{product.product_category}</p></TooltipContent>
+              </Tooltip>
+            )}
+            {product.product_line_name && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="min-w-0 max-w-[140px] overflow-hidden text-[11px] font-normal bg-primary/90 text-primary-foreground border-transparent">
+                    <span className="truncate">{product.product_line_name}</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top"><p>{product.product_line_name}</p></TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TooltipProvider>
+        <div className="flex items-center gap-0.5 mt-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+          ))}
+        </div>
+      </div>
+      <div className="hidden sm:block shrink-0 w-28 text-right">
+        {hasPrice ? <p className="text-sm font-bold">{money(product.price)}</p> : <p className="text-sm text-muted-foreground">Sin precio</p>}
+      </div>
+      <div className="hidden md:block shrink-0">
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", stock > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+          {stock > 0 ? `${stock.toLocaleString("es-CO")} und.` : "Sin stock"}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onOpen}>
+          <Search className="h-4 w-4" />
+        </Button>
+        <Button size="sm" className="shrink-0 h-9" onClick={onAdd} disabled={!canAdd}>
+          <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />Añadir
+        </Button>
+      </div>
+    </article>
+  );
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+function EcommercePagination({ currentPage, totalPages, totalProducts, onPageChange }: { currentPage: number; totalPages: number; totalProducts: number | null; onPageChange: (p: number) => void }) {
+  if (totalPages <= 1) return null;
+
+  const pages: (number | "ellipsis")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (currentPage > 3) pages.push("ellipsis");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("ellipsis");
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex items-center justify-center pt-4">
+      <Pagination>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious onClick={(e) => { e.preventDefault(); if (currentPage > 1) onPageChange(currentPage - 1); }} className={cn(currentPage === 1 && "pointer-events-none opacity-50")} href="#" aria-label="Ir a página anterior">
+              Anterior
+            </PaginationPrevious>
+          </PaginationItem>
+          {pages.map((page, idx) =>
+            page === "ellipsis" ? (
+              <PaginationItem key={`el-${idx}`}><PaginationEllipsis /></PaginationItem>
+            ) : (
+              <PaginationItem key={page}>
+                <PaginationLink href="#" onClick={(e) => { e.preventDefault(); onPageChange(page); }} isActive={page === currentPage}>{page}</PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          <PaginationItem>
+            <PaginationNext onClick={(e) => { e.preventDefault(); if (currentPage < totalPages) onPageChange(currentPage + 1); }} className={cn(currentPage === totalPages && "pointer-events-none opacity-50")} href="#">
+              Siguiente
+            </PaginationNext>
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    </div>
+  );
+}
+
+// ── Skeleton Grid ─────────────────────────────────────────────────────────────
+
+function EcommerceSkeletonGrid({ viewMode }: { viewMode: "grid" | "list" }) {
+  if (viewMode === "list") {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3">
+            <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+            <div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
+            <Skeleton className="hidden sm:block h-4 w-24" />
+            <Skeleton className="hidden md:block h-6 w-20 rounded-full" />
+            <Skeleton className="h-9 w-20 rounded-md" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="flex flex-col overflow-hidden rounded-lg border bg-card">
+          <Skeleton className="h-40 w-full rounded-none" />
+          <div className="flex flex-col gap-3 p-4">
+            <div className="flex gap-1"><Skeleton className="h-5 w-20 rounded-full" /><Skeleton className="h-5 w-16 rounded-full" /></div>
+            <Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-6 w-28 mt-1" />
+            <div className="flex items-center justify-between mt-1"><Skeleton className="h-3 w-10" /><Skeleton className="h-5 w-20 rounded-full" /></div>
+            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="h-10 w-10 rounded-md" /><Skeleton className="h-10 rounded-md" /></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Mobile Filters Drawer ─────────────────────────────────────────────────────
+
+function MobileFiltersDrawer({ open, onOpenChange, ...filterProps }: { open: boolean; onOpenChange: (v: boolean) => void } & SidebarFiltersProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="flex flex-col p-0 w-80">
+        <div className="border-b px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            Filtros
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 pt-0 mt-0 pb-3">
+          <EcommerceSidebarFilters {...filterProps} />
+        </div>
+        <SheetFooter className="border-t p-4">
+          <Button className="w-full" onClick={() => onOpenChange(false)}>Ver resultados</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
