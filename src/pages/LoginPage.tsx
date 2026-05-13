@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, AlertCircle, User, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import logoIco from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
@@ -109,6 +109,17 @@ export default function LoginPage() {
           box-shadow: 0 0 0 1000px #ffffff inset !important;
           transition: background-color 9999s ease-out;
         }
+        @keyframes slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        .login-card-animate { animation: slide-up 0.5s ease-out both; }
+        .login-card-animate-delay { animation: slide-up 0.5s ease-out 0.1s both; }
+        .input-icon-wrapper { position:relative; }
+        .input-icon-wrapper .input-icon-left {
+          position:absolute; left:13px; top:50%; transform:translateY(-50%);
+          color:#9ca3af; pointer-events:none; z-index:1;
+        }
+        .input-icon-wrapper input { padding-left: 40px !important; }
+        .login-btn-arrow { transition: transform 0.2s ease; }
+        .login-light-scope button[type=submit]:not(:disabled):hover .login-btn-arrow { transform: translateX(4px); }
       `}</style>
 
       <div
@@ -227,11 +238,16 @@ export default function LoginPage() {
           </div>
 
           {/* Card */}
-          <div className="login-light-scope bg-white rounded-2xl border border-gray-200 shadow-lg px-9 py-9 space-y-6">
+          <div className="login-light-scope login-card-animate bg-white rounded-2xl border border-gray-200 shadow-xl px-9 py-9 space-y-6"
+            style={{ boxShadow: "0 4px 32px 0 rgba(10,150,63,0.08), 0 1.5px 8px 0 rgba(0,0,0,0.06)" }}>
 
-            <div className="space-y-1.5 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
-              <p className="text-sm text-gray-500">Accede a tu plataforma de gestión comercial</p>
+            {/* Header with icon badge */}
+            <div className="flex flex-col items-center gap-3">
+
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
+                <p className="text-sm text-gray-500">Accede a tu plataforma de gestión comercial</p>
+              </div>
             </div>
 
             {serverError && (
@@ -245,7 +261,8 @@ export default function LoginPage() {
 
               {/* Username */}
               <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-sm font-semibold text-gray-700">
+                <Label htmlFor="username" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-gray-400" />
                   Usuario
                 </Label>
                 <Input
@@ -258,14 +275,15 @@ export default function LoginPage() {
                 />
                 {errors.username && (
                   <p className="text-xs text-red-600 flex items-center gap-1">
-                    <span>•</span>{errors.username.message}
+                    <AlertCircle className="h-3 w-3" />{errors.username.message}
                   </p>
                 )}
               </div>
 
               {/* Password */}
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-semibold text-gray-700">
+                <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5 text-gray-400" />
                   Contraseña
                 </Label>
                 <div className="relative">
@@ -289,39 +307,37 @@ export default function LoginPage() {
                 </div>
                 {errors.password && (
                   <p className="text-xs text-red-600 flex items-center gap-1">
-                    <span>•</span>{errors.password.message}
+                    <AlertCircle className="h-3 w-3" />{errors.password.message}
                   </p>
                 )}
               </div>
 
               <Button
                 type="submit"
-                className="h-12 w-full rounded-xl bg-[#0a963f] text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#087f35] focus-visible:ring-2 focus-visible:ring-[#0a963f]/30 focus-visible:ring-offset-2 disabled:bg-gray-200 disabled:text-gray-500"
+                className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#0a963f]/30 focus-visible:ring-offset-2 disabled:opacity-60 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-2"
+                style={{ background: isSubmitting ? undefined : "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
                 disabled={isSubmitting}
               >
-                {isSubmitting
-                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verificando…</>
-                  : "Ingresar"
-                }
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : ''}
+                Iniciar sesión
               </Button>
 
             </form>
           </div>
 
           {/* Footer links */}
-          <div className="flex items-center justify-center gap-1.5 mt-5 text-xs text-gray-400">
-            <span
-              title="Contacta al administrador del sistema"
-              className="cursor-pointer transition-colors hover:text-primary hover:font-semibold"
+          <div className="login-card-animate-delay flex items-center justify-center gap-1 mt-5 text-xs text-gray-400">
+            <span>¿Problemas para ingresar?</span>
+            <span className="text-gray-300">·</span>
+            <a
+              href="mailto:soporte@ivanagro.com"
+              className="font-medium text-[#0a963f] hover:text-[#087f35] transition-colors underline underline-offset-2"
             >
-              ¿Problemas para ingresar?
-            </span>
-            <span className="cursor-pointer transition-colors hover:text-primary hover:font-semibold">
               Contáctanos
-            </span>
+            </a>
           </div>
 
-          <p className="text-center text-[11px] text-gray-400 mt-3">
+          <p className="text-center text-[11px] text-gray-300 mt-3">
             © {new Date().getFullYear()} Ivanagro · Hubu
           </p>
 

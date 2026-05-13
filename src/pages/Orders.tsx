@@ -599,7 +599,7 @@ export default function Orders() {
             {loadingInitial && orders.length === 0 ? (
               <div className="grid gap-3">
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="h-20 animate-pulse rounded-md bg-muted" />
+                  <div key={index} className="h-12 animate-pulse rounded-md bg-muted" />
                 ))}
               </div>
             ) : orders.length === 0 ? (

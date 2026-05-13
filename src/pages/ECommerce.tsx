@@ -27,6 +27,7 @@ import {
   Trash2,
   UserRound,
   AlertCircle,
+  UserX,
   ArrowDownAZ,
   X,
 } from "lucide-react";
@@ -177,7 +178,7 @@ export default function ECommerce() {
       const saved = localStorage.getItem(ECOMMERCE_THEME_KEY);
       if (saved) setTheme(saved);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
   const brandOptions = useMemo(
     () => filters.brands.map((item) => String(item ?? "").trim()).filter(Boolean),
@@ -471,6 +472,12 @@ export default function ECommerce() {
                 </div>
 
                 <form className="space-y-4" onSubmit={startSession}>
+                  {sessionError && (
+                    <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
+                      <span className="font-medium">{sessionError}</span>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="nit">NIT / documento</Label>
                     <div className="relative">
@@ -487,9 +494,8 @@ export default function ECommerce() {
                       />
                     </div>
                   </div>
-                  {sessionError && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{sessionError}</div>}
                   <Button type="submit" className="h-12 w-full gap-2 text-sm font-bold shadow-[0_18px_42px_-28px_hsl(var(--primary))]" disabled={sessionLoading || nit.trim().length < 3}>
-                    {sessionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
+                    {sessionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : ''}
                     Entrar al e-commerce
                   </Button>
                 </form>
@@ -500,7 +506,6 @@ export default function ECommerce() {
                 </div>
                 <div className="mt-5 rounded-md border bg-background/75 p-3">
                   <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
-
                     <AlertCircle className="h-10 w-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a travez de nuestros canales de comunicación.
                   </p>
                   <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
@@ -712,12 +717,11 @@ export default function ECommerce() {
           </div>
         ) : products.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/50 px-6 py-20 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/80">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full">
               <SearchX className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="mb-1 text-lg font-semibold text-foreground">No se encontraron productos</h3>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Intenta ajustar tus filtros de búsqueda o cambiar de categoría.
+            <p className="max-w-md text-md text-muted-foreground">
+              No encontramos productos con los filtros aplicados
             </p>
             {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
               <Button
@@ -942,6 +946,7 @@ function AccessNote({ icon: Icon, title, text }: { icon: React.ElementType; titl
     </div>
   );
 }
+
 
 function ProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
