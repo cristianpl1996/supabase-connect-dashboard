@@ -220,6 +220,7 @@ export default function Orders() {
   });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [customerId, setCustomerId] = useState("");
@@ -369,7 +370,7 @@ export default function Orders() {
   const averageTicket = orders.length > 0 ? totalValue / orders.length : 0;
   const visibleStatuses = useMemo(() => new Set(orders.map((item) => orderStatusKey(item.order_status_code)).filter(Boolean)).size, [orders]);
   const statusFilterOptions = useMemo(() => {
-    const keys = new Set(filterOptions.statuses.map(orderStatusKey).filter((item) => item === "open" || item === "closed"));
+    const keys: Set<string> = new Set(filterOptions.statuses.map(orderStatusKey).filter((item) => item === "open" || item === "closed"));
     const options = [
       { key: "open", label: "Abierto" },
       { key: "closed", label: "Cerrado" },
@@ -378,7 +379,7 @@ export default function Orders() {
   }, [filterOptions.statuses]);
 
   const activeFilters = [
-    search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => setSearch("") },
+    search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => { setSearch(""); setSearchInput(""); } },
     status !== "all" && { key: "status", label: `Estado: ${orderStatusInfo(status).label}`, clear: () => setStatus("all") },
     customerId.trim() && { key: "customerId", label: `Cliente: ${customerId.trim()}`, clear: () => setCustomerId("") },
     salesRepId.trim() && { key: "salesRepId", label: `Rep: ${salesRepId.trim()}`, clear: () => setSalesRepId("") },
@@ -407,7 +408,10 @@ export default function Orders() {
     maxTotal,
   ].filter(Boolean).length;
 
+  const commitSearch = () => setSearch(searchInput.trim());
+
   const clearFilters = () => {
+    setSearchInput("");
     setSearch("");
     setStatus("all");
     setCustomerId("");
@@ -454,10 +458,17 @@ export default function Orders() {
           <CardContent className="space-y-5 p-4 sm:p-5">
             <div className="grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_14rem_15rem_auto]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por orden, cliente, factura o producto" className="pl-9" />
+                <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
+                  <Search className="h-4 w-4" />
+                </button>
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} placeholder="Buscar por orden, cliente, factura o producto" disabled={loadingInitial} className="pl-9 pr-9" />
+                {search && (
+                  <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={status} onValueChange={setStatus} disabled={loadingInitial}>
                 <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
@@ -466,7 +477,7 @@ export default function Orders() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={sortOrder} onValueChange={setSortOrder}>
+              <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
                 <SelectTrigger className="gap-2">
                   <ArrowUpAZ className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder="Ordenar por" />
@@ -572,29 +583,16 @@ export default function Orders() {
             </div>
 
             {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
                 {activeFilters.map((filter) => (
-                  <Badge
-                    key={filter.key}
-                    variant="secondary"
-                    className="gap-1.5 bg-primary/10 pr-1 font-semibold text-primary hover:bg-primary/15 dark:bg-primary/15 dark:text-primary"
-                  >
-                    <span>{filter.label}</span>
-                    <button type="button" onClick={filter.clear} className="rounded-sm p-0.5 hover:bg-background/60" aria-label={`Quitar ${filter.label}`}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
+                  <button key={filter.key} type="button" onClick={filter.clear} disabled={loadingInitial} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                    <span className="truncate">{filter.label}</span>
+                    <X className="h-3 w-3 shrink-0" />
+                  </button>
                 ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/15"
-                  onClick={clearFilters}
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Limpiar
-                </Button>
+                <button type="button" onClick={clearFilters} disabled={loadingInitial} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" /> Limpiar
+                </button>
               </div>
             )}
 
@@ -605,9 +603,14 @@ export default function Orders() {
                 ))}
               </div>
             ) : orders.length === 0 ? (
-              <div className="rounded-md border bg-muted/40 p-6 text-center">
-                <p className="font-medium">No hay ordenes para los filtros actuales.</p>
-                {activeFilters.length > 0 && <Button className="mt-3" variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
+              <div className="text-center py-12">
+                <ClipboardList className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  {activeFilters.length > 0 ? "No se encontraron ordenes con los filtros aplicados" : "No hay ordenes registradas"}
+                </p>
+                {activeFilters.length > 0 && (
+                  <Button className="mt-4" variant="outline" onClick={clearFilters}><X className="h-4 w-4 mr-2" />Limpiar filtros</Button>
+                )}
               </div>
             ) : (
               <>

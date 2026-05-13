@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   createPromotion,
   getPromotion,
   getPromotionBudget,
-  listCustomers,
+  getCustomersPage,
   listProducts,
   updatePromotion,
   CustomerRecord,
   ProductCatalogItem,
+  listTotal,
 } from '@/lib/api';
 import { usePromoter } from '@/contexts/PromoterContext';
 import { Laboratory, Promotion } from '@/types/database';
@@ -117,6 +118,8 @@ export function PromotionFormSheet({
   const [scope, setScope] = useState('all');
   const [selectedProductSkus, setSelectedProductSkus] = useState<string[]>([]);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [productNameMap, setProductNameMap] = useState<Record<string, string>>({});
+  const [customerNameMap, setCustomerNameMap] = useState<Record<string, string>>({});
   const [productFilterBrand, setProductFilterBrand] = useState('');
   const [productFilterCategory, setProductFilterCategory] = useState('');
   const [productFilterLine, setProductFilterLine] = useState('');
@@ -130,6 +133,15 @@ export function PromotionFormSheet({
   const [customerOptions, setCustomerOptions] = useState<CustomerRecord[]>([]);
   const [loadingProductOptions, setLoadingProductOptions] = useState(false);
   const [loadingCustomerOptions, setLoadingCustomerOptions] = useState(false);
+  const [productOptionsHasMore, setProductOptionsHasMore] = useState(false);
+  const [customerOptionsHasMore, setCustomerOptionsHasMore] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
+  const productListRef = useRef<HTMLDivElement>(null);
+  const productOffsetRef = useRef(0);
+  const customerOffsetRef = useRef(0);
+  const productSearchRef = useRef('');
+  const customerSearchRef = useRef('');
   const [conditionType, setConditionType] = useState('sku_list');
   const [conditionValue, setConditionValue] = useState('');
   const [conditionQty, setConditionQty] = useState<number>(0);
@@ -251,24 +263,30 @@ export function PromotionFormSheet({
     checkBudget();
   }, [editingPromo?.id, labId, estimatedCost, open]);
 
+  const PAGE = 10;
+
   useEffect(() => {
-    if (!open) {
-      setProductOptions([]);
-      return;
-    }
+    if (!open) { setProductOptions([]); setProductOptionsHasMore(false); return; }
     const term = productSearch.trim();
     if (term.length === 1) return;
+    productSearchRef.current = term;
+    productOffsetRef.current = 0;
 
     const timer = window.setTimeout(async () => {
       setLoadingProductOptions(true);
       try {
-        const data = await listProducts({
+        const res = await listProducts({
           search: term || undefined,
-          limit: term ? 10 : 8,
+          limit: PAGE,
+          offset: 0,
+          is_catalog_verified: true,
+          is_discontinued: false,
         });
-        setProductOptions(data);
+        setProductOptions(res);
+        setProductOptionsHasMore(res.length === PAGE);
       } catch {
         setProductOptions([]);
+        setProductOptionsHasMore(false);
       } finally {
         setLoadingProductOptions(false);
       }
@@ -276,24 +294,82 @@ export function PromotionFormSheet({
     return () => window.clearTimeout(timer);
   }, [open, productSearch]);
 
-  useEffect(() => {
-    if (!open || scope !== 'customers' || customerSearch.trim().length < 2) {
-      setCustomerOptions([]);
-      return;
+  const loadMoreProducts = useCallback(async () => {
+    if (loadingMoreProducts || !productOptionsHasMore) return;
+    const nextOffset = productOffsetRef.current + PAGE;
+    productOffsetRef.current = nextOffset;
+    setLoadingMoreProducts(true);
+    try {
+      const res = await listProducts({
+        search: productSearchRef.current || undefined,
+        limit: PAGE,
+        offset: nextOffset,
+        is_catalog_verified: true,
+        is_discontinued: false,
+      });
+      setProductOptions((prev) => [...prev, ...res]);
+      setProductOptionsHasMore(res.length === PAGE);
+    } catch {
+      setProductOptionsHasMore(false);
+    } finally {
+      setLoadingMoreProducts(false);
     }
+  }, [loadingMoreProducts, productOptionsHasMore]);
+
+  useEffect(() => {
+    if (!open || scope !== 'customers') { setCustomerOptions([]); setCustomerOptionsHasMore(false); return; }
+    const term = customerSearch.trim();
+    if (term.length === 1) return;
+    customerSearchRef.current = term;
+    customerOffsetRef.current = 0;
+
     const timer = window.setTimeout(async () => {
       setLoadingCustomerOptions(true);
       try {
-        const data = await listCustomers({ search: customerSearch.trim(), limit: 10 });
+        const res = await getCustomersPage({
+          search: term || undefined,
+          limit: PAGE,
+          offset: 0,
+          customer_is_valid: true,
+          customer_is_frozen: false,
+        });
+        const data = res.data ?? [];
+        const total = listTotal(res);
         setCustomerOptions(data);
+        setCustomerOptionsHasMore(total === null ? data.length === PAGE : data.length < total);
       } catch {
         setCustomerOptions([]);
+        setCustomerOptionsHasMore(false);
       } finally {
         setLoadingCustomerOptions(false);
       }
     }, 250);
     return () => window.clearTimeout(timer);
   }, [customerSearch, open, scope]);
+
+  const loadMoreCustomers = useCallback(async () => {
+    if (loadingMoreCustomers || !customerOptionsHasMore) return;
+    const nextOffset = customerOffsetRef.current + PAGE;
+    customerOffsetRef.current = nextOffset;
+    setLoadingMoreCustomers(true);
+    try {
+      const res = await getCustomersPage({
+        search: customerSearchRef.current || undefined,
+        limit: PAGE,
+        offset: nextOffset,
+        customer_is_valid: true,
+        customer_is_frozen: false,
+      });
+      const data = res.data ?? [];
+      const total = listTotal(res);
+      setCustomerOptions((prev) => [...prev, ...data]);
+      setCustomerOptionsHasMore(total === null ? data.length === PAGE : customerOffsetRef.current + data.length < total);
+    } catch {
+      setCustomerOptionsHasMore(false);
+    } finally {
+      setLoadingMoreCustomers(false);
+    }
+  }, [loadingMoreCustomers, customerOptionsHasMore]);
 
   const resetForm = () => {
     setLabId('');
@@ -316,6 +392,10 @@ export function PromotionFormSheet({
     setCustomerSearch('');
     setProductOptions([]);
     setCustomerOptions([]);
+    setProductOptionsHasMore(false);
+    setCustomerOptionsHasMore(false);
+    setProductNameMap({});
+    setCustomerNameMap({});
     setConditionType('none');
     setConditionValue('');
     setConditionQty(0);
@@ -403,15 +483,17 @@ export function PromotionFormSheet({
     selectedCustomerIds,
   ]);
 
-  const addProductSku = (sku: string) => {
+  const addProductSku = (sku: string, name?: string) => {
     if (!sku || selectedProductSkus.includes(sku)) return;
+    if (name) setProductNameMap((prev) => ({ ...prev, [sku]: name }));
     setSelectedProductSkus((prev) => [...prev, sku]);
     setProductSearch('');
     setProductOptions([]);
   };
 
-  const addCustomerId = (id: string) => {
+  const addCustomerId = (id: string, name?: string) => {
     if (!id || selectedCustomerIds.includes(id)) return;
+    if (name) setCustomerNameMap((prev) => ({ ...prev, [id]: name }));
     setSelectedCustomerIds((prev) => [...prev, id]);
     setCustomerSearch('');
     setCustomerOptions([]);
@@ -559,7 +641,7 @@ export function PromotionFormSheet({
 
                   <div className="space-y-2">
                     <Label htmlFor="title">Titulo de la Promocion</Label>
-                    <Input id="title" placeholder="Ej: Pague 10 Lleve 12 - Ganaderia" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    <Input id="title" placeholder="Ej: BONIFICACION 10+1, DESCUENTO 7" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </div>
 
                   <div className="space-y-2">
@@ -598,18 +680,26 @@ export function PromotionFormSheet({
                   </div>
                   {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos...</p>}
                   {visibleProductOptions.length > 0 && (
-                    <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                    <div
+                      ref={productListRef}
+                      className="max-h-56 overflow-y-auto rounded-md border divide-y"
+                      onScroll={(e) => {
+                        const el = e.currentTarget;
+                        if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreProducts();
+                      }}
+                    >
                       {visibleProductOptions.map((product) => (
                         <button
                           key={product.product_sku}
                           type="button"
                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                          onClick={() => addProductSku(product.product_sku)}
+                          onClick={() => addProductSku(product.product_sku, product.product_commercial_name || product.product_sku)}
                         >
                           <span className="min-w-0 truncate">{product.product_commercial_name || product.product_sku}</span>
                           <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
                         </button>
                       ))}
+                      {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando más...</div>}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -617,8 +707,8 @@ export function PromotionFormSheet({
                       <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
                     ) : (
                       selectedProductSkus.map((sku) => (
-                        <Button key={sku} type="button" variant="secondary" size="sm" className="gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
-                          {sku}<X className="h-3 w-3" />
+                        <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[180px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
+                          <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="h-3 w-3 shrink-0" />
                         </Button>
                       ))
                     )}
@@ -652,26 +742,37 @@ export function PromotionFormSheet({
                       </div>
                       {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos...</p>}
                       {visibleProductOptions.length > 0 && (
-                        <div className="rounded-md border divide-y">
+                        <div
+                          className="max-h-56 overflow-y-auto rounded-md border divide-y"
+                          onScroll={(e) => {
+                            const el = e.currentTarget;
+                            if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreProducts();
+                          }}
+                        >
                           {visibleProductOptions.map((product) => (
                             <button
                               key={product.product_sku}
                               type="button"
                               className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                              onClick={() => addProductSku(product.product_sku)}
+                              onClick={() => addProductSku(product.product_sku, product.product_commercial_name || product.product_sku)}
                             >
                               <span className="min-w-0 truncate">{product.product_commercial_name || product.product_sku}</span>
                               <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
                             </button>
                           ))}
+                          {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando más...</div>}
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        {selectedProductSkus.map((sku) => (
-                          <Button key={sku} type="button" variant="secondary" size="sm" className="gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
-                            {sku}<X className="h-3 w-3" />
-                          </Button>
-                        ))}
+                        {selectedProductSkus.length === 0 ? (
+                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
+                        ) : (
+                          selectedProductSkus.map((sku) => (
+                            <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[180px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
+                              <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="h-3 w-3 shrink-0" />
+                            </Button>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -684,29 +785,41 @@ export function PromotionFormSheet({
                       </div>
                       {loadingCustomerOptions && <p className="text-xs text-muted-foreground">Buscando clientes...</p>}
                       {customerOptions.length > 0 && (
-                        <div className="rounded-md border divide-y">
+                        <div
+                          className="max-h-56 overflow-y-auto rounded-md border divide-y"
+                          onScroll={(e) => {
+                            const el = e.currentTarget;
+                            if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreCustomers();
+                          }}
+                        >
                           {customerOptions.map((customer) => {
                             const id = String(customer.id || '');
+                            const name = String(customer.customer_full_name || `Cliente ${id}`);
                             return (
                               <button
                                 key={id}
                                 type="button"
                                 className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                                onClick={() => addCustomerId(id)}
+                                onClick={() => addCustomerId(id, name)}
                               >
-                                <span className="min-w-0 truncate">{String(customer.customer_full_name || `Cliente ${id}`)}</span>
+                                <span className="min-w-0 truncate">{name}</span>
                                 <span className="shrink-0 text-xs text-muted-foreground">{String(customer.customer_government_id || id)}</span>
                               </button>
                             );
                           })}
+                          {loadingMoreCustomers && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando más...</div>}
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        {selectedCustomerIds.map((id) => (
-                          <Button key={id} type="button" variant="secondary" size="sm" className="gap-1" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}>
-                            Cliente {id}<X className="h-3 w-3" />
-                          </Button>
-                        ))}
+                        {selectedCustomerIds.length === 0 ? (
+                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin clientes seleccionados</span>
+                        ) : (
+                          selectedCustomerIds.map((id) => (
+                            <Button key={id} type="button" variant="secondary" size="sm" className="max-w-[200px] gap-1" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}>
+                              <span className="truncate">{customerNameMap[id] ?? `Cliente ${id}`}</span><X className="h-3 w-3 shrink-0" />
+                            </Button>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -765,33 +878,33 @@ export function PromotionFormSheet({
                         El beneficio aplica directo al alcance y productos definidos.
                       </div>
                     ) : (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {conditionType === 'product_mix' && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {conditionType === 'product_mix' && (
+                          <div className="space-y-2">
+                            <Label>SKUs requeridos en la mezcla</Label>
+                            <Input
+                              placeholder="SKU001, SKU002"
+                              value={conditionValue}
+                              onChange={(e) => setConditionValue(e.target.value)}
+                            />
+                          </div>
+                        )}
                         <div className="space-y-2">
-                          <Label>SKUs requeridos en la mezcla</Label>
+                          <Label>
+                            {conditionType === 'min_amount' && 'Monto Minimo ($)'}
+                            {conditionType === 'min_quantity' && 'Cantidad Minima'}
+                            {conditionType === 'buy_x_get_y' && 'Cantidad a Comprar'}
+                            {conditionType === 'product_mix' && 'Cantidad Total Minima'}
+                          </Label>
                           <Input
-                            placeholder="SKU001, SKU002"
-                            value={conditionValue}
-                            onChange={(e) => setConditionValue(e.target.value)}
+                            type="number"
+                            min={0}
+                            value={conditionQty || ''}
+                            onChange={(e) => setConditionQty(parseFloat(e.target.value) || 0)}
+                            placeholder={conditionType === 'min_amount' ? '500000' : '10'}
                           />
                         </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label>
-                          {conditionType === 'min_amount' && 'Monto Minimo ($)'}
-                          {conditionType === 'min_quantity' && 'Cantidad Minima'}
-                          {conditionType === 'buy_x_get_y' && 'Cantidad a Comprar'}
-                          {conditionType === 'product_mix' && 'Cantidad Total Minima'}
-                        </Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={conditionQty || ''}
-                          onChange={(e) => setConditionQty(parseFloat(e.target.value) || 0)}
-                          placeholder={conditionType === 'min_amount' ? '500000' : '10'}
-                        />
                       </div>
-                    </div>
                     )}
                   </div>
 

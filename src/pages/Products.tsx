@@ -22,8 +22,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
-  ArrowUpAZ,
-  BadgeCheck,
   Boxes,
   Eye,
   ImageOff,
@@ -63,13 +61,12 @@ const CORE_PRODUCT_FIELDS = new Set([
   "product_substitute_skus",
   "product_recommended_application_frequency",
   "is_catalog_verified",
-  "is_discontinued",
   "product_is_catalog_verified",
+  "is_discontinued",
   "product_is_discontinued",
   "external_product_id",
   "metadata",
   "total_units_available",
-  "units_available_in_stock",
   "inventory_locations_count",
   "max_units_in_single_inventory",
   "ordered_quantity",
@@ -79,9 +76,6 @@ const CORE_PRODUCT_FIELDS = new Set([
   "min_unit_sale_price",
   "max_unit_sale_price",
   "avg_unit_sale_price",
-  "min_standard_average_price",
-  "max_standard_average_price",
-  "avg_standard_average_price",
   "inventories",
   "price_lists_count",
   "price_lists",
@@ -134,9 +128,27 @@ function productKey(product: ProductCatalogItem) {
 }
 
 function productStatus(product: ProductCatalogItem) {
-  if ((product.is_discontinued ?? product.product_is_discontinued) === true) return { label: "Descontinuado", variant: "secondary" as const };
-  if ((product.is_catalog_verified ?? product.product_is_catalog_verified) === true) return { label: "Verificado", variant: "default" as const };
-  return { label: "Catalogo", variant: "outline" as const };
+  if (product.product_is_catalog_verified === true && product.product_is_discontinued === false) {
+    return {
+      label: "Activo",
+      variant: "default" as const,
+    };
+  } else if (product.product_is_catalog_verified === false && product.product_is_discontinued === true) {
+    return {
+      label: "Inactivo",
+      variant: "secondary" as const,
+    };
+  } else if (product.product_is_catalog_verified === true && product.product_is_discontinued === true) {
+    return {
+      label: "Activo",
+      variant: "default" as const,
+    };
+  } else {
+    return {
+      label: "Inactivo",
+      variant: "secondary" as const,
+    };
+  }
 }
 
 function normalizeInventories(product: ProductCatalogItem | null): ProductInventoryLocation[] {
@@ -156,28 +168,58 @@ function normalizeInventories(product: ProductCatalogItem | null): ProductInvent
 
 function normalizePriceLists(product: ProductCatalogItem | null): Record<string, unknown>[] {
   const value = product?.price_lists;
-  if (!value) return [];
-  if (Array.isArray(value)) return summarizePriceLists(value as Record<string, unknown>[]);
-  if (typeof value === "string") {
+  if (value == null) return [];
+
+  let items: Record<string, unknown>[] = [];
+  if (Array.isArray(value)) {
+    items = value as Record<string, unknown>[];
+  } else if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? summarizePriceLists(parsed as Record<string, unknown>[]) : [];
+      if (Array.isArray(parsed)) items = parsed as Record<string, unknown>[];
     } catch {
       return [];
     }
   }
-  return [];
+
+  if (items.length === 0) return [];
+
+  // Try known normalized key formats first
+  const normalized = summarizePriceLists(items);
+  if (normalized.length > 0) return normalized;
+
+  // Fallback: map SAP B1 raw format (PriceListNum / Price) directly
+  const fallback = items
+    .map((row) => {
+      const listId =
+        row.PriceListNum != null ? String(row.PriceListNum)
+          : row.PriceList != null ? String(row.PriceList)
+            : row.ListNum != null ? String(row.ListNum)
+              : null;
+      const price = row.Price ?? row.UnitPrice ?? null;
+      return listId != null ? { sap_price_list: listId, sap_price: price } : null;
+    })
+    .filter((x): x is { sap_price_list: string; sap_price: unknown } => x != null);
+
+  return fallback.length > 0
+    ? fallback.sort((a, b) => text(a.sap_price_list, "").localeCompare(text(b.sap_price_list, ""), "es-CO", { numeric: true }))
+    : items; // last resort: show raw items as-is
 }
 
 function summarizePriceLists(rows: Record<string, unknown>[]) {
   const seen = new Map<string, Record<string, unknown>>();
   rows.forEach((row) => {
-    const listId = text(row.sap_price_list ?? row.price_list_code ?? row.price_list, "");
+    const listId = text(
+      row.sap_price_list ?? row.price_list_code ?? row.price_list
+      ?? row.PriceListName
+      ?? (row.PriceListNum != null ? String(row.PriceListNum) : undefined),
+      ""
+    );
     if (!listId) return;
     if (!seen.has(listId)) {
       seen.set(listId, {
         sap_price_list: listId,
-        sap_price: row.sap_price ?? row.price ?? row.unit_price ?? null,
+        sap_price: row.sap_price ?? row.price ?? row.unit_price ?? row.Price ?? null,
       });
     }
   });
@@ -244,16 +286,15 @@ export default function Products() {
   const [filterOptions, setFilterOptions] = useState({ brands: [] as string[], categories: [] as string[] });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [sku, setSku] = useState("");
   const [brand, setBrand] = useState("all");
   const [category, setCategory] = useState("all");
   const [line, setLine] = useState("all");
   const [species, setSpecies] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [verification, setVerification] = useState("all");
+  const [showDiscontinued, setShowDiscontinued] = useState(false);
   const [inventoryStatus, setInventoryStatus] = useState("all");
-  const [sortOrder, setSortOrder] = useState("name_asc");
   const [minUnits, setMinUnits] = useState("");
   const [maxUnits, setMaxUnits] = useState("");
   const [selected, setSelected] = useState<ProductCatalogItem | null>(null);
@@ -269,16 +310,17 @@ export default function Products() {
     category: category === "all" ? undefined : category,
     line_name: line === "all" ? undefined : line,
     target_species: species === "all" ? undefined : species,
-    is_catalog_verified: verification === "verified" ? true : verification === "unverified" ? false : undefined,
-    is_discontinued: status === "active" ? false : status === "discontinued" ? true : undefined,
+    is_catalog_verified: showDiscontinued ? false : true,
+    is_discontinued: showDiscontinued ? undefined : false,
     has_inventory: inventoryStatus === "with_inventory" || inventoryStatus === "in_stock" ? true : inventoryStatus === "without_inventory" ? false : undefined,
     in_stock_only: inventoryStatus === "in_stock" ? true : undefined,
     min_units: optionalNumber(minUnits),
     max_units: optionalNumber(maxUnits),
-    ...productSortParams(sortOrder),
+    sort_by: "name",
+    sort_dir: "asc",
     limit: PAGE_SIZE,
     offset,
-  }), [brand, category, inventoryStatus, line, maxUnits, minUnits, search, sku, sortOrder, species, status, verification]);
+  }), [brand, category, inventoryStatus, line, maxUnits, minUnits, search, showDiscontinued, sku, species]);
 
   const fetchPage = useCallback(async (offset: number, mode: "reset" | "append") => {
     if (mode === "reset") {
@@ -359,41 +401,36 @@ export default function Products() {
   }, [fetchPage, hasMore, loadingInitial, loadingMore, products.length]);
 
   useEffect(() => {
-    const externalId = selected?.external_product_id;
     setExternalProduct(null);
     setExternalProductError(null);
     setImageLoadFailed(false);
 
-    if (!selected || !externalId) {
+    if (!selected) {
       setExternalProductLoading(false);
       return;
     }
 
-    const productId = Number(externalId);
-    if (!Number.isFinite(productId)) {
+    // Only fetch from Supabase if external_product_id exists — to get the image
+    const externalId = selected.external_product_id;
+    const productId = externalId != null ? Number(externalId) : NaN;
+    if (Number.isFinite(productId) && productId > 0) {
+      let cancelled = false;
+      setExternalProductLoading(true);
+      getSupabaseProduct(productId)
+        .then((product) => {
+          if (!cancelled) setExternalProduct(product);
+        })
+        .catch(() => {
+          // Image not found — show placeholder silently
+        })
+        .finally(() => {
+          if (!cancelled) setExternalProductLoading(false);
+        });
+      return () => { cancelled = true; };
+    } else {
+      // No external_product_id — open modal with list data only
       setExternalProductLoading(false);
-      setExternalProductError("ID externo invalido");
-      return;
     }
-
-    let cancelled = false;
-    setExternalProductLoading(true);
-    getSupabaseProduct(productId)
-      .then((product) => {
-        if (cancelled) return;
-        setExternalProduct(product);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setExternalProductError(formatApiErrorMessage(err));
-      })
-      .finally(() => {
-        if (!cancelled) setExternalProductLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, [selected]);
 
   const brands = filterOptions.brands;
@@ -403,40 +440,38 @@ export default function Products() {
   const lines = useMemo(() => uniqueValues(products, "product_line_name"), [products]);
   const speciesOptions = useMemo(() => uniqueValues(products, "product_target_species"), [products]);
   const visibleBrandCount = useMemo(() => uniqueValues(products, "product_brand_name").length, [products]);
-  const totalStock = products.reduce((sum, item) => sum + numberValue(item.total_units_available ?? item.units_available_in_stock), 0);
+  const totalStock = products.reduce((sum, item) => sum + numberValue(item.total_units_available), 0);
   const inventoryLocations = products.reduce((sum, item) => sum + numberValue(item.inventory_locations_count), 0);
-  const productsWithStock = products.filter((item) => numberValue(item.total_units_available ?? item.units_available_in_stock) > 0).length;
+  const productsWithStock = products.filter((item) => numberValue(item.total_units_available) > 0).length;
   const stockCoverage = products.length > 0 ? Math.round((productsWithStock / products.length) * 100) : 0;
   const averageLocations = products.length > 0 ? inventoryLocations / products.length : 0;
-  const selectedInventories = normalizeInventories(selected);
-  const selectedPriceLists = normalizePriceLists(selected);
+  const currentProduct = selected;
+  const selectedInventories = normalizeInventories(currentProduct);
+  const selectedPriceLists = normalizePriceLists(currentProduct);
   const externalImageUrl = resolveExternalProductImageUrl(externalProduct?.image_path);
-  const priceListColumns = selectedPriceLists.length > 0 ? ["sap_price_list", "sap_price"] : [];
-  const selectedStatus = selected ? productStatus(selected) : null;
-  const additionalFields = selected
-    ? Object.entries(selected).filter(([key, value]) => !CORE_PRODUCT_FIELDS.has(key) && value !== null && value !== undefined && value !== "")
+  const priceListColumns = selectedPriceLists.length > 0
+    ? Object.keys(selectedPriceLists[0]).filter((k) => selectedPriceLists[0][k] != null)
+    : [];
+  const selectedStatus = currentProduct ? productStatus(currentProduct) : null;
+  const additionalFields = currentProduct
+    ? Object.entries(currentProduct).filter(([key, value]) => !CORE_PRODUCT_FIELDS.has(key) && value !== null && value !== undefined && value !== "")
     : [];
   const advancedFilterCount = [
     sku.trim(),
     line !== "all",
     species !== "all",
-    status !== "all",
-    verification !== "all",
     inventoryStatus !== "all",
     minUnits,
     maxUnits,
   ].filter(Boolean).length;
   const activeFilters = [
-    search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => setSearch("") },
+    search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => { setSearch(""); setSearchInput(""); } },
     sku.trim() && { key: "sku", label: `SKU: ${sku.trim()}`, clear: () => setSku("") },
     brand !== "all" && { key: "brand", label: `Marca: ${brand}`, clear: () => setBrand("all") },
     category !== "all" && { key: "category", label: `Categoria: ${category}`, clear: () => setCategory("all") },
     line !== "all" && { key: "line", label: `Linea: ${line}`, clear: () => setLine("all") },
     species !== "all" && { key: "species", label: `Especie: ${species}`, clear: () => setSpecies("all") },
-    status === "active" && { key: "status", label: "Estado: Activos", clear: () => setStatus("all") },
-    status === "discontinued" && { key: "status", label: "Estado: Descontinuados", clear: () => setStatus("all") },
-    verification === "verified" && { key: "verification", label: "Catalogo: Verificados", clear: () => setVerification("all") },
-    verification === "unverified" && { key: "verification", label: "Catalogo: Sin verificar", clear: () => setVerification("all") },
+    showDiscontinued && { key: "discontinued", label: "Inactivos", clear: () => setShowDiscontinued(false) },
     inventoryStatus === "in_stock" && { key: "inventoryStatus", label: "Inventario: Con stock", clear: () => setInventoryStatus("all") },
     inventoryStatus === "with_inventory" && { key: "inventoryStatus", label: "Inventario: Con bodegas", clear: () => setInventoryStatus("all") },
     inventoryStatus === "without_inventory" && { key: "inventoryStatus", label: "Inventario: Sin bodegas", clear: () => setInventoryStatus("all") },
@@ -444,15 +479,17 @@ export default function Products() {
     maxUnits && { key: "maxUnits", label: `Disponible <= ${maxUnits}`, clear: () => setMaxUnits("") },
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
 
+  const commitSearch = () => setSearch(searchInput.trim());
+
   const clearFilters = () => {
+    setSearchInput("");
     setSearch("");
     setSku("");
     setBrand("all");
     setCategory("all");
     setLine("all");
     setSpecies("all");
-    setStatus("all");
-    setVerification("all");
+    setShowDiscontinued(false);
     setInventoryStatus("all");
     setMinUnits("");
     setMaxUnits("");
@@ -461,11 +498,11 @@ export default function Products() {
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!error}>
-      <PageHeader
-        icon={Package}
-        title="Catalogo de Productos"
-        description="Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales."
-      />
+        <PageHeader
+          icon={Package}
+          title="Catalogo de Productos"
+          description="Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales."
+        />
       </ErrorDisabledContent>
 
       {error && (
@@ -473,404 +510,493 @@ export default function Products() {
       )}
 
       <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "..." : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
-        <KpiCard title="Con stock disponible" value={`${stockCoverage}%`} note={`${formatCount(productsWithStock)} SKUs con unidades`} icon={Boxes} loading={loadingInitial} />
-        <KpiCard title="Bodegas con inventario" value={formatCount(inventoryLocations)} note={`${averageLocations.toLocaleString("es-CO", { maximumFractionDigits: 1 })} bodegas por SKU visible`} icon={Layers3} loading={loadingInitial} />
-        <KpiCard title="Marcas visibles" value={formatCount(visibleBrandCount)} note="Segun filtros actuales" icon={Tags} loading={loadingInitial} />
-      </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "..." : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
+          <KpiCard title="Con stock disponible" value={`${stockCoverage}%`} note={`${formatCount(productsWithStock)} SKUs con unidades`} icon={Boxes} loading={loadingInitial} />
+          <KpiCard title="Bodegas con inventario" value={formatCount(inventoryLocations)} note={`${averageLocations.toLocaleString("es-CO", { maximumFractionDigits: 1 })} bodegas por SKU visible`} icon={Layers3} loading={loadingInitial} />
+          <KpiCard title="Marcas visibles" value={formatCount(visibleBrandCount)} note="Segun filtros actuales" icon={Tags} loading={loadingInitial} />
+        </div>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="space-y-4 p-4 sm:p-6">
-          <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_220px_220px_auto]">
-            <div className="relative min-w-0">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} disabled={loadingInitial} placeholder="Buscar SKU, producto, marca, categoria o bodega" className="h-10 pl-9" />
-            </div>
-            <SearchableSelect
-              value={brand}
-              onValueChange={setBrand}
-              options={brandOptions}
-              allLabel="Todas las marcas"
-              searchPlaceholder="Buscar marca..."
-              emptyLabel="No hay marcas"
-              disabled={loadingInitial}
-            />
-            <SearchableSelect
-              value={category}
-              onValueChange={setCategory}
-              options={categoryOptions}
-              allLabel="Todas las categorias"
-              searchPlaceholder="Buscar categoria..."
-              emptyLabel="No hay categorias"
-              disabled={loadingInitial}
-            />
-            <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
-              <SelectTrigger className="h-10 w-full">
-                <ArrowUpAZ className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name_asc">Ordenar por nombre A-Z</SelectItem>
-                <SelectItem value="name_desc">Ordenar por nombre Z-A</SelectItem>
-                <SelectItem value="available_desc">Ordenar por disponible mayor</SelectItem>
-                <SelectItem value="available_asc">Ordenar por disponible menor</SelectItem>
-              </SelectContent>
-            </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant={advancedFilterCount > 0 ? "default" : "outline"} className="h-10 w-full gap-2 xl:w-auto" disabled={loadingInitial}>
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Filtros
-                  {advancedFilterCount > 0 && <span className="rounded bg-background/20 px-1.5 text-xs">{advancedFilterCount}</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="max-h-[min(78svh,680px)] w-[calc(100vw-1.5rem)] overflow-y-auto p-0 sm:w-[min(94vw,880px)]">
-                <div className="border-b p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold">Filtros avanzados</p>
-                      <p className="text-sm text-muted-foreground">Todos estos filtros consultan campos reales del catalogo e inventario agregado.</p>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                      <X className="h-4 w-4" /> Limpiar todo
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-5 p-4">
-                  <ProductFilterSection icon={Package} title="Catalogo">
-                    <ProductFilterField label="SKU">
-                      <Input value={sku} onChange={(event) => setSku(event.target.value)} disabled={loadingInitial} placeholder="Ej: 015Au" />
-                    </ProductFilterField>
-                    <ProductFilterField label="Linea">
-                      <Select value={line} onValueChange={setLine} disabled={loadingInitial}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">Todas las lineas</SelectItem>{lines.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </ProductFilterField>
-                    <ProductFilterField label="Especie">
-                      <Select value={species} onValueChange={setSpecies} disabled={loadingInitial}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">Todas las especies</SelectItem>{speciesOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </ProductFilterField>
-                    <ProductFilterField label="Verificacion">
-                      <Select value={verification} onValueChange={setVerification} disabled={loadingInitial}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="verified">Verificados</SelectItem>
-                          <SelectItem value="unverified">Sin verificar</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </ProductFilterField>
-                  </ProductFilterSection>
-
-                  <Separator />
-
-                  <ProductFilterSection icon={Boxes} title="Inventario">
-                    <ProductFilterField label="Estado de inventario">
-                      <Select value={inventoryStatus} onValueChange={setInventoryStatus} disabled={loadingInitial}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="in_stock">Con stock disponible</SelectItem>
-                          <SelectItem value="with_inventory">Con bodegas</SelectItem>
-                          <SelectItem value="without_inventory">Sin bodegas</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </ProductFilterField>
-                    <ProductRangeFilter label="Disponible agregado" min={minUnits} max={maxUnits} onMinChange={setMinUnits} onMaxChange={setMaxUnits} minPlaceholder="Min. unidades" maxPlaceholder="Max. unidades" />
-                  </ProductFilterSection>
-
-                  <Separator />
-
-                  <ProductFilterSection icon={BadgeCheck} title="Estado">
-                    <ProductFilterField label="Ciclo de vida">
-                      <Select value={status} onValueChange={setStatus} disabled={loadingInitial}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="active">Activos</SelectItem>
-                          <SelectItem value="discontinued">Descontinuados</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </ProductFilterField>
-                  </ProductFilterSection>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant={inventoryStatus === "in_stock" ? "default" : "outline"} onClick={() => setInventoryStatus(inventoryStatus === "in_stock" ? "all" : "in_stock")} disabled={loadingInitial} className="h-8">Con stock</Button>
-            <Button type="button" size="sm" variant={verification === "verified" ? "default" : "outline"} onClick={() => setVerification(verification === "verified" ? "all" : "verified")} disabled={loadingInitial} className="h-8">Verificados</Button>
-            <Button type="button" size="sm" variant={status === "active" ? "default" : "outline"} onClick={() => setStatus(status === "active" ? "all" : "active")} disabled={loadingInitial} className="h-8">Activos</Button>
-            <Button type="button" size="sm" variant={status === "discontinued" ? "default" : "outline"} onClick={() => setStatus(status === "discontinued" ? "all" : "discontinued")} disabled={loadingInitial} className="h-8">Descontinuados</Button>
-          </div>
-
-          {activeFilters.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {activeFilters.map((filter) => (
-                <Badge key={filter.key} variant="secondary" className="gap-1 pr-1">
-                  {filter.label}
-                  <button type="button" onClick={filter.clear} disabled={loadingInitial} className="ml-1 rounded-sm p-0.5 hover:bg-background/70 disabled:pointer-events-none disabled:opacity-50" aria-label={`Quitar ${filter.label}`}>
-                    <X className="h-3 w-3" />
+        <Card className="overflow-hidden">
+          <CardHeader className="space-y-4 p-4 sm:p-6">
+            <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_220px_auto]">
+              <div className="relative min-w-0">
+                <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
+                  <Search className="h-4 w-4" />
+                </button>
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} disabled={loadingInitial} placeholder="Buscar SKU, producto, marca, categoria o bodega" className="h-10 pl-9 pr-9" />
+                {search && (
+                  <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
+                    <X className="h-4 w-4" />
                   </button>
-                </Badge>
-              ))}
-              <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="h-6 px-2 text-xs">
-                <X className="mr-1 h-3 w-3" /> Limpiar
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-2 p-4 pt-0 sm:p-6 sm:pt-0">
-          {loadingInitial ? (
-            <div className="space-y-3">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-12 animate-pulse rounded bg-muted" />)}</div>
-          ) : products.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">No hay productos para los filtros seleccionados</div>
-          ) : (
-            <>
-              <div className="space-y-3 md:hidden">
-                {products.map((product) => {
-                  const statusInfo = productStatus(product);
-                  return (
-                    <div key={product.product_sku} className="rounded-md border bg-card p-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{text(product.product_commercial_name, "Producto sin nombre")}</p>
-                        <p className="mt-1 truncate text-sm text-muted-foreground">SKU: {product.product_sku}</p>
+                )}
+              </div>
+              <SearchableSelect
+                value={brand}
+                onValueChange={setBrand}
+                options={brandOptions}
+                allLabel="Todas las marcas"
+                searchPlaceholder="Buscar marca..."
+                emptyLabel="No hay marcas"
+                disabled={loadingInitial}
+              />
+              <SearchableSelect
+                value={category}
+                onValueChange={setCategory}
+                options={categoryOptions}
+                allLabel="Todas las categorias"
+                searchPlaceholder="Buscar categoria..."
+                emptyLabel="No hay categorias"
+                disabled={loadingInitial}
+              />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={advancedFilterCount > 0 ? "default" : "outline"} className="h-10 w-full gap-2 xl:w-auto" disabled={loadingInitial}>
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Filtros
+                    {advancedFilterCount > 0 && <span className="rounded bg-background/20 px-1.5 text-xs">{advancedFilterCount}</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="max-h-[min(78svh,680px)] w-[calc(100vw-1.5rem)] overflow-y-auto p-0 sm:w-[min(94vw,880px)]">
+                  <div className="border-b p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold">Filtros avanzados</p>
+                        <p className="text-sm text-muted-foreground">Todos estos filtros consultan campos reales del catalogo e inventario agregado.</p>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                        {product.product_category && <Badge variant="outline">{text(product.product_category)}</Badge>}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                        <div><p className="text-xs text-muted-foreground">Marca</p><p className="truncate font-medium">{text(product.product_brand_name)}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Disponible</p><p className="font-semibold">{formatCount(numberValue(product.total_units_available ?? product.units_available_in_stock))}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Bodegas</p><p className="font-semibold">{formatCount(numberValue(product.inventory_locations_count))}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Pedido</p><p className="font-semibold">{formatCount(numberValue(product.ordered_quantity))}</p></div>
-                      </div>
-                      <Button variant="outline" className="mt-3 w-full gap-2" onClick={() => setSelected(product)} disabled={loadingInitial}>
-                        <Eye className="h-4 w-4" /> Ver detalle
+                      <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
+                        <X className="h-4 w-4" /> Limpiar todo
                       </Button>
                     </div>
-                  );
-                })}
-              </div>
-              <div className="hidden md:block">
-                <Table className="min-w-[960px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Marca</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Disponible</TableHead>
-                      <TableHead>Bodegas</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((product) => {
-                      const statusInfo = productStatus(product);
-                      return (
-                        <TableRow key={product.product_sku}>
-                          <TableCell className="max-w-[340px]">
-                            <p className="truncate font-medium">{text(product.product_commercial_name, "Producto sin nombre")}</p>
-                            <p className="truncate text-xs text-muted-foreground">SKU: {product.product_sku}</p>
-                          </TableCell>
-                          <TableCell>{text(product.product_brand_name)}</TableCell>
-                          <TableCell>{text(product.product_category)}</TableCell>
-                          <TableCell className="text-center font-mono">{formatCount(numberValue(product.total_units_available ?? product.units_available_in_stock))}</TableCell>
-                          <TableCell className="text-center">{formatCount(numberValue(product.inventory_locations_count))}</TableCell>
-                          <TableCell className="text-center"><Badge variant={statusInfo.variant}>{statusInfo.label}</Badge></TableCell>
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelected(product)} disabled={loadingInitial} title="Ver detalle">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
+                  </div>
 
-          <div ref={sentinelRef} className="h-px" aria-hidden="true" />
-          {loadingMore && (
-            <div className="flex items-center justify-center gap-2 py-2 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="font-medium text-foreground">Cargando siguiente lote...</span>
+                  <div className="space-y-5 p-4">
+                    <ProductFilterSection icon={Package} title="Catalogo">
+                      <ProductFilterField label="SKU">
+                        <Input value={sku} onChange={(event) => setSku(event.target.value)} disabled={loadingInitial} placeholder="Ej: 015Au" />
+                      </ProductFilterField>
+                      <ProductFilterField label="Linea">
+                        <Select value={line} onValueChange={setLine} disabled={loadingInitial}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="all">Todas las lineas</SelectItem>{lines.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </ProductFilterField>
+                      <ProductFilterField label="Especie">
+                        <Select value={species} onValueChange={setSpecies} disabled={loadingInitial}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="all">Todas las especies</SelectItem>{speciesOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </ProductFilterField>
+
+                    </ProductFilterSection>
+
+                    <Separator />
+
+                    <ProductFilterSection icon={Boxes} title="Inventario">
+                      <ProductFilterField label="Estado de inventario">
+                        <Select value={inventoryStatus} onValueChange={setInventoryStatus} disabled={loadingInitial}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="in_stock">Con stock disponible</SelectItem>
+                            <SelectItem value="with_inventory">Con bodegas</SelectItem>
+                            <SelectItem value="without_inventory">Sin bodegas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </ProductFilterField>
+                      <ProductRangeFilter label="Disponible agregado" min={minUnits} max={maxUnits} onMinChange={setMinUnits} onMaxChange={setMaxUnits} minPlaceholder="Min. unidades" maxPlaceholder="Max. unidades" />
+                    </ProductFilterSection>
+
+
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
-          {selected && (
-            <>
-              <div className="bg-background px-4 pb-4 pt-5 sm:px-6">
-                <SheetHeader className="text-left">
-                  <div className="pr-8">
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
-                        {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
-                        {selected.product_category && <Badge variant="secondary">{text(selected.product_category)}</Badge>}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant={inventoryStatus === "in_stock" ? "default" : "outline"} onClick={() => setInventoryStatus(inventoryStatus === "in_stock" ? "all" : "in_stock")} disabled={loadingInitial} className="h-8">Con stock</Button>
+              <Button type="button" size="sm" variant={showDiscontinued ? "default" : "outline"} onClick={() => setShowDiscontinued(!showDiscontinued)} disabled={loadingInitial} className="h-8">Inactivos</Button>
+            </div>
+
+            {activeFilters.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
+                {activeFilters.map((filter) => (
+                  <button key={filter.key} type="button" onClick={filter.clear} disabled={loadingInitial} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                    <span className="truncate">{filter.label}</span>
+                    <X className="h-3 w-3 shrink-0" />
+                  </button>
+                ))}
+                <button type="button" onClick={clearFilters} disabled={loadingInitial} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" /> Limpiar
+                </button>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-2 p-4 pt-0 sm:p-6 sm:pt-0">
+            {loadingInitial ? (
+              <div className="space-y-3">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-12 animate-pulse rounded bg-muted" />)}</div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  {activeFilters.length > 0 ? "No se encontraron productos con los filtros aplicados" : "No hay productos registrados"}
+                </p>
+                {activeFilters.length > 0 && (
+                  <Button className="mt-4" variant="outline" onClick={clearFilters} disabled={loadingInitial}><X className="h-4 w-4 mr-2" />Limpiar filtros</Button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3 md:hidden">
+                  {products.map((product) => {
+                    const statusInfo = productStatus(product);
+                    return (
+                      <div key={product.product_sku} className="rounded-md border bg-card p-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{text(product.product_commercial_name, "Producto sin nombre")}</p>
+                          <p className="mt-1 truncate text-sm text-muted-foreground">SKU: {product.product_sku}</p>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                          {product.product_category && <Badge variant="outline">{text(product.product_category)}</Badge>}
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                          <div><p className="text-xs text-muted-foreground">Marca</p><p className="truncate font-medium">{text(product.product_brand_name)}</p></div>
+                          <div><p className="text-xs text-muted-foreground">Disponible</p><p className="font-semibold">{formatCount(numberValue(product.total_units_available))}</p></div>
+                          <div><p className="text-xs text-muted-foreground">Bodegas</p><p className="font-semibold">{formatCount(numberValue(product.inventory_locations_count))}</p></div>
+                          <div><p className="text-xs text-muted-foreground">Pedido</p><p className="font-semibold">{formatCount(numberValue(product.ordered_quantity))}</p></div>
+                        </div>
+                        <Button variant="outline" className="mt-3 w-full gap-2" onClick={() => setSelected(product)} disabled={loadingInitial}>
+                          <Eye className="h-4 w-4" /> Ver detalle
+                        </Button>
                       </div>
-                      <div className="min-w-0">
-                        <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
-                        <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                          <span className="font-mono font-medium text-foreground">SKU {selected.product_sku}</span>
-                          <span className="hidden text-muted-foreground sm:inline">/</span>
-                          <span>{text(selected.product_brand_name, "Marca no registrada")}</span>
-                        </SheetDescription>
+                    );
+                  })}
+                </div>
+                <div className="hidden md:block">
+                  <Table className="min-w-[960px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Marca</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Disponible</TableHead>
+                        <TableHead>Bodegas</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {products.map((product) => {
+                        const statusInfo = productStatus(product);
+                        return (
+                          <TableRow key={product.product_sku}>
+                            <TableCell className="max-w-[340px]">
+                              <p className="truncate font-medium">{text(product.product_commercial_name, "Producto sin nombre")}</p>
+                              <p className="truncate text-xs text-muted-foreground">SKU: {product.product_sku}</p>
+                            </TableCell>
+                            <TableCell>{text(product.product_brand_name)}</TableCell>
+                            <TableCell>{text(product.product_category)}</TableCell>
+                            <TableCell className="text-center font-mono">{formatCount(numberValue(product.total_units_available))}</TableCell>
+                            <TableCell className="text-center">{formatCount(numberValue(product.inventory_locations_count))}</TableCell>
+                            <TableCell className="text-center"><Badge variant={statusInfo.variant}>{statusInfo.label}</Badge></TableCell>
+                            <TableCell className="text-center">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelected(product)} disabled={loadingInitial} title="Ver detalle">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+
+            <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+            {loadingMore && (
+              <div className="flex items-center justify-center gap-2 py-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-medium text-foreground">Cargando siguiente lote...</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
+            {selected && (
+              <>
+                <div className="bg-background px-4 pb-4 pt-5 sm:px-6">
+                  <SheetHeader className="text-left">
+                    <div className="pr-8">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
+                          {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
+                          {selected.product_category && <Badge variant="secondary">{text(selected.product_category)}</Badge>}
+                        </div>
+                        <div className="min-w-0">
+                          <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
+                          <SheetDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                            <span className="font-mono font-medium text-foreground">SKU {selected.product_sku}</span>
+                            <span className="hidden text-muted-foreground sm:inline">/</span>
+                            <span>{text(selected.product_brand_name, "Marca no registrada")}</span>
+                          </SheetDescription>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </SheetHeader>
-              </div>
-
-              <div className="space-y-5 px-4 py-4 sm:px-6">
-                <ProductExternalMedia
-                  catalogProduct={selected}
-                  externalProduct={externalProduct}
-                  imageUrl={externalImageUrl}
-                  loading={externalProductLoading}
-                  error={externalProductError}
-                  imageLoadFailed={imageLoadFailed}
-                  onImageError={() => setImageLoadFailed(true)}
-                />
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <ProfileMetric label="Disponible" value={formatCount(numberValue(selected.total_units_available ?? selected.units_available_in_stock))} />
-                  <ProfileMetric label="Bodegas" value={formatCount(numberValue(selected.inventory_locations_count))} />
-                  <ProfileMetric label="Comprometido" value={formatCount(numberValue(selected.committed_quantity))} />
-                  <ProfileMetric label="Listas precio" value={formatCount(numberValue(selected.price_lists_count ?? selectedPriceLists.length))} />
+                  </SheetHeader>
                 </div>
 
-                <Tabs defaultValue="summary">
-                  <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/70 p-1">
-                    <TabsTrigger value="summary" className="h-10">Resumen</TabsTrigger>
-                    <TabsTrigger value="inventories" className="h-10">Inventarios</TabsTrigger>
-                    <TabsTrigger value="prices" className="h-10">Precios SAP</TabsTrigger>
-                    <TabsTrigger value="details" className="h-10">Datos adicionales</TabsTrigger>
-                  </TabsList>
+                <div className="space-y-5 px-4 py-4 sm:px-6">
+                  <ProductExternalMedia
+                    catalogProduct={selected}
+                    externalProduct={externalProduct}
+                    imageUrl={externalImageUrl}
+                    loading={externalProductLoading}
+                    error={externalProductError}
+                    imageLoadFailed={imageLoadFailed}
+                    onImageError={() => setImageLoadFailed(true)}
+                  />
 
-                  <TabsContent value="summary" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
-                    <div className="grid items-stretch gap-3 lg:grid-cols-2">
-                      <InfoPanel
-                        icon={Package}
-                        title="Descripcion"
-                        rows={[
-                          ["Descripcion tecnica", selected.product_technical_description],
-                          ["Frecuencia recomendada", selected.product_recommended_application_frequency],
-                          ["SKUs sustitutos", selected.product_substitute_skus],
-                        ]}
-                      />
-                      <InfoPanel
-                        icon={Tags}
-                        title="Clasificacion"
-                        rows={[
-                          ["Marca", selected.product_brand_name],
-                          ["Categoria", selected.product_category],
-                          ["Linea", selected.product_line_name],
-                          ["Especie", selected.product_target_species ?? selected.product_target_animal_species],
-                          ["Sector", selected.product_industry_sector],
-                          ["Unidad", selected.product_unit_of_measurement],
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <InfoPanel icon={Boxes} title="Inventario agregado" rows={[
-                        ["Disponible", selected.total_units_available ?? selected.units_available_in_stock],
-                        ["Pedido", selected.ordered_quantity],
-                        ["Comprometido", selected.committed_quantity],
-                        ["Stock minimo", selected.minimal_stock],
-                        ["Stock maximo", selected.maximal_stock],
-                        ["Costo promedio", money(selected.avg_standard_average_price ?? selected.avg_unit_sale_price)],
-                      ]} />
-                    </div>
-                  </TabsContent>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <ProfileMetric label="Disponible" value={formatCount(numberValue(currentProduct.total_units_available))} />
+                    <ProfileMetric label="Bodegas" value={formatCount(numberValue(currentProduct.inventory_locations_count))} />
+                    <ProfileMetric label="Comprometido" value={formatCount(numberValue(currentProduct.committed_quantity))} />
+                    <ProfileMetric label="Listas precio" value={formatCount(numberValue(currentProduct.price_lists_count ?? selectedPriceLists.length))} />
+                  </div>
 
-                  <TabsContent value="inventories" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
-                    {selectedInventories.length === 0 ? (
-                      <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene inventarios registrados.</div>
-                    ) : (
-                      <div className="overflow-hidden rounded-md border">
-                        <div className="grid grid-cols-[minmax(5.75rem,1fr)_4rem_4rem_4.75rem_4.5rem_5.75rem] bg-muted/60 px-2 py-2.5 text-xs font-semibold text-muted-foreground sm:px-3">
-                          <span>Bodega</span>
-                          <span className="text-right">Disp.</span>
-                          <span className="text-right">Pedido</span>
-                          <span className="text-right">Comprom.</span>
-                          <span className="text-right">Min/Max</span>
-                          <span className="text-right">Costo</span>
+                  <Tabs defaultValue="summary">
+                    <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/70 p-1">
+                      <TabsTrigger value="summary" className="h-10">Resumen</TabsTrigger>
+                      <TabsTrigger value="inventories" className="h-10">Inventarios</TabsTrigger>
+                      <TabsTrigger value="prices" className="h-10">Precios SAP</TabsTrigger>
+                      <TabsTrigger value="details" className="h-10">Datos adicionales</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="summary" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
+                      {/* Clasificacion */}
+                      <div className="rounded-md border bg-card p-4 shadow-sm">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Tags className="h-4 w-4 text-primary" />
+                          <p className="font-semibold">Clasificacion</p>
                         </div>
-                        {selectedInventories.map((inventory, index) => (
-                          <div key={`${inventory.inventory_id ?? index}`} className="grid grid-cols-[minmax(5.75rem,1fr)_4rem_4rem_4.75rem_4.5rem_5.75rem] items-center border-t px-2 py-2.5 text-sm sm:px-3">
-                            <span className="min-w-0 truncate pr-2 font-mono text-xs" title={inventory.warehouse_code ?? "N/A"}>{inventory.warehouse_code ?? "N/A"}</span>
-                            <span className="text-right font-semibold">{formatCount(numberValue(inventory.in_stock))}</span>
-                            <span className="text-right">{formatCount(numberValue(inventory.ordered_quantity))}</span>
-                            <span className="text-right">{formatCount(numberValue(inventory.committed_quantity))}</span>
-                            <span className="text-right text-xs">{formatCount(numberValue(inventory.minimal_stock))} / {formatCount(numberValue(inventory.maximal_stock))}</span>
-                            <span className="truncate text-right text-xs font-medium" title={money(inventory.standard_average_price)}>{money(inventory.standard_average_price)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="prices" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
-                    {selectedPriceLists.length === 0 || priceListColumns.length === 0 ? (
-                      <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene listas de precio SAP registradas.</div>
-                    ) : (
-                      <div className="overflow-hidden rounded-md border">
-                        <div className="flex items-center justify-between gap-4 bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
-                          <span>Lista SAP</span>
-                          <span>Precio SAP</span>
+                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                          {(
+                            [
+                              ["Marca", currentProduct.product_brand_name],
+                              ["Categoria", currentProduct.product_category],
+                              ["Linea", currentProduct.product_line_name],
+                              ["Especie", currentProduct.product_target_species ?? currentProduct.product_target_animal_species],
+                              ["Sector", currentProduct.product_industry_sector],
+                              ["Unidad", currentProduct.product_unit_of_measurement],
+                            ] as [string, unknown][]
+                          ).filter(([, v]) => v != null && v !== "").map(([label, value]) => (
+                            <ProductFact key={label} label={label} value={value} />
+                          ))}
                         </div>
-                        {selectedPriceLists.map((row, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between gap-4 border-t px-3 py-3 text-sm"
-                          >
-                            <span className="min-w-0 truncate font-medium" title={formatField(row.sap_price_list)}>
-                              {formatField(row.sap_price_list)}
-                            </span>
-                            <span className="shrink-0 text-right font-mono font-semibold" title={formatField(row.sap_price)}>
-                              {formatField(row.sap_price)}
-                            </span>
-                          </div>
-                        ))}
                       </div>
-                    )}
-                  </TabsContent>
 
-                  <TabsContent value="details" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
-                    {additionalFields.length === 0 ? (
-                      <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">No hay campos adicionales con informacion para este producto.</div>
-                    ) : (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {additionalFields.map(([key, value]) => (
-                          <div key={key} className="rounded-md border bg-card p-3 shadow-sm">
-                            <p className="text-xs text-muted-foreground">{labelFor(key)}</p>
-                            <p className="break-words text-sm font-medium">{formatField(value)}</p>
+                      {/* Descripcion — solo si hay datos */}
+                      {[currentProduct.product_technical_description, currentProduct.product_recommended_application_frequency, currentProduct.product_substitute_skus].some(Boolean) && (
+                        <div className="rounded-md border bg-card p-4 shadow-sm">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            <p className="font-semibold">Descripcion</p>
                           </div>
-                        ))}
+                          <div className="space-y-3 text-sm">
+                            {currentProduct.product_technical_description && (
+                              <div>
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Descripcion tecnica</p>
+                                <p className="mt-1 leading-relaxed text-foreground">{text(currentProduct.product_technical_description)}</p>
+                              </div>
+                            )}
+                            {currentProduct.product_recommended_application_frequency && (
+                              <div>
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Frecuencia recomendada</p>
+                                <p className="mt-1 leading-relaxed text-foreground">{text(currentProduct.product_recommended_application_frequency)}</p>
+                              </div>
+                            )}
+                            {currentProduct.product_substitute_skus && (
+                              <div>
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">SKUs sustitutos</p>
+                                <p className="mt-1 font-mono text-xs text-foreground">{text(currentProduct.product_substitute_skus)}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Inventario agregado — números destacados */}
+                      <div className="rounded-md border bg-card p-4 shadow-sm">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Boxes className="h-4 w-4 text-primary" />
+                          <p className="font-semibold">Inventario agregado</p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {(
+                            [
+                              ["Disponible", formatCount(numberValue(currentProduct.total_units_available))],
+                              ["Pedido", formatCount(numberValue(currentProduct.ordered_quantity))],
+                              ["Comprometido", formatCount(numberValue(currentProduct.committed_quantity))],
+                              ["Stock minimo", formatCount(numberValue(currentProduct.minimal_stock))],
+                              ["Stock maximo", formatCount(numberValue(currentProduct.maximal_stock))],
+                              ["Costo promedio", money(currentProduct.avg_unit_sale_price)],
+                            ] as [string, string][]
+                          ).map(([label, value]) => (
+                            <div key={label} className="rounded-md bg-muted/35 px-3 py-2.5">
+                              <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+                              <p className="mt-1 text-base font-bold tabular-nums text-foreground">{value}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+                    </TabsContent>
+
+                    <TabsContent value="inventories" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
+                      {selectedInventories.length === 0 ? (
+                        <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene inventarios registrados.</div>
+                      ) : (
+                        <div className="overflow-hidden rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/60 hover:bg-muted/60">
+                                <TableHead className="h-9 text-xs">Bodega</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Disponible</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Pedido</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Comprometido</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Min / Max</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Costo promedio</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedInventories.map((inventory, index) => {
+                                const inStock = numberValue(inventory.in_stock);
+                                return (
+                                  <TableRow
+                                    key={inventory.inventory_id ?? index}
+                                    className={cn(inStock > 0 && "bg-green-50/50 dark:bg-green-950/20")}
+                                  >
+                                    <TableCell className="py-2.5">
+                                      <span className="font-mono text-xs" title={inventory.warehouse_code ?? "N/A"}>
+                                        {inventory.warehouse_code ?? "N/A"}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right tabular-nums">
+                                      <span className={cn(inStock > 0 ? "text-green-700 dark:text-green-400" : "text-muted-foreground")}>
+                                        {formatCount(inStock)}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right tabular-nums text-muted-foreground">
+                                      {formatCount(numberValue(inventory.ordered_quantity))}
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right tabular-nums text-muted-foreground">
+                                      {formatCount(numberValue(inventory.committed_quantity))}
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right text-xs tabular-nums text-muted-foreground">
+                                      {formatCount(numberValue(inventory.minimal_stock))} / {formatCount(numberValue(inventory.maximal_stock))}
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right text-xs tabular-nums text-muted-foreground">
+                                      {money(inventory.standard_average_price)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                          {selectedInventories.length > 1 && (() => {
+                            const totalStock = selectedInventories.reduce((s, i) => s + numberValue(i.in_stock), 0);
+                            return (
+                              <div className="flex items-center justify-between border-t bg-muted/40 px-3 py-2 text-xs text-primary">
+                                <span>{selectedInventories.length} bodegas</span>
+                                <span className={cn("tabular-nums", totalStock > 0 ? "text-green-700 dark:text-green-400" : "")}>
+                                  {formatCount(totalStock)} unidades disponibles
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="prices" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
+                      {selectedPriceLists.length === 0 || priceListColumns.length === 0 ? (
+                        <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Este producto no tiene listas de precio SAP registradas.</div>
+                      ) : (
+                        <div className="overflow-hidden rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/60 hover:bg-muted/60">
+                                <TableHead className="h-9 text-xs">Lista SAP</TableHead>
+                                <TableHead className="h-9 text-right text-xs">Precio</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedPriceLists.map((row, index) => {
+                                const price = numberValue(row.sap_price);
+                                return (
+                                  <TableRow key={index}>
+                                    <TableCell className="py-2.5">
+                                      <Badge variant="outline" className="font-mono text-xs font-normal">
+                                        Lista {formatField(row.sap_price_list)}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="py-2.5 text-right">
+                                      {price > 0 ? (
+                                        <span className="font-mono tabular-nums">{money(price)}</span>
+                                      ) : (
+                                        <span className="text-muted-foreground">N/A</span>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                          {(() => {
+                            const prices = selectedPriceLists.map((r) => numberValue(r.sap_price)).filter((p) => p > 0);
+                            const min = prices.length > 0 ? Math.min(...prices) : 0;
+                            const max = prices.length > 0 ? Math.max(...prices) : 0;
+                            return (
+                              <div className="flex items-center justify-between border-t bg-muted/40 px-3 py-2 text-xs text-primary">
+                                <span>{selectedPriceLists.length} listas de precio</span>
+                                {prices.length > 0 && (
+                                  <span>
+                                    Rango:{" "}
+                                    <span>{money(min)}</span>
+                                    {min !== max && <> — <span>{money(max)}</span></>}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="details" className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0">
+                      {additionalFields.length === 0 ? (
+                        <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">No hay campos adicionales con informacion para este producto.</div>
+                      ) : (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {additionalFields.map(([key, value]) => (
+                            <div key={key} className="rounded-md border bg-card p-3 shadow-sm">
+                              <p className="text-xs text-muted-foreground">{labelFor(key)}</p>
+                              <p className="break-words text-sm font-medium">{formatField(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </>
+            )}
+          </SheetContent>
+        </Sheet>
       </ErrorDisabledContent>
     </div>
   );

@@ -300,6 +300,8 @@ export interface CustomerParams {
   max_average_ticket?: number;
   min_days_since_last_purchase?: number;
   max_days_since_last_purchase?: number;
+  customer_is_valid?: boolean;
+  customer_is_frozen?: boolean;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   limit?: number;
@@ -441,6 +443,8 @@ export async function getCustomersPage(params: CustomerParams = {}): Promise<Api
   if (params.max_average_ticket !== undefined) qs.set("max_average_ticket", String(params.max_average_ticket));
   if (params.min_days_since_last_purchase !== undefined) qs.set("min_days_since_last_purchase", String(params.min_days_since_last_purchase));
   if (params.max_days_since_last_purchase !== undefined) qs.set("max_days_since_last_purchase", String(params.max_days_since_last_purchase));
+  if (params.customer_is_valid !== undefined) qs.set("customer_is_valid", String(params.customer_is_valid));
+  if (params.customer_is_frozen !== undefined) qs.set("customer_is_frozen", String(params.customer_is_frozen));
   if (params.sort_by) qs.set("sort_by", params.sort_by);
   if (params.sort_dir) qs.set("sort_dir", params.sort_dir);
   qs.set("limit",  String(params.limit  ?? 100));
@@ -597,13 +601,10 @@ export interface ProductCatalogItem {
   product_substitute_skus?: unknown;
   product_recommended_application_frequency?: string | null;
   metadata?: unknown;
-  is_catalog_verified?: boolean | null;
-  is_discontinued?: boolean | null;
   product_is_catalog_verified?: boolean | null;
   product_is_discontinued?: boolean | null;
   inventory_id?: number | null;
   distributor_id?: number | null;
-  units_available_in_stock?: number | null;
   total_units_available?: number | null;
   inventory_locations_count?: number | null;
   max_units_in_single_inventory?: number | null;
@@ -614,9 +615,6 @@ export interface ProductCatalogItem {
   min_unit_sale_price?: number | null;
   max_unit_sale_price?: number | null;
   avg_unit_sale_price?: number | null;
-  min_standard_average_price?: number | null;
-  max_standard_average_price?: number | null;
-  avg_standard_average_price?: number | null;
   inventories?: ProductInventoryLocation[];
   price_lists_count?: number | null;
   price_lists?: Record<string, unknown>[];

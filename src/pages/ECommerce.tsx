@@ -120,6 +120,8 @@ function loadStoredCart(): EcommerceCartItemInput[] {
   }
 }
 
+const ECOMMERCE_THEME_KEY = "ecommerce-theme";
+
 export default function ECommerce() {
   const { resolvedTheme, setTheme } = useTheme();
   const [session, setSession] = useState<EcommerceSession | null>(() => loadStoredSession());
@@ -133,6 +135,7 @@ export default function ECommerce() {
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [productError, setProductError] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [brand, setBrand] = useState("all");
   const [category, setCategory] = useState("all");
@@ -165,6 +168,17 @@ export default function ECommerce() {
   const token = session?.ecommerce_token ?? "";
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const isDarkTheme = resolvedTheme === "dark";
+
+  // Login screen always light; restore user preference when session is active
+  useEffect(() => {
+    if (!session) {
+      setTheme("light");
+    } else {
+      const saved = localStorage.getItem(ECOMMERCE_THEME_KEY);
+      if (saved) setTheme(saved);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
   const brandOptions = useMemo(
     () => filters.brands.map((item) => String(item ?? "").trim()).filter(Boolean),
     [filters.brands],
@@ -302,6 +316,7 @@ export default function ECommerce() {
   };
 
   const resetSession = () => {
+    setTheme("light");
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(CART_KEY);
     setSession(null);
@@ -523,7 +538,11 @@ export default function ECommerce() {
             />
             <Switch
               checked={isDarkTheme}
-              onCheckedChange={(checked) => setTheme(isDarkTheme ? "light" : "dark")}
+              onCheckedChange={() => {
+                const next = isDarkTheme ? "light" : "dark";
+                setTheme(next);
+                localStorage.setItem(ECOMMERCE_THEME_KEY, next);
+              }}
               aria-label="Cambiar tema"
               className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
             />
@@ -590,8 +609,15 @@ export default function ECommerce() {
           </div>
           <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-[minmax(14rem,1fr)_12rem_12rem_11rem_auto]">
             <div className="relative h-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar SKU, producto, marca o categoria" className="h-11 bg-background pl-9" />
+              <button type="button" onClick={() => setSearch(searchInput.trim())} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground">
+                <Search className="h-4 w-4" />
+              </button>
+              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setSearch(searchInput.trim())} placeholder="Buscar SKU, producto, marca o categoria" className="h-11 bg-background pl-9 pr-9" />
+              {search && (
+                <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <Select value={brand} onValueChange={setBrand}>
               <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Marca" /></SelectTrigger>
@@ -633,42 +659,37 @@ export default function ECommerce() {
             </div>
           </div>
           {(search || brand !== "all" || category !== "all" || inStockOnly || withPriceOnly) && (
-            <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap items-center gap-2 border-t px-4 py-4 sm:px-5">
               {search && (
-                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
-                  Búsqueda: {search}
-                  <button onClick={() => setSearch("")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
-                </Badge>
+                <button type="button" onClick={() => { setSearch(""); setSearchInput(""); }} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  <span className="truncate">Búsqueda: {search}</span><X className="h-3 w-3 shrink-0" />
+                </button>
               )}
               {brand !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
-                  Marca: {brand}
-                  <button onClick={() => setBrand("all")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
-                </Badge>
+                <button type="button" onClick={() => setBrand("all")} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  <span className="truncate">Marca: {brand}</span><X className="h-3 w-3 shrink-0" />
+                </button>
               )}
               {category !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
-                  Categoría: {category}
-                  <button onClick={() => setCategory("all")} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
-                </Badge>
+                <button type="button" onClick={() => setCategory("all")} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  <span className="truncate">Categoría: {category}</span><X className="h-3 w-3 shrink-0" />
+                </button>
               )}
               {inStockOnly && (
-                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
-                  Solo con stock
-                  <button onClick={() => setInStockOnly(false)} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
-                </Badge>
+                <button type="button" onClick={() => setInStockOnly(false)} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  Solo con stock<X className="h-3 w-3 shrink-0" />
+                </button>
               )}
               {withPriceOnly && (
-                <Badge variant="secondary" className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-normal bg-primary/10 text-primary hover:bg-primary/20">
-                  Solo con precio
-                  <button onClick={() => setWithPriceOnly(false)} className="ml-1 rounded-full p-0.5 hover:bg-primary/30"><X className="h-3 w-3" /></button>
-                </Badge>
+                <button type="button" onClick={() => setWithPriceOnly(false)} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  Solo con precio<X className="h-3 w-3 shrink-0" />
+                </button>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-[14px] font-medium text-muted-foreground hover:text-foreground"
+              <button
+                type="button"
+                className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => {
+                  setSearchInput("");
                   setSearch("");
                   setBrand("all");
                   setCategory("all");
@@ -676,9 +697,9 @@ export default function ECommerce() {
                   setWithPriceOnly(false);
                 }}
               >
-                <X className="mr-1 h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
                 Limpiar
-              </Button>
+              </button>
             </div>
           )}
         </section>
@@ -703,6 +724,7 @@ export default function ECommerce() {
                 variant="outline"
                 className="mt-6"
                 onClick={() => {
+                  setSearchInput("");
                   setSearch("");
                   setBrand("all");
                   setCategory("all");
