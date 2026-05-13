@@ -34,7 +34,8 @@ import {
   X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import logoFull from "@/assets/logoico.png";
+import logoFull from "@/assets/logo.png";
+import logoIcon from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
 import bgImage2 from "@/assets/background2.png";
 import {
@@ -542,10 +543,11 @@ export default function ECommerce() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background shadow-sm">
-        <div className="mx-auto flex max-w-screen-2xl items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 flex-1 items-center gap-3 mb-1">
-            <img src={logoFull} alt="Ivanagro" className="h-11 w-auto object-contain dark:brightness-0 dark:invert sm:h-12" />
+      <header className="sticky top-0 z-30 border-b border-border bg-[#FAFAFA] dark:bg-background lg:bg-background">
+        <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {/* Logo solo visible en mobile — en desktop se mueve al sidebar */}
+            <img src={logoFull} alt="Ivanagro" className="lg:hidden h-8 w-auto object-contain dark:brightness-0 dark:invert" />
           </div>
 
           <div
@@ -577,11 +579,11 @@ export default function ECommerce() {
           </div>
 
           <button
-            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground ring-2 ring-border/40 shadow-sm transition hover:bg-muted hover:text-foreground"
+            className="relative flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
             title="Abrir carrito"
             onClick={() => setCartOpen(true)}
           >
-            <ShoppingCart className="h-5 w-5" />
+            <ShoppingCart className="h-4 w-4" />
             {cartCount > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground ring-2 ring-background">
                 {cartCount}
@@ -620,11 +622,10 @@ export default function ECommerce() {
         <div className="flex gap-6 items-start">
           {/* Desktop sidebar */}
           <aside className="hidden lg:block w-[280px] shrink-0 sticky top-[4.5rem]">
-            <div className="rounded-l-lg border bg-card p-4 space-y-1 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
-              <h2 className="mb-5 flex items-center gap-2 text-sm font-semibold">
-                <SlidersHorizontal className="h-4 w-4 text-primary" />
-                Filtros
-              </h2>
+            <div className="rounded-l-lg border bg-[#FAFAFA] dark:bg-card p-4 space-y-1 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
+              <div className="mb-4 flex justify-center">
+                <img src={logoIcon} alt="Ivanagro" className="h-16 w-auto object-contain dark:brightness-0 dark:invert" />
+              </div>
               <Separator style={{ marginTop: 0, marginBottom: "1rem" }} />
               <EcommerceSidebarFilters
                 brandOptions={brandOptions}
@@ -921,13 +922,13 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
         <CollapsibleContent>
           <RadioGroup value={brand} onValueChange={onBrandChange} className="pt-1 space-y-0.5">
             <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-              <RadioGroupItem value="all" id="brand-all" />
-              <Label htmlFor="brand-all" className="cursor-pointer text-sm font-normal">Todas las marcas</Label>
+              <RadioGroupItem value="all" id="brand-all" className="shrink-0" />
+              <Label htmlFor="brand-all" className="cursor-pointer truncate text-sm font-normal">Todas las marcas</Label>
             </div>
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
               {brandOptions.map((b) => (
                 <div key={b} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value={b} id={`brand-${b}`} />
+                  <RadioGroupItem value={b} id={`brand-${b}`} className="shrink-0" />
                   <Label htmlFor={`brand-${b}`} className="cursor-pointer truncate text-sm font-normal">{b}</Label>
                 </div>
               ))}
@@ -947,13 +948,13 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
         <CollapsibleContent>
           <RadioGroup value={category} onValueChange={onCategoryChange} className="pt-1 space-y-0.5">
             <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-              <RadioGroupItem value="all" id="cat-all" />
-              <Label htmlFor="cat-all" className="cursor-pointer text-sm font-normal">Todas las categorías</Label>
+              <RadioGroupItem value="all" id="cat-all" className="shrink-0" />
+              <Label htmlFor="cat-all" className="cursor-pointer truncate text-sm font-normal">Todas las categorías</Label>
             </div>
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
               {categoryOptions.map((c) => (
                 <div key={c} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value={c} id={`cat-${c}`} />
+                  <RadioGroupItem value={c} id={`cat-${c}`} className="shrink-0" />
                   <Label htmlFor={`cat-${c}`} className="cursor-pointer truncate text-sm font-normal">{c}</Label>
                 </div>
               ))}
@@ -1134,7 +1135,7 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
       <button
         type="button"
         onClick={onOpen}
-        className="relative flex shrink-0 items-center justify-center bg-muted/40 transition group-hover:bg-muted/60
+        className="relative flex shrink-0 items-center justify-center bg-muted/40 dark:bg-muted transition group-hover:bg-muted/60 dark:group-hover:bg-muted
                    h-28 w-full sm:h-40 sm:w-full"
       >
         <Package className="h-10 w-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:h-12 sm:w-12" />
@@ -1229,7 +1230,7 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
 
   return (
     <article className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40 dark:bg-muted">
         <Package className="h-6 w-6 text-muted-foreground/60" />
       </div>
       <div className="min-w-0 flex-1">
@@ -1361,14 +1362,14 @@ function EcommerceSkeletonGrid({ viewMode }: { viewMode: "grid" | "list" }) {
   return (
     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex flex-col overflow-hidden rounded-lg border bg-card">
-          <Skeleton className="h-40 w-full rounded-none" />
+        <div key={i} className="flex flex-col overflow-hidden rounded-lg border bg-card dark:bg-muted/20">
+          <Skeleton className="h-40 w-full rounded-none dark:bg-muted/60" />
           <div className="flex flex-col gap-3 p-4">
-            <div className="flex gap-1"><Skeleton className="h-5 w-20 rounded-full" /><Skeleton className="h-5 w-16 rounded-full" /></div>
-            <Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-6 w-28 mt-1" />
-            <div className="flex items-center justify-between mt-1"><Skeleton className="h-3 w-10" /><Skeleton className="h-5 w-20 rounded-full" /></div>
-            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="h-10 w-10 rounded-md" /><Skeleton className="h-10 rounded-md" /></div>
+            <div className="flex gap-1"><Skeleton className="h-5 w-20 rounded-full dark:bg-muted/60" /><Skeleton className="h-5 w-16 rounded-full dark:bg-muted/60" /></div>
+            <Skeleton className="h-4 w-full dark:bg-muted/60" /><Skeleton className="h-4 w-3/4 dark:bg-muted/60" />
+            <Skeleton className="h-6 w-28 mt-1 dark:bg-muted/60" />
+            <div className="flex items-center justify-between mt-1"><Skeleton className="h-3 w-10 dark:bg-muted/60" /><Skeleton className="h-5 w-20 rounded-full dark:bg-muted/60" /></div>
+            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="h-10 w-10 rounded-md dark:bg-muted/60" /><Skeleton className="h-10 rounded-md dark:bg-muted/60" /></div>
           </div>
         </div>
       ))}
