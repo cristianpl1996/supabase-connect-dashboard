@@ -127,7 +127,6 @@ export interface EcommerceProduct {
   external_product_id?: string | null;
   product_industry_sector?: string | null;
   product_category?: string | null;
-  product_target_species?: string | null;
   product_target_animal_species?: string | null;
   product_line_name?: string | null;
   product_is_catalog_verified?: boolean | null;
@@ -287,10 +286,13 @@ function withQuery(path: string, params: Record<string, string | number | boolea
 export interface CustomerParams {
   search?: string;
   business_type?: string;
+  customer_clv_segment?: string;
+  customer_rfm_segment?: string;
   government_id?: string;
   city?: string;
   state?: string;
   sales_representative_id?: number;
+  has_sales_representative?: boolean;
   has_location?: boolean;
   min_revenue?: number;
   max_revenue?: number;
@@ -314,8 +316,15 @@ export type CustomerRecord = Record<string, unknown>;
 export type SaleRecord = Record<string, unknown>;
 export type TracingRecord = Record<string, unknown>;
 
+export interface FilterOptionItem {
+  value: string;
+  label: string;
+}
+
 export interface CustomerFilterOptions {
   business_types: string[];
+  clv_segments: FilterOptionItem[];
+  rfm_segments: FilterOptionItem[];
 }
 
 export interface Representative {
@@ -430,10 +439,13 @@ export async function getCustomersPage(params: CustomerParams = {}): Promise<Api
   const qs = new URLSearchParams();
   if (params.search)        qs.set("search", params.search);
   if (params.business_type) qs.set("business_type", params.business_type);
+  if (params.customer_clv_segment) qs.set("customer_clv_segment", params.customer_clv_segment);
+  if (params.customer_rfm_segment) qs.set("customer_rfm_segment", params.customer_rfm_segment);
   if (params.government_id) qs.set("government_id", params.government_id);
   if (params.city) qs.set("city", params.city);
   if (params.state) qs.set("state", params.state);
   if (params.sales_representative_id) qs.set("sales_representative_id", String(params.sales_representative_id));
+  if (params.has_sales_representative !== undefined) qs.set("has_sales_representative", String(params.has_sales_representative));
   if (params.has_location !== undefined) qs.set("has_location", String(params.has_location));
   if (params.min_revenue !== undefined) qs.set("min_revenue", String(params.min_revenue));
   if (params.max_revenue !== undefined) qs.set("max_revenue", String(params.max_revenue));
@@ -594,7 +606,6 @@ export interface ProductCatalogItem {
   product_industry_sector?: string | null;
   product_category?: string | null;
   product_line_name?: string | null;
-  product_target_species?: string | null;
   product_target_animal_species?: string | null;
   product_technical_description?: string | null;
   product_unit_of_measurement?: string | null;
@@ -636,7 +647,9 @@ export interface ProductInventoryLocation {
 
 export interface ProductFilterOptions {
   brands: string[];
+  sectors: string[];
   categories: string[];
+  species: string[];
 }
 
 export interface ProductListParams {
@@ -644,6 +657,7 @@ export interface ProductListParams {
   search?: string;
   brand_name?: string;
   category?: string;
+  industry_sector?: string;
   line_name?: string;
   target_species?: string;
   is_catalog_verified?: boolean;
@@ -1073,6 +1087,7 @@ export function listProducts(params: ProductListParams = {}): Promise<ProductCat
     search: params.search,
     brand_name: params.brand_name,
     category: params.category,
+    industry_sector: params.industry_sector,
     line_name: params.line_name,
     target_species: params.target_species,
     is_catalog_verified: params.is_catalog_verified,
@@ -1094,6 +1109,7 @@ export function getProductsPage(params: ProductListParams = {}): Promise<ApiList
     search: params.search,
     brand_name: params.brand_name,
     category: params.category,
+    industry_sector: params.industry_sector,
     line_name: params.line_name,
     target_species: params.target_species,
     is_catalog_verified: params.is_catalog_verified,

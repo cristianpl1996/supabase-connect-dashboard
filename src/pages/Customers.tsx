@@ -3,6 +3,7 @@ import type React from "react";
 import {
   CustomerParams,
   CustomerRecord,
+  FilterOptionItem,
   CustomerTopProduct,
   getAllRepresentatives,
   getCustomerFilterOptions,
@@ -29,6 +30,7 @@ import {
   BarChart3,
   Building2,
   Copy,
+  Download,
   Eye,
   Loader2,
   Mail,
@@ -50,8 +52,12 @@ import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { formatApiErrorMessage } from "@/lib/errors";
+import { buildExportFileName, exportRowsToWorkbook, fetchAllPagesParallel } from "@/lib/export";
 
 const PAGE_SIZE = 200;
+const DEFAULT_SALES_REP_FILTER = "assigned";
+const WITHOUT_REP_OPTION = "none";
+const DEFAULT_MIN_PURCHASES = "1";
 
 const FIELD_LABELS: Record<string, string> = {
   id: "ID interno",
@@ -76,8 +82,15 @@ const FIELD_LABELS: Record<string, string> = {
   customer_business_longitude: "Longitud",
   customer_total_lifetime_revenue: "Ingresos acumulados",
   customer_total_number_of_purchases: "Compras realizadas",
+  customer_average_days_between_purchases: "Promedio de dias entre compras",
   customer_average_purchase_ticket_amount: "Ticket promedio",
   customer_days_since_last_purchase: "Dias desde ultima compra",
+  customer_clv_segment: "Segmento CLV",
+  customer_rfm_segment: "Segmento RFM",
+  customer_estimated_clv: "CLV estimado",
+  customer_estimated_rfm: "RFM estimado",
+  customer_clv_description: "Descripcion CLV",
+  customer_rfm_description: "Descripcion RFM",
   created_at: "Creado",
   updated_at: "Actualizado",
 };
@@ -115,6 +128,17 @@ function money(value: unknown) {
   }).format(numeric(value));
 }
 
+function yesNo(value: unknown, positive = "Si", negative = "No") {
+  if (value === null || value === undefined) return "N/A";
+  return Boolean(value) ? positive : negative;
+}
+
+function formatPhone(customer: CustomerRecord | null | undefined) {
+  const dial = field(customer, "customer_cellphone_country_dial_code", "");
+  const phone = field(customer, "customer_cellphone", "");
+  return `${dial} ${phone}`.trim() || "N/A";
+}
+
 function representativeOption(representative: Representative): [string, string] | null {
   const id = String(representative.sales_representative_id ?? representative.id ?? "");
   const name = String(representative.sales_rep_full_name ?? "");
@@ -145,9 +169,9 @@ function customerStatus(customer: CustomerRecord) {
 
 function commercialStatus(customer: CustomerRecord) {
   const days = numeric(customer.customer_days_since_last_purchase);
-  if (days > 90) return { label: "Sin compras +90d", variant: "secondary" as const };
-  if (days > 45) return { label: "En riesgo", variant: "outline" as const };
-  return { label: "Al dia", variant: "default" as const };
+  if (days > 90) return { label: "Inactivo comercialmente", variant: "secondary" as const };
+  if (days > 45) return { label: "En riesgo comercialmente", variant: "outline" as const };
+  return { label: "Activo comercialmente", variant: "default" as const };
 }
 
 function hasCoordinates(customer: CustomerRecord | null | undefined) {
@@ -173,6 +197,34 @@ function customerClusterLabel(customer: CustomerRecord | null | undefined) {
   return firstText(customer, ["cluster", "customer_cluster", "customer_cluster_name"]);
 }
 
+function isNumericLike(value: string) {
+  return /^-?\d+([.,]\d+)?$/.test(value.trim());
+}
+
+function normalizeSegmentOptions(value: unknown): FilterOptionItem[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const options: FilterOptionItem[] = [];
+
+  value.forEach((item) => {
+    const rawValue =
+      typeof item === "string"
+        ? item
+        : item && typeof item === "object" && "value" in item
+          ? String((item as { value: unknown }).value ?? "")
+          : "";
+
+    const cleaned = rawValue.trim().toUpperCase();
+    if (!cleaned || isNumericLike(cleaned) || seen.has(cleaned)) return;
+
+    seen.add(cleaned);
+    options.push({ value: cleaned, label: cleaned });
+  });
+
+  return options;
+}
+
 function parseProductList(value: unknown): CustomerTopProduct[] {
   if (!value) return [];
   if (Array.isArray(value)) return normalizeTopProducts(value);
@@ -190,12 +242,14 @@ function parseProductList(value: unknown): CustomerTopProduct[] {
 function normalizeTopProducts(products: unknown[]): CustomerTopProduct[] {
   return products.map((item) => {
     const product = item as Record<string, unknown>;
+    const totalUnits = product.total_units ?? product.quantity ?? product.total_quantity ?? product.qty ?? 0;
+    const totalRevenue = product.total_revenue ?? product.revenue ?? product.total_amount ?? product.amount ?? null;
     return {
       product_sku: String(product.product_sku ?? product.sku ?? ""),
       product_commercial_name: String(product.product_commercial_name ?? product.product_name ?? product.product ?? "Producto"),
       product_brand_name: product.product_brand_name != null ? String(product.product_brand_name) : null,
-      total_units: Number(product.total_units ?? product.quantity ?? 0),
-      total_revenue: product.total_revenue === undefined ? null : Number(product.total_revenue),
+      total_units: Number(totalUnits ?? 0),
+      total_revenue: totalRevenue === null || totalRevenue === undefined ? null : Number(totalRevenue),
       last_purchase_date: product.last_purchase_date != null ? String(product.last_purchase_date) : null,
     };
   });
@@ -229,11 +283,14 @@ export default function Customers() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [totalCustomers, setTotalCustomers] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState({
     businessTypes: [] as string[],
+    clvSegments: [] as FilterOptionItem[],
+    rfmSegments: [] as FilterOptionItem[],
     representatives: [] as Array<[string, string]>,
   });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -241,15 +298,17 @@ export default function Customers() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [businessType, setBusinessType] = useState("all");
+  const [clvSegment, setClvSegment] = useState("all");
+  const [rfmSegment, setRfmSegment] = useState("all");
   const [governmentId, setGovernmentId] = useState("");
   const [city, setCity] = useState("");
   const [stateName, setStateName] = useState("");
-  const [salesRepId, setSalesRepId] = useState("");
+  const [salesRepId, setSalesRepId] = useState(DEFAULT_SALES_REP_FILTER);
   const [hasLocation, setHasLocation] = useState("all");
   const [showInactive, setShowInactive] = useState(false);
   const [minRevenue, setMinRevenue] = useState("");
   const [maxRevenue, setMaxRevenue] = useState("");
-  const [minPurchases, setMinPurchases] = useState("");
+  const [minPurchases, setMinPurchases] = useState(DEFAULT_MIN_PURCHASES);
   const [maxPurchases, setMaxPurchases] = useState("");
   const [minTicket, setMinTicket] = useState("");
   const [maxTicket, setMaxTicket] = useState("");
@@ -264,16 +323,22 @@ export default function Customers() {
   const buildParams = useCallback((offset: number): CustomerParams => ({
     search: search.trim() || undefined,
     business_type: businessType === "all" ? undefined : businessType,
+    customer_clv_segment: clvSegment === "all" ? undefined : clvSegment,
+    customer_rfm_segment: rfmSegment === "all" ? undefined : rfmSegment,
     government_id: governmentId.trim() || undefined,
     city: city.trim() || undefined,
     state: stateName.trim() || undefined,
     sales_representative_id: optionalNumber(salesRepId),
+    has_sales_representative:
+      salesRepId === DEFAULT_SALES_REP_FILTER ? true
+        : salesRepId === WITHOUT_REP_OPTION ? false
+          : undefined,
     has_location: hasLocation === "all" ? undefined : hasLocation === "yes",
     customer_is_valid: showInactive ? undefined : true,
     customer_is_frozen: showInactive ? true : false,
     min_revenue: optionalNumber(minRevenue),
     max_revenue: optionalNumber(maxRevenue),
-    min_purchases: optionalNumber(minPurchases),
+    min_purchases: optionalNumber(minPurchases) ?? Number(DEFAULT_MIN_PURCHASES),
     max_purchases: optionalNumber(maxPurchases),
     min_average_ticket: optionalNumber(minTicket),
     max_average_ticket: optionalNumber(maxTicket),
@@ -284,6 +349,7 @@ export default function Customers() {
     offset,
   }), [
     businessType,
+    clvSegment,
     city,
     governmentId,
     hasLocation,
@@ -296,6 +362,7 @@ export default function Customers() {
     minPurchases,
     minRevenue,
     minTicket,
+    rfmSegment,
     salesRepId,
     search,
     sortOrder,
@@ -353,11 +420,16 @@ export default function Customers() {
           typesResult.status === "fulfilled" && Array.isArray(typesResult.value.business_types)
             ? typesResult.value.business_types
             : [],
+        clvSegments: typesResult.status === "fulfilled" ? normalizeSegmentOptions(typesResult.value.clv_segments) : [],
+        rfmSegments: typesResult.status === "fulfilled" ? normalizeSegmentOptions(typesResult.value.rfm_segments) : [],
         representatives:
           repsResult.status === "fulfilled"
-            ? repsResult.value
-              .map(representativeOption)
-              .filter((item): item is [string, string] => item !== null)
+            ? [
+              [WITHOUT_REP_OPTION, "Sin representante"] as [string, string],
+              ...repsResult.value
+                .map(representativeOption)
+                .filter((item): item is [string, string] => item !== null),
+            ]
             : [],
       });
     });
@@ -381,12 +453,18 @@ export default function Customers() {
   }, [customers.length, fetchPage, hasMore, loadingInitial, loadingMore]);
 
   const businessTypes = filterOptions.businessTypes;
+  const clvSegments = filterOptions.clvSegments;
+  const rfmSegments = filterOptions.rfmSegments;
   const representatives = filterOptions.representatives;
   const businessTypeOptions = useMemo(() => businessTypes.map((item) => ({ value: item, label: item })), [businessTypes]);
+  const clvSegmentOptions = useMemo(() => clvSegments, [clvSegments]);
+  const rfmSegmentOptions = useMemo(() => rfmSegments, [rfmSegments]);
   const representativeOptions = useMemo(
     () => representatives.map(([id, name]) => ({ value: id, label: name })),
     [representatives],
   );
+  const clvSegmentLabel = clvSegments.find((item) => item.value === clvSegment)?.label ?? clvSegment;
+  const rfmSegmentLabel = rfmSegments.find((item) => item.value === rfmSegment)?.label ?? rfmSegment;
 
   const totalRevenue = customers.reduce((sum, item) => sum + numeric(item.customer_total_lifetime_revenue), 0);
   const totalPurchases = customers.reduce((sum, item) => sum + numeric(item.customer_total_number_of_purchases), 0);
@@ -394,18 +472,20 @@ export default function Customers() {
   const totalLabel = totalCustomers === null ? null : totalCustomers.toLocaleString("es-CO");
   const loadedLabel = customers.length.toLocaleString("es-CO");
   const lifecycleValue =
-    minDays === "" && maxDays === "45" ? "active"
+    minDays === "1" && maxDays === "45" ? "active"
       : minDays === "46" && maxDays === "90" ? "risk"
         : minDays === "91" && maxDays === "" ? "inactive"
           : "custom";
   const advancedFilterCount = [
+    clvSegment !== "all",
+    rfmSegment !== "all",
     governmentId.trim(),
     city.trim(),
     stateName.trim(),
     hasLocation !== "all",
     minRevenue,
     maxRevenue,
-    minPurchases,
+    minPurchases !== DEFAULT_MIN_PURCHASES && minPurchases,
     maxPurchases,
     minTicket,
     maxTicket,
@@ -415,18 +495,25 @@ export default function Customers() {
   const activeFilters = [
     search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => { setSearch(""); setSearchInput(""); } },
     businessType !== "all" && { key: "businessType", label: `Tipo: ${businessType}`, clear: () => setBusinessType("all") },
-    salesRepId.trim() && { key: "salesRepId", label: `Rep: ${representatives.find(([id]) => id === salesRepId)?.[1] ?? salesRepId}`, clear: () => setSalesRepId("") },
+    clvSegment !== "all" && { key: "clvSegment", label: `CLV: ${clvSegmentLabel}`, clear: () => setClvSegment("all") },
+    rfmSegment !== "all" && { key: "rfmSegment", label: `RFM: ${rfmSegmentLabel}`, clear: () => setRfmSegment("all") },
+    salesRepId === WITHOUT_REP_OPTION && { key: "salesRepId", label: "Sin representante", clear: () => setSalesRepId(DEFAULT_SALES_REP_FILTER) },
+    salesRepId !== "all" && salesRepId !== DEFAULT_SALES_REP_FILTER && salesRepId !== WITHOUT_REP_OPTION && {
+      key: "salesRepId",
+      label: `Rep: ${representatives.find(([id]) => id === salesRepId)?.[1] ?? salesRepId}`,
+      clear: () => setSalesRepId(DEFAULT_SALES_REP_FILTER),
+    },
     governmentId.trim() && { key: "governmentId", label: `NIT: ${governmentId.trim()}`, clear: () => setGovernmentId("") },
     city.trim() && { key: "city", label: `Ciudad: ${city.trim()}`, clear: () => setCity("") },
     stateName.trim() && { key: "stateName", label: `Departamento: ${stateName.trim()}`, clear: () => setStateName("") },
     hasLocation !== "all" && { key: "hasLocation", label: hasLocation === "yes" ? "Con ubicacion" : "Sin ubicacion", clear: () => setHasLocation("all") },
     showInactive && { key: "showInactive", label: "Inactivos", clear: () => setShowInactive(false) },
-    lifecycleValue === "active" && { key: "lifecycle", label: "Estado: Activo", clear: () => setLifecycleFilter("custom") },
-    lifecycleValue === "risk" && { key: "lifecycle", label: "Estado: En riesgo", clear: () => setLifecycleFilter("custom") },
-    lifecycleValue === "inactive" && { key: "lifecycle", label: "Estado: Inactivo", clear: () => setLifecycleFilter("custom") },
+    lifecycleValue === "active" && { key: "lifecycle", label: "Estado: Activo comercialmente", clear: () => setLifecycleFilter("custom") },
+    lifecycleValue === "risk" && { key: "lifecycle", label: "Estado: En riesgo comercialmente", clear: () => setLifecycleFilter("custom") },
+    lifecycleValue === "inactive" && { key: "lifecycle", label: "Estado: Inactivo comercialmente", clear: () => setLifecycleFilter("custom") },
     minRevenue && { key: "minRevenue", label: `Ingresos >= ${money(minRevenue)}`, clear: () => setMinRevenue("") },
     maxRevenue && { key: "maxRevenue", label: `Ingresos <= ${money(maxRevenue)}`, clear: () => setMaxRevenue("") },
-    minPurchases && { key: "minPurchases", label: `Compras >= ${minPurchases}`, clear: () => setMinPurchases("") },
+    minPurchases !== DEFAULT_MIN_PURCHASES && minPurchases && { key: "minPurchases", label: `Compras >= ${minPurchases}`, clear: () => setMinPurchases(DEFAULT_MIN_PURCHASES) },
     maxPurchases && { key: "maxPurchases", label: `Compras <= ${maxPurchases}`, clear: () => setMaxPurchases("") },
     minTicket && { key: "minTicket", label: `Ticket >= ${money(minTicket)}`, clear: () => setMinTicket("") },
     maxTicket && { key: "maxTicket", label: `Ticket <= ${money(maxTicket)}`, clear: () => setMaxTicket("") },
@@ -436,7 +523,7 @@ export default function Customers() {
 
   const setLifecycleFilter = (value: string) => {
     if (value === "active") {
-      setMinDays("");
+      setMinDays("1");
       setMaxDays("45");
     } else if (value === "risk") {
       setMinDays("46");
@@ -456,21 +543,71 @@ export default function Customers() {
     setSearchInput("");
     setSearch("");
     setBusinessType("all");
+    setClvSegment("all");
+    setRfmSegment("all");
     setGovernmentId("");
     setCity("");
     setStateName("");
-    setSalesRepId("");
+    setSalesRepId(DEFAULT_SALES_REP_FILTER);
     setHasLocation("all");
     setShowInactive(false);
     setMinRevenue("");
     setMaxRevenue("");
-    setMinPurchases("");
+    setMinPurchases(DEFAULT_MIN_PURCHASES);
     setMaxPurchases("");
     setMinTicket("");
     setMaxTicket("");
     setMinDays("");
     setMaxDays("");
   };
+
+  const exportCustomers = useCallback(async () => {
+    setExporting(true);
+    try {
+      const rows = await fetchAllPagesParallel(getCustomersPage, buildParams(0));
+      exportRowsToWorkbook(
+        rows,
+        [
+          { header: "ID interno", value: (customer) => field(customer, "id", "") },
+          { header: "Documento / NIT", value: (customer) => field(customer, "customer_government_id", "") },
+          { header: "Cliente", value: (customer) => field(customer, "customer_full_name", "") },
+          { header: "Tipo de negocio", value: (customer) => field(customer, "customer_business_type", "") },
+          { header: "Celular", value: (customer) => formatPhone(customer) },
+          { header: "Email", value: (customer) => field(customer, "customer_email", "") },
+          { header: "Direccion comercial", value: (customer) => field(customer, "customer_business_address", "") },
+          { header: "Ciudad", value: (customer) => field(customer, "customer_business_city", "") },
+          { header: "Departamento", value: (customer) => field(customer, "customer_business_state", "") },
+          { header: "Representante", value: (customer) => field(customer, "sales_rep_full_name", "") },
+          { header: "Cobertura representante", value: (customer) => field(customer, "sales_rep_coverage_area", "") },
+          { header: "Estado ERP", value: (customer) => customerStatus(customer).label },
+          { header: "Estado comercial", value: (customer) => commercialStatus(customer).label },
+          { header: "Ingresos acumulados", value: (customer) => numeric(customer.customer_total_lifetime_revenue) },
+          { header: "Compras realizadas", value: (customer) => numeric(customer.customer_total_number_of_purchases) },
+          { header: "Ticket promedio", value: (customer) => numeric(customer.customer_average_purchase_ticket_amount) },
+          { header: "Dias sin compra", value: (customer) => numeric(customer.customer_days_since_last_purchase) },
+          { header: "Promedio dias entre compras", value: (customer) => numeric(customer.customer_average_days_between_purchases) },
+          { header: "Segmento CLV", value: (customer) => field(customer, "customer_clv_segment", "") },
+          { header: "Segmento RFM", value: (customer) => field(customer, "customer_rfm_segment", "") },
+          { header: "CLV estimado", value: (customer) => numeric(customer.customer_estimated_clv) },
+          { header: "RFM score", value: (customer) => field(customer, "customer_estimated_rfm", "") },
+          { header: "Billetera confirmada", value: (customer) => yesNo(customer.customer_has_confirmed_digital_wallet) },
+          { header: "Email billetera", value: (customer) => field(customer, "customer_wallet_confirmation_email", "") },
+          { header: "Con ubicacion", value: (customer) => yesNo(hasCoordinates(customer)) },
+          { header: "Latitud", value: (customer) => field(customer, "customer_business_latitude", "") },
+          { header: "Longitud", value: (customer) => field(customer, "customer_business_longitude", "") },
+          { header: "Creado", value: (customer) => field(customer, "created_at", "") },
+          { header: "Actualizado", value: (customer) => field(customer, "updated_at", "") },
+        ],
+        buildExportFileName("clientes"),
+        "Clientes",
+      );
+      toast.success(`Se exportaron ${rows.length.toLocaleString("es-CO")} clientes`);
+    } catch (err) {
+      toast.error(formatApiErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  }, [buildParams]);
 
   const openProfile = (customer: CustomerRecord) => {
     setSelected(customer);
@@ -504,6 +641,12 @@ export default function Customers() {
           icon={UserRound}
           title="Clientes"
           description="Analiza, segmenta y prioriza clientes comerciales"
+          actions={(
+            <Button onClick={() => void exportCustomers()} disabled={loadingInitial || exporting} className="w-full gap-2 md:w-auto">
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? "Exportando..." : "Exportar"}
+            </Button>
+          )}
         />
       </ErrorDisabledContent>
 
@@ -556,8 +699,8 @@ export default function Customers() {
                 disabled={loadingInitial}
               />
               <SearchableSelect
-                value={salesRepId || "all"}
-                onValueChange={(value) => setSalesRepId(value === "all" ? "" : value)}
+                value={salesRepId}
+                onValueChange={setSalesRepId}
                 options={representativeOptions}
                 allLabel="Todos los representantes"
                 searchPlaceholder="Buscar representante..."
@@ -592,9 +735,11 @@ export default function Customers() {
                         <p className="font-semibold">Filtros avanzados</p>
                         <p className="text-sm text-muted-foreground">Estos campos se consultan directamente en clientes y respetan el alcance del usuario.</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                        <X className="h-4 w-4" /> Limpiar todo
-                      </Button>
+                      {advancedFilterCount > 0 ? (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
+                          <X className="h-4 w-4" /> Limpiar todo
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -631,15 +776,42 @@ export default function Customers() {
 
                     <Separator />
 
+                    <FilterSection icon={Activity} title="Segmentacion comercial">
+                      <FilterField label="Segmento CLV">
+                        <SearchableSelect
+                          value={clvSegment}
+                          onValueChange={setClvSegment}
+                          options={clvSegmentOptions}
+                          allLabel="Todos los segmentos CLV"
+                          searchPlaceholder="Buscar CLV..."
+                          emptyLabel="No hay segmentos CLV"
+                          disabled={loadingInitial}
+                        />
+                      </FilterField>
+                      <FilterField label="Segmento RFM">
+                        <SearchableSelect
+                          value={rfmSegment}
+                          onValueChange={setRfmSegment}
+                          options={rfmSegmentOptions}
+                          allLabel="Todos los segmentos RFM"
+                          searchPlaceholder="Buscar RFM..."
+                          emptyLabel="No hay segmentos RFM"
+                          disabled={loadingInitial}
+                        />
+                      </FilterField>
+                    </FilterSection>
+
+                    <Separator />
+
                     <FilterSection icon={RefreshCw} title="Recencia">
                       <FilterField label="Estado comercial">
                         <Select value={lifecycleValue} onValueChange={setLifecycleFilter} disabled={loadingInitial}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="custom">Personalizado</SelectItem>
-                            <SelectItem value="active">Activo: hasta 45 dias</SelectItem>
-                            <SelectItem value="risk">En riesgo: 46 a 90 dias</SelectItem>
-                            <SelectItem value="inactive">Inactivo: 91+ dias</SelectItem>
+                            <SelectItem value="active">Activo comercialmente: hasta 45 dias</SelectItem>
+                            <SelectItem value="risk">En riesgo comercialmente: 46 a 90 dias</SelectItem>
+                            <SelectItem value="inactive">Inactivo comercialmente: 91+ dias</SelectItem>
                           </SelectContent>
                         </Select>
                       </FilterField>
@@ -782,8 +954,6 @@ export default function Customers() {
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap gap-1.5">
                           {profileStatus && <Badge variant={profileStatus.variant}>{profileStatus.label}</Badge>}
-                          {profileCommercialStatus && <Badge variant={profileCommercialStatus.variant}>{profileCommercialStatus.label}</Badge>}
-                          {profileSegment && <Badge variant="secondary">{profileSegment}</Badge>}
                           {profileCluster && <Badge variant="outline">{profileCluster}</Badge>}
                         </div>
                         <div className="min-w-0">
@@ -825,43 +995,58 @@ export default function Customers() {
                           ["Tipo de negocio", field(currentProfile, "customer_business_type")],
                           ["Documento / NIT", field(currentProfile, "customer_government_id")],
                           ["Representante", field(currentProfile, "sales_rep_full_name", "Sin asignar")],
+                          ["Cobertura", field(currentProfile, "sales_rep_coverage_area", "Sin zona")],
                         ]} />
                         <InfoPanel icon={MapPin} title="Ubicacion" rows={[
                           ["Ciudad", field(currentProfile, "customer_business_city")],
                           ["Departamento", field(currentProfile, "customer_business_state")],
                           ["Direccion", field(currentProfile, "customer_business_address")],
+                          ["Georreferenciado", hasCoordinates(currentProfile) ? "Si" : "No"],
                         ]} />
                       </div>
-                      <div>
-                        <InfoPanel icon={WalletCards} title="Contacto" rows={[
+                      <div className="grid items-stretch gap-3 lg:grid-cols-2">
+                        <InfoPanel icon={WalletCards} title="Contacto y billetera" rows={[
                           ["Email", field(currentProfile, "customer_email")],
-                          ["Celular", `${field(currentProfile, "customer_cellphone_country_dial_code", "")} ${field(currentProfile, "customer_cellphone")}`],
+                          ["Celular", formatPhone(currentProfile)],
+                          ["Billetera confirmada", yesNo(currentProfile?.customer_has_confirmed_digital_wallet)],
+                          ["Email billetera", field(currentProfile, "customer_wallet_confirmation_email")],
+                        ]} />
+                        <InfoPanel icon={BarChart3} title="Segmentacion comercial" rows={[
+                          ["CLV actual", field(currentProfile, "customer_clv_segment")],
+                          ["CLV estimado", money(currentProfile?.customer_estimated_clv)],
+                          ["RFM actual", field(currentProfile, "customer_rfm_segment")],
+                          ["RFM estimado", field(currentProfile, "customer_estimated_rfm")],
                         ]} />
                       </div>
                     </TabsContent>
 
                     <TabsContent value="performance" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <InsightCard title="Estado comercial" value={profileStatus?.label || "N/A"} note="Basado en dias desde la ultima compra" icon={Activity} />
+                        <InsightCard title="Estado comercial" value={profileCommercialStatus?.label || "N/A"} note="Basado en dias desde la ultima compra" icon={Activity} />
                         <InsightCard title="Oportunidad" value={numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener"} note="Prioriza seguimiento segun recencia" icon={TrendingUp} />
-                        <InsightCard title="Segmento" value={profileSegment || "Sin segmento"} note={profileCluster || "Desde la informacion del cliente"} icon={UserRound} />
-                        <InsightCard title="Productos comprados" value={topProducts.length ? `${topProducts.length} destacados` : "Sin ranking"} note="Calculado desde el historial comercial" icon={ReceiptText} />
+                        <InsightCard title="CLV" value={field(currentProfile, "customer_clv_segment", "Sin segmento")} note={field(currentProfile, "customer_clv_description", "Sin descripcion disponible")} icon={UserRound} />
+                        <InsightCard title="RFM" value={field(currentProfile, "customer_rfm_segment", "Sin segmento")} note={field(currentProfile, "customer_rfm_description", "Sin descripcion disponible")} icon={RefreshCw} />
                       </div>
                     </TabsContent>
 
                     <TabsContent value="products" className="mt-4 space-y-2 focus-visible:ring-0 focus-visible:ring-offset-0">
                       {topProducts.length > 0 ? (
                         <div className="overflow-hidden rounded-md border">
-                          <div className="grid grid-cols-[2.5rem_1fr_5rem] bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
+                          <div className="grid grid-cols-[2.5rem_1fr_5rem_7rem] bg-muted/60 px-3 py-2 text-xs font-medium text-muted-foreground">
                             <span>#</span>
                             <span>Producto</span>
                             <span className="text-right">Cantidad</span>
+                            <span className="text-right">Revenue</span>
                           </div>
                           {topProducts.map((product, index) => (
-                            <div key={`${product.product_commercial_name}-${index}`} className="grid grid-cols-[2.5rem_1fr_5rem] items-center border-t px-3 py-2.5">
+                            <div key={`${product.product_commercial_name}-${index}`} className="grid grid-cols-[2.5rem_1fr_5rem_7rem] items-center border-t px-3 py-2.5">
                               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
-                              <p className="min-w-0 truncate text-sm font-medium">{product.product_commercial_name || "Producto"}</p>
-                              <p className="text-right text-sm font-semibold">{numeric(product.total_units).toLocaleString("es-CO")}</p>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{product.product_commercial_name || "Producto"}</p>
+                                {product.product_brand_name && <p className="truncate text-xs text-muted-foreground">{product.product_brand_name}</p>}
+                              </div>
+                              <p className="text-right text-sm">{numeric(product.total_units).toLocaleString("es-CO")}</p>
+                              <p className="text-right text-sm">{money(product.total_revenue)}</p>
                             </div>
                           ))}
                         </div>

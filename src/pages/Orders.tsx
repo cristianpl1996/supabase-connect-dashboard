@@ -506,9 +506,11 @@ export default function Orders() {
                         <p className="font-semibold">Filtros avanzados</p>
                         <p className="text-sm text-muted-foreground">Estos campos se consultan directamente en ordenes y respetan el alcance del usuario.</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                        <X className="h-4 w-4" /> Limpiar todo
-                      </Button>
+                      {advancedFilterCount > 0 ? (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
+                          <X className="h-4 w-4" /> Limpiar todo
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 

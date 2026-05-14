@@ -42,11 +42,40 @@ const ACCOUNTING_LABELS: Record<string, string> = {
 };
 
 const SCOPE_LABELS: Record<string, string> = {
-  all: "Todos los clientes",
+  all: "Toda mi base comercial",
   products: "Productos especificos",
   customers: "Clientes especificos",
   product_filters: "Linea / categoria / marca / especie",
   customer_segment: "Segmento de clientes",
+};
+
+const SEGMENT_PRESET_LABELS: Record<string, string> = {
+  commercial_base: "Base comercial",
+  with_purchases: "Clientes con compras",
+  without_purchases: "Clientes sin compras",
+  with_representative: "Con representante",
+  without_representative: "Sin representante",
+  active_recent: "Activos 1 a 45 dias",
+  at_risk: "En riesgo 46 a 90 dias",
+  inactive: "Inactivos 91+ dias",
+};
+
+const TARGET_FIELD_LABELS: Record<string, string> = {
+  preset: "Preset",
+  segment_preset: "Segmento",
+  business_type: "Tipo de negocio",
+  city: "Ciudad",
+  state: "Departamento",
+  brand_name: "Marca",
+  category: "Categoria",
+  line_name: "Linea",
+  target_species: "Especie",
+  min_purchases: "Min. compras",
+  max_purchases: "Max. compras",
+  has_sales_representative: "Con representante",
+  has_location: "Con ubicacion",
+  min_days_since_last_purchase: "Min. dias sin compra",
+  max_days_since_last_purchase: "Max. dias sin compra",
 };
 
 const STRIPED_BAR_CLASS = [
@@ -87,12 +116,28 @@ export function PromotionDetailsSheet({
     customer_ids?: string[];
     product_filters?: Record<string, string>;
     customer_filters?: Record<string, string>;
+    target_config?: Record<string, unknown>;
   } | null;
+  const targetConfig = ((promotion.target_config as Record<string, unknown> | null)
+    || (targetSegment?.target_config as Record<string, unknown> | null)
+    || {}) as Record<string, unknown>;
   const conditionConfig = mechanic?.condition_config as Record<string, unknown> | null;
   const rewardConfig = mechanic?.reward_config as Record<string, unknown> | null;
-  const scope = targetSegment?.scope || (targetSegment?.type && targetSegment.type !== "todo" ? "customer_segment" : "all");
+  const scope = promotion.target_scope || targetSegment?.scope || (targetSegment?.type && targetSegment.type !== "todo" ? "customer_segment" : "all");
   const maxRedemptions = promotion.max_redemptions || 0;
   const redemptionPercent = maxRedemptions > 0 ? Math.min((promotion.current_redemptions / maxRedemptions) * 100, 100) : 0;
+  const targetFacts = Object.entries(targetConfig)
+    .filter(([key, value]) => key !== "customer_ids" && value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => ({
+      key,
+      label: TARGET_FIELD_LABELS[key] || key,
+      value:
+        key === "preset" || key === "segment_preset"
+          ? (SEGMENT_PRESET_LABELS[String(value)] || String(value))
+          : key === "has_sales_representative"
+            ? (value ? "Si" : "No")
+            : String(value),
+    }));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -169,11 +214,16 @@ export function PromotionDetailsSheet({
                 {Array.isArray(targetSegment.product_skus) && targetSegment.product_skus.length > 0 && (
                   <BadgeList title="SKUs" values={targetSegment.product_skus} />
                 )}
-                {Array.isArray(targetSegment.customer_ids) && targetSegment.customer_ids.length > 0 && (
-                  <BadgeList title="Clientes" values={targetSegment.customer_ids.map((id) => `Cliente ${id}`)} />
+                {Array.isArray(targetConfig.customer_ids) && targetConfig.customer_ids.length > 0 && (
+                  <BadgeList title="Clientes" values={targetConfig.customer_ids.map((id) => `Cliente ${id}`)} />
                 )}
-                {targetSegment.product_filters && <KeyValueGrid values={targetSegment.product_filters} />}
-                {targetSegment.customer_filters && <KeyValueGrid values={targetSegment.customer_filters} />}
+                {targetFacts.length > 0 && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {targetFacts.map((item) => (
+                      <PromoFact key={item.key} label={item.label} value={item.value} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </section>

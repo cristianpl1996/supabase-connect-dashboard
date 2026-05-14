@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
   Boxes,
+  Download,
   Eye,
   ImageOff,
   Layers3,
@@ -33,11 +34,13 @@ import {
   Tags,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { formatApiErrorMessage } from "@/lib/errors";
+import { buildExportFileName, exportRowsToWorkbook, fetchAllPagesParallel } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 200;
@@ -56,7 +59,6 @@ const CORE_PRODUCT_FIELDS = new Set([
   "product_industry_sector",
   "product_category",
   "product_line_name",
-  "product_target_species",
   "product_target_animal_species",
   "product_substitute_skus",
   "product_recommended_application_frequency",
@@ -257,6 +259,11 @@ function formatField(value: unknown) {
   return text(value);
 }
 
+function averagePositive(values: number[]) {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function resolveExternalProductImageUrl(imagePath?: unknown) {
   if (typeof imagePath !== "string") return null;
   const path = imagePath.trim();
@@ -280,6 +287,7 @@ export default function Products() {
   const [products, setProducts] = useState<ProductCatalogItem[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
@@ -438,7 +446,7 @@ export default function Products() {
   const brandOptions = useMemo(() => brands.map((item) => ({ value: item, label: item })), [brands]);
   const categoryOptions = useMemo(() => categories.map((item) => ({ value: item, label: item })), [categories]);
   const lines = useMemo(() => uniqueValues(products, "product_line_name"), [products]);
-  const speciesOptions = useMemo(() => uniqueValues(products, "product_target_species"), [products]);
+  const speciesOptions = useMemo(() => uniqueValues(products, "product_target_animal_species"), [products]);
   const visibleBrandCount = useMemo(() => uniqueValues(products, "product_brand_name").length, [products]);
   const totalStock = products.reduce((sum, item) => sum + numberValue(item.total_units_available), 0);
   const inventoryLocations = products.reduce((sum, item) => sum + numberValue(item.inventory_locations_count), 0);
@@ -448,6 +456,14 @@ export default function Products() {
   const currentProduct = selected;
   const selectedInventories = normalizeInventories(currentProduct);
   const selectedPriceLists = normalizePriceLists(currentProduct);
+  const selectedSapPrices = useMemo(
+    () => selectedPriceLists.map((row) => numberValue(row.sap_price)).filter((price) => price > 0),
+    [selectedPriceLists],
+  );
+  const averageReferencePrice =
+    selectedSapPrices.length > 0
+      ? averagePositive(selectedSapPrices)
+      : numberValue(currentProduct?.avg_unit_sale_price);
   const externalImageUrl = resolveExternalProductImageUrl(externalProduct?.image_path);
   const priceListColumns = selectedPriceLists.length > 0
     ? Object.keys(selectedPriceLists[0]).filter((k) => selectedPriceLists[0][k] != null)
@@ -495,6 +511,49 @@ export default function Products() {
     setMaxUnits("");
   };
 
+  const exportProducts = useCallback(async () => {
+    setExporting(true);
+    try {
+      const rows = await fetchAllPagesParallel(getProductsPage, buildParams(0));
+      exportRowsToWorkbook(
+        rows,
+        [
+          { header: "SKU", value: (product) => text(product.product_sku, "") },
+          { header: "Producto", value: (product) => text(product.product_commercial_name, "") },
+          { header: "Marca", value: (product) => text(product.product_brand_name, "") },
+          { header: "Sector", value: (product) => text(product.product_industry_sector, "") },
+          { header: "Categoria", value: (product) => text(product.product_category, "") },
+          { header: "Linea", value: (product) => text(product.product_line_name, "") },
+          { header: "Especie", value: (product) => text(product.product_target_animal_species, "") },
+          { header: "Unidad", value: (product) => text(product.product_unit_of_measurement, "") },
+          { header: "Descripcion tecnica", value: (product) => text(product.product_technical_description, "") },
+          { header: "Frecuencia recomendada", value: (product) => text(product.product_recommended_application_frequency, "") },
+          { header: "Estado", value: (product) => productStatus(product).label },
+          { header: "Disponible", value: (product) => numberValue(product.total_units_available) },
+          { header: "Bodegas", value: (product) => numberValue(product.inventory_locations_count) },
+          { header: "Maximo en una bodega", value: (product) => numberValue(product.max_units_in_single_inventory) },
+          { header: "Pedido", value: (product) => numberValue(product.ordered_quantity) },
+          { header: "Comprometido", value: (product) => numberValue(product.committed_quantity) },
+          { header: "Stock minimo", value: (product) => numberValue(product.minimal_stock) },
+          { header: "Stock maximo", value: (product) => numberValue(product.maximal_stock) },
+          { header: "Precio minimo", value: (product) => numberValue(product.min_unit_sale_price) },
+          { header: "Precio maximo", value: (product) => numberValue(product.max_unit_sale_price) },
+          { header: "Precio promedio", value: (product) => numberValue(product.avg_unit_sale_price) },
+          { header: "ID externo", value: (product) => text(product.external_product_id, "") },
+          { header: "Creado", value: (product) => formatDate(product.created_at) },
+          { header: "Actualizado", value: (product) => formatDate(product.updated_at) },
+        ],
+        buildExportFileName("productos"),
+        "Productos",
+      );
+      toast.success(`Se exportaron ${rows.length.toLocaleString("es-CO")} productos`);
+    } catch (err) {
+      toast.error(formatApiErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  }, [buildParams]);
+
   return (
     <div className="mx-auto w-full max-w-screen-2xl space-y-5 sm:space-y-6">
       <ErrorDisabledContent disabled={!!error}>
@@ -502,6 +561,12 @@ export default function Products() {
           icon={Package}
           title="Catalogo de Productos"
           description="Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales."
+          actions={(
+            <Button onClick={() => void exportProducts()} disabled={loadingInitial || exporting} className="w-full gap-2 md:w-auto">
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? "Exportando..." : "Exportar"}
+            </Button>
+          )}
         />
       </ErrorDisabledContent>
 
@@ -565,9 +630,11 @@ export default function Products() {
                         <p className="font-semibold">Filtros avanzados</p>
                         <p className="text-sm text-muted-foreground">Todos estos filtros consultan campos reales del catalogo e inventario agregado.</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                        <X className="h-4 w-4" /> Limpiar todo
-                      </Button>
+                      {advancedFilterCount > 0 ? (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
+                          <X className="h-4 w-4" /> Limpiar todo
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -735,8 +802,6 @@ export default function Products() {
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap gap-1.5">
                           {selectedStatus && <Badge variant={selectedStatus.variant}>{selectedStatus.label}</Badge>}
-                          {selected.product_line_name && <Badge variant="outline">{text(selected.product_line_name)}</Badge>}
-                          {selected.product_category && <Badge variant="secondary">{text(selected.product_category)}</Badge>}
                         </div>
                         <div className="min-w-0">
                           <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{text(selected.product_commercial_name, "Producto sin nombre")}</SheetTitle>
@@ -760,20 +825,19 @@ export default function Products() {
                     error={externalProductError}
                     imageLoadFailed={imageLoadFailed}
                     onImageError={() => setImageLoadFailed(true)}
+                    metrics={[
+                      ["Sector", text(currentProduct.product_industry_sector)],
+                      ["Categoria", text(currentProduct.product_category)],
+                      ["Disponible", formatCount(numberValue(currentProduct.total_units_available))],
+                      ["Listas precio", formatCount(numberValue(currentProduct.price_lists_count ?? selectedPriceLists.length))],
+                    ]}
                   />
-
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <ProfileMetric label="Disponible" value={formatCount(numberValue(currentProduct.total_units_available))} />
-                    <ProfileMetric label="Bodegas" value={formatCount(numberValue(currentProduct.inventory_locations_count))} />
-                    <ProfileMetric label="Comprometido" value={formatCount(numberValue(currentProduct.committed_quantity))} />
-                    <ProfileMetric label="Listas precio" value={formatCount(numberValue(currentProduct.price_lists_count ?? selectedPriceLists.length))} />
-                  </div>
 
                   <Tabs defaultValue="summary">
                     <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted/70 p-1">
                       <TabsTrigger value="summary" className="h-10">Resumen</TabsTrigger>
                       <TabsTrigger value="inventories" className="h-10">Inventarios</TabsTrigger>
-                      <TabsTrigger value="prices" className="h-10">Precios SAP</TabsTrigger>
+                      <TabsTrigger value="prices" className="h-10">Listas de precios</TabsTrigger>
                       <TabsTrigger value="details" className="h-10">Datos adicionales</TabsTrigger>
                     </TabsList>
 
@@ -788,10 +852,10 @@ export default function Products() {
                           {(
                             [
                               ["Marca", currentProduct.product_brand_name],
-                              ["Categoria", currentProduct.product_category],
-                              ["Linea", currentProduct.product_line_name],
-                              ["Especie", currentProduct.product_target_species ?? currentProduct.product_target_animal_species],
                               ["Sector", currentProduct.product_industry_sector],
+                              ["Categoria", currentProduct.product_category],
+                              ["Especie", currentProduct.product_target_animal_species],
+                              ["Linea", currentProduct.product_line_name],
                               ["Unidad", currentProduct.product_unit_of_measurement],
                             ] as [string, unknown][]
                           ).filter(([, v]) => v != null && v !== "").map(([label, value]) => (
@@ -834,7 +898,7 @@ export default function Products() {
                       <div className="rounded-md border bg-card p-4 shadow-sm">
                         <div className="mb-3 flex items-center gap-2">
                           <Boxes className="h-4 w-4 text-primary" />
-                          <p className="font-semibold">Inventario agregado</p>
+                          <p className="font-semibold">Inventario</p>
                         </div>
                         <div className="grid grid-cols-3 gap-2.5">
                           {(
@@ -844,7 +908,7 @@ export default function Products() {
                               ["Comprometido", formatCount(numberValue(currentProduct.committed_quantity))],
                               ["Stock minimo", formatCount(numberValue(currentProduct.minimal_stock))],
                               ["Stock maximo", formatCount(numberValue(currentProduct.maximal_stock))],
-                              ["Costo promedio", money(currentProduct.avg_unit_sale_price)],
+                              ["Costo promedio", money(averageReferencePrice)],
                             ] as [string, string][]
                           ).map(([label, value]) => (
                             <div key={label} className="rounded-md bg-muted/35 px-3 py-2.5">
@@ -1117,6 +1181,7 @@ function ProductExternalMedia({
   error,
   imageLoadFailed,
   onImageError,
+  metrics,
 }: {
   catalogProduct: ProductCatalogItem;
   externalProduct: SupabaseProduct | null;
@@ -1125,17 +1190,18 @@ function ProductExternalMedia({
   error: string | null;
   imageLoadFailed: boolean;
   onImageError: () => void;
+  metrics: Array<[string, string]>;
 }) {
   const showImage = Boolean(imageUrl && !imageLoadFailed);
-  const officialBrand = externalProduct?.product_brand_name || catalogProduct.product_brand_name;
+  const isNumericMetric = (label: string) => label === "Disponible" || label === "Listas precio";
 
   return (
-    <div className="rounded-md border bg-card p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+    <div className="overflow-hidden rounded-md border bg-card shadow-sm">
+      <div className="grid gap-0 lg:grid-cols-[12.5rem_1fr]">
         <div
           className={cn(
-            "flex min-h-[9rem] w-full items-center justify-center overflow-hidden rounded-md border",
-            showImage ? "bg-white" : "bg-muted/35",
+            "flex min-h-[11.5rem] w-full items-center justify-center overflow-hidden border-b lg:border-b-0 lg:border-r",
+            showImage ? "bg-white" : "bg-muted/30",
           )}
         >
           {loading ? (
@@ -1144,41 +1210,43 @@ function ProductExternalMedia({
             <img
               src={imageUrl}
               alt={text(catalogProduct.product_commercial_name, "Producto")}
-              className="h-full w-full object-contain p-2"
+              className="h-full w-full object-contain p-3"
               onError={onImageError}
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ImageOff className="h-9 w-9" />
+              <ImageOff className="h-10 w-10" />
               <span className="text-xs font-medium">Sin imagen</span>
             </div>
           )}
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 p-2.5 sm:p-3">
           {error ? (
-            <div className="flex min-h-[9rem] items-center rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            <div className="flex min-h-[11.5rem] items-center rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
               No se pudo cargar el producto externo: {error}
             </div>
           ) : (
-            <div className="grid h-full gap-2 text-sm sm:grid-cols-2">
-              <ExternalProductFact label="Marca oficial" value={officialBrand} />
-              <ExternalProductFact label="Categoria" value={externalProduct?.product_category} />
-              <ExternalProductFact label="Presentacion" value={externalProduct?.product_presentation} />
-              <ExternalProductFact label="Activo" value={externalProduct?.product_active_ingredient} />
+            <div className="grid h-full gap-2.5 sm:grid-cols-2">
+              {metrics.map(([label, value]) => (
+                <div key={label} className="flex min-h-[5.45rem] flex-col rounded-md border bg-muted/60 px-4 py-3 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+                  <p
+                    className={cn(
+                      "mt-2 break-words text-foreground",
+                      isNumericMetric(label)
+                        ? "text-[1.2rem] font-bold leading-none sm:text-[1.3rem]"
+                        : "text-[0.9rem] font-semibold leading-[1.2] sm:text-[0.88rem]",
+                    )}
+                  >
+                    {value}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function ExternalProductFact({ label, value }: { label: string; value: unknown }) {
-  return (
-    <div className="flex min-h-[4rem] min-w-0 flex-col justify-center rounded-md bg-muted/35 px-3 py-2">
-      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 break-words font-medium text-foreground">{text(value)}</p>
     </div>
   );
 }

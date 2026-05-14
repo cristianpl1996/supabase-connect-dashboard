@@ -1,13 +1,18 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   createPromotion,
+  getAllRepresentatives,
+  getCustomerFilterOptions,
+  getProductFilterOptions,
   getPromotion,
   getPromotionBudget,
   getCustomersPage,
   listProducts,
   updatePromotion,
   CustomerRecord,
+  FilterOptionItem,
   ProductCatalogItem,
+  Representative,
   listTotal,
 } from '@/lib/api';
 import { usePromoter } from '@/contexts/PromoterContext';
@@ -37,7 +42,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, Zap, DollarSign, AlertTriangle, Target, Search, X } from 'lucide-react';
+import { Loader2, FileText, Zap, DollarSign, AlertTriangle, Target, Search, X, Boxes, SlidersHorizontal } from 'lucide-react';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 
 interface PromotionFormSheetProps {
@@ -49,16 +55,24 @@ interface PromotionFormSheetProps {
 }
 
 const SEGMENT_OPTIONS = [
-  { value: 'ganaderia', label: 'Ganaderia' },
-  { value: 'mascotas', label: 'Mascotas' },
-  { value: 'todo', label: 'Todo el pais' },
+  { value: 'custom', label: 'Segmentacion manual' },
+  { value: 'with_purchases', label: 'Clientes con compras' },
+  { value: 'without_purchases', label: 'Clientes sin compras' },
+  { value: 'with_representative', label: 'Con representante' },
+  { value: 'without_representative', label: 'Sin representante' },
+  { value: 'active_recent', label: 'Activos 1 a 45 dias' },
+  { value: 'at_risk', label: 'En riesgo 46 a 90 dias' },
+  { value: 'inactive', label: 'Inactivos 91+ dias' },
 ];
 
 const SCOPE_OPTIONS = [
   { value: 'all', label: 'Toda mi base' },
   { value: 'customers', label: 'Clientes especificos' },
   { value: 'customer_segment', label: 'Segmento de clientes' },
-  { value: 'product_filters', label: 'Linea / categoria / marca / especie' },
+];
+const PRODUCT_APPLICATION_OPTIONS = [
+  { value: 'specific', label: 'Productos especificos' },
+  { value: 'filters', label: 'Marca / Sector / Categoria / Especie' },
 ];
 
 const CONDITION_TYPES = [
@@ -82,6 +96,7 @@ const ACCOUNTING_TREATMENTS = [
   { value: 'bonificacion_precio_cero', label: 'Bonificacion a Precio Cero' },
   { value: 'nota_credito_posterior', label: 'Nota Credito Posterior' },
 ];
+const WITHOUT_REPRESENTATIVE_OPTION = 'without_rep';
 
 const formFocusClasses = [
   '[&_input:focus-visible]:!border-primary/60',
@@ -97,6 +112,33 @@ const formFocusClasses = [
   '[&_[role=combobox]:focus]:!ring-primary/20',
   '[&_[role=combobox]:focus]:!ring-offset-0',
 ].join(' ');
+
+function buildSegmentPresetConfig(segment: string): Record<string, unknown> {
+  switch (segment) {
+    case 'with_purchases':
+      return { min_purchases: 1 };
+    case 'without_purchases':
+      return { max_purchases: 0 };
+    case 'with_representative':
+      return { has_sales_representative: true };
+    case 'without_representative':
+      return { has_sales_representative: false };
+    case 'active_recent':
+      return { min_purchases: 1, min_days_since_last_purchase: 1, max_days_since_last_purchase: 45 };
+    case 'at_risk':
+      return { min_purchases: 1, min_days_since_last_purchase: 46, max_days_since_last_purchase: 90 };
+    case 'inactive':
+      return { min_purchases: 1, min_days_since_last_purchase: 91 };
+    default:
+      return {};
+  }
+}
+
+function representativeOption(representative: Representative): [string, string] | null {
+  const id = String(representative.sales_representative_id ?? representative.id ?? '');
+  const name = String(representative.sales_rep_full_name ?? '');
+  return id && name ? [id, name] : null;
+}
 
 export function PromotionFormSheet({
   open,
@@ -114,19 +156,36 @@ export function PromotionFormSheet({
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [segment, setSegment] = useState('todo');
+  const [segment, setSegment] = useState('custom');
   const [scope, setScope] = useState('all');
   const [selectedProductSkus, setSelectedProductSkus] = useState<string[]>([]);
+  const [productApplicationMode, setProductApplicationMode] = useState('specific');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [productNameMap, setProductNameMap] = useState<Record<string, string>>({});
   const [customerNameMap, setCustomerNameMap] = useState<Record<string, string>>({});
   const [productFilterBrand, setProductFilterBrand] = useState('');
   const [productFilterCategory, setProductFilterCategory] = useState('');
-  const [productFilterLine, setProductFilterLine] = useState('');
+  const [productFilterSector, setProductFilterSector] = useState('');
   const [productFilterSpecies, setProductFilterSpecies] = useState('');
+  const [productBrandOptions, setProductBrandOptions] = useState<string[]>([]);
+  const [productCategoryOptions, setProductCategoryOptions] = useState<string[]>([]);
+  const [productSectorOptions, setProductSectorOptions] = useState<string[]>([]);
+  const [productSpeciesOptions, setProductSpeciesOptions] = useState<string[]>([]);
   const [customerFilterBusinessType, setCustomerFilterBusinessType] = useState('');
   const [customerFilterCity, setCustomerFilterCity] = useState('');
   const [customerFilterState, setCustomerFilterState] = useState('');
+  const [customerFilterRepresentative, setCustomerFilterRepresentative] = useState('all');
+  const [customerFilterLocation, setCustomerFilterLocation] = useState('all');
+  const [customerFilterMinPurchases, setCustomerFilterMinPurchases] = useState('');
+  const [customerFilterMaxPurchases, setCustomerFilterMaxPurchases] = useState('');
+  const [customerFilterMinDays, setCustomerFilterMinDays] = useState('');
+  const [customerFilterMaxDays, setCustomerFilterMaxDays] = useState('');
+  const [customerBusinessTypeOptions, setCustomerBusinessTypeOptions] = useState<string[]>([]);
+  const [customerClvOptions, setCustomerClvOptions] = useState<FilterOptionItem[]>([]);
+  const [customerRfmOptions, setCustomerRfmOptions] = useState<FilterOptionItem[]>([]);
+  const [customerFilterClv, setCustomerFilterClv] = useState('');
+  const [customerFilterRfm, setCustomerFilterRfm] = useState('');
+  const [customerRepresentativeOptions, setCustomerRepresentativeOptions] = useState<Array<[string, string]>>([]);
   const [productSearch, setProductSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [productOptions, setProductOptions] = useState<ProductCatalogItem[]>([]);
@@ -157,6 +216,38 @@ export function PromotionFormSheet({
   const visibleProductOptions = productOptions.filter(
     (product) => !selectedProductSkus.includes(product.product_sku),
   );
+  const businessTypeSelectOptions = useMemo(
+    () => customerBusinessTypeOptions.map((item) => ({ value: item, label: item })),
+    [customerBusinessTypeOptions],
+  );
+  const representativeSelectOptions = useMemo(
+    () => customerRepresentativeOptions.map(([value, label]) => ({ value, label })),
+    [customerRepresentativeOptions],
+  );
+  const customerClvSelectOptions = useMemo(
+    () => customerClvOptions.map((item) => ({ value: item.value, label: item.label })),
+    [customerClvOptions],
+  );
+  const customerRfmSelectOptions = useMemo(
+    () => customerRfmOptions.map((item) => ({ value: item.value, label: item.label })),
+    [customerRfmOptions],
+  );
+  const productBrandSelectOptions = useMemo(
+    () => productBrandOptions.map((item) => ({ value: item, label: item })),
+    [productBrandOptions],
+  );
+  const productCategorySelectOptions = useMemo(
+    () => productCategoryOptions.map((item) => ({ value: item, label: item })),
+    [productCategoryOptions],
+  );
+  const productSectorSelectOptions = useMemo(
+    () => productSectorOptions.map((item) => ({ value: item, label: item })),
+    [productSectorOptions],
+  );
+  const productSpeciesSelectOptions = useMemo(
+    () => productSpeciesOptions.map((item) => ({ value: item, label: item })),
+    [productSpeciesOptions],
+  );
 
   useEffect(() => {
     if (open && editingPromo) {
@@ -173,24 +264,44 @@ export function PromotionFormSheet({
             type?: string;
             scope?: string;
             product_skus?: string[];
-            target_config?: Record<string, string>;
+            target_config?: Record<string, unknown>;
             customer_ids?: string[];
             product_filters?: Record<string, string>;
             customer_filters?: Record<string, string>;
           } | null;
           const targetScope = details.target_scope || targetSegment?.scope || (targetSegment?.type && targetSegment.type !== 'todo' ? 'customer_segment' : 'all');
-          const targetConfig = (details.target_config || targetSegment?.target_config || {}) as Record<string, string | string[] | undefined>;
-          setSegment(String(targetConfig.segment || targetSegment?.type || 'todo'));
+          const targetConfig = (details.target_config || targetSegment?.target_config || {}) as Record<string, unknown>;
+          setSegment(String(targetConfig.segment_preset || 'custom'));
           setScope(targetScope);
+          const existingProductFilters = (targetConfig.product_filters ?? targetSegment?.product_filters) as Record<string, unknown> | undefined;
+          setProductApplicationMode(existingProductFilters ? 'filters' : 'specific');
           setSelectedProductSkus(Array.isArray(details.product_skus) ? details.product_skus : Array.isArray(targetSegment?.product_skus) ? targetSegment.product_skus : []);
           setSelectedCustomerIds(Array.isArray(targetConfig.customer_ids) ? targetConfig.customer_ids.map(String) : Array.isArray(targetSegment?.customer_ids) ? targetSegment.customer_ids : []);
-          setProductFilterBrand(String(targetConfig.brand_name || targetSegment?.product_filters?.brand_name || ''));
-          setProductFilterCategory(String(targetConfig.category || targetSegment?.product_filters?.category || ''));
-          setProductFilterLine(String(targetConfig.line_name || targetSegment?.product_filters?.line_name || ''));
-          setProductFilterSpecies(String(targetConfig.target_species || targetSegment?.product_filters?.target_species || ''));
+          setProductFilterBrand(String(existingProductFilters?.brand_name || targetConfig.brand_name || targetSegment?.product_filters?.brand_name || ''));
+          setProductFilterCategory(String(existingProductFilters?.category || targetConfig.category || targetSegment?.product_filters?.category || ''));
+          setProductFilterSector(String(existingProductFilters?.industry_sector || targetConfig.industry_sector || targetSegment?.product_filters?.industry_sector || ''));
+          setProductFilterSpecies(String(existingProductFilters?.target_species || targetConfig.target_species || targetSegment?.product_filters?.target_species || ''));
           setCustomerFilterBusinessType(String(targetConfig.business_type || targetSegment?.customer_filters?.business_type || ''));
           setCustomerFilterCity(String(targetConfig.city || targetSegment?.customer_filters?.city || ''));
           setCustomerFilterState(String(targetConfig.state || targetSegment?.customer_filters?.state || ''));
+          setCustomerFilterRepresentative(
+            typeof targetConfig.sales_representative_id === 'number' || typeof targetConfig.sales_representative_id === 'string'
+              ? String(targetConfig.sales_representative_id)
+              : targetConfig.has_sales_representative === true ? 'with'
+                : targetConfig.has_sales_representative === false ? WITHOUT_REPRESENTATIVE_OPTION
+                  : 'all',
+          );
+          setCustomerFilterLocation(
+            targetConfig.has_location === true ? 'with'
+              : targetConfig.has_location === false ? 'without'
+                : 'all',
+          );
+          setCustomerFilterMinPurchases(String(targetConfig.min_purchases || ''));
+          setCustomerFilterMaxPurchases(String(targetConfig.max_purchases || ''));
+          setCustomerFilterMinDays(String(targetConfig.min_days_since_last_purchase || ''));
+          setCustomerFilterMaxDays(String(targetConfig.max_days_since_last_purchase || ''));
+          setCustomerFilterClv(String(targetConfig.customer_clv_segment || ''));
+          setCustomerFilterRfm(String(targetConfig.customer_rfm_segment || ''));
           setEstimatedCost(details.estimated_cost || 0);
           setMaxRedemptions(details.max_redemptions || '');
 
@@ -224,6 +335,85 @@ export function PromotionFormSheet({
       }
     }
   }, [open, editingPromo, isPromoter, promoter]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    Promise.allSettled([
+      getCustomerFilterOptions(),
+      getAllRepresentatives(),
+      getProductFilterOptions(),
+      listProducts({ limit: 500, offset: 0, is_catalog_verified: true, is_discontinued: false }),
+    ]).then(([typesResult, repsResult, productFilterResult, productListResult]) => {
+      if (cancelled) return;
+
+      setCustomerBusinessTypeOptions(
+        typesResult.status === 'fulfilled' && Array.isArray(typesResult.value.business_types)
+          ? typesResult.value.business_types
+          : [],
+      );
+      setCustomerClvOptions(
+        typesResult.status === 'fulfilled' && Array.isArray(typesResult.value.clv_segments)
+          ? typesResult.value.clv_segments
+          : [],
+      );
+      setCustomerRfmOptions(
+        typesResult.status === 'fulfilled' && Array.isArray(typesResult.value.rfm_segments)
+          ? typesResult.value.rfm_segments
+          : [],
+      );
+      setCustomerRepresentativeOptions(
+        repsResult.status === 'fulfilled'
+          ? [
+            [WITHOUT_REPRESENTATIVE_OPTION, 'Sin representante'] as [string, string],
+            ...repsResult.value
+              .map(representativeOption)
+            .filter((item): item is [string, string] => item !== null),
+          ]
+          : [],
+      );
+
+      setProductBrandOptions(
+        productFilterResult.status === 'fulfilled' && Array.isArray(productFilterResult.value.brands)
+          ? productFilterResult.value.brands
+          : [],
+      );
+      setProductCategoryOptions(
+        productFilterResult.status === 'fulfilled' && Array.isArray(productFilterResult.value.categories)
+          ? productFilterResult.value.categories
+          : [],
+      );
+      setProductSectorOptions(
+        productFilterResult.status === 'fulfilled' && Array.isArray(productFilterResult.value.sectors)
+          ? productFilterResult.value.sectors
+          : [],
+      );
+      setProductSpeciesOptions(
+        productFilterResult.status === 'fulfilled' && Array.isArray(productFilterResult.value.species)
+          ? productFilterResult.value.species
+          : [],
+      );
+
+      if (productListResult.status === 'fulfilled') {
+        if (productFilterResult.status !== 'fulfilled' || !Array.isArray(productFilterResult.value.sectors)) {
+          const sectors = Array.from(new Set(productListResult.value.map((item) => String(item.product_industry_sector || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+          setProductSectorOptions(sectors);
+        }
+        if (productFilterResult.status !== 'fulfilled' || !Array.isArray(productFilterResult.value.species)) {
+          const species = Array.from(new Set(productListResult.value.map((item) => String(item.product_target_animal_species || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+          setProductSpeciesOptions(species);
+        }
+      } else if (productFilterResult.status !== 'fulfilled') {
+        setProductSectorOptions([]);
+        setProductSpeciesOptions([]);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!isPromoter || !promoter || !open) {
@@ -377,17 +567,30 @@ export function PromotionFormSheet({
     setDescription('');
     setStartDate('');
     setEndDate('');
-    setSegment('todo');
+    setSegment('custom');
     setScope('all');
     setSelectedProductSkus([]);
+    setProductApplicationMode('specific');
     setSelectedCustomerIds([]);
     setProductFilterBrand('');
     setProductFilterCategory('');
-    setProductFilterLine('');
+    setProductFilterSector('');
     setProductFilterSpecies('');
+    setProductBrandOptions([]);
+    setProductCategoryOptions([]);
+    setProductSectorOptions([]);
+    setProductSpeciesOptions([]);
     setCustomerFilterBusinessType('');
     setCustomerFilterCity('');
     setCustomerFilterState('');
+    setCustomerFilterRepresentative('all');
+    setCustomerFilterLocation('all');
+    setCustomerFilterMinPurchases('');
+    setCustomerFilterMaxPurchases('');
+    setCustomerFilterMinDays('');
+    setCustomerFilterMaxDays('');
+    setCustomerFilterClv('');
+    setCustomerFilterRfm('');
     setProductSearch('');
     setCustomerSearch('');
     setProductOptions([]);
@@ -447,36 +650,79 @@ export function PromotionFormSheet({
     };
   }, [rewardType, rewardValue]);
 
-  const buildTargetSegment = useMemo(() => {
+  const buildTargetConfig = useMemo(() => {
     return () => {
+      const productFilters = productApplicationMode === 'filters'
+        ? {
+          brand_name: productFilterBrand || undefined,
+          industry_sector: productFilterSector || undefined,
+          category: productFilterCategory || undefined,
+          target_species: productFilterSpecies || undefined,
+        }
+        : undefined;
+
+      if (scope === 'all') {
+        return {
+          preset: 'commercial_base',
+          has_sales_representative: true,
+          min_purchases: 1,
+          product_filter_mode: productApplicationMode,
+          product_filters: productFilters,
+        };
+      }
       const target: Record<string, unknown> = {};
+      target.product_filter_mode = productApplicationMode;
+      target.product_filters = productFilters;
       if (scope === 'customers') {
         target.customer_ids = selectedCustomerIds;
       }
-      if (scope === 'product_filters') {
-        target.product_filters = {
-          brand_name: productFilterBrand || undefined,
-          category: productFilterCategory || undefined,
-          line_name: productFilterLine || undefined,
-          target_species: productFilterSpecies || undefined,
-        };
-      }
       if (scope === 'customer_segment') {
-        target.customer_filters = {
-          business_type: customerFilterBusinessType || segment || undefined,
-          city: customerFilterCity || undefined,
-          state: customerFilterState || undefined,
-        };
+        Object.assign(target, buildSegmentPresetConfig(segment));
+        if (segment !== 'custom') {
+          target.segment_preset = segment;
+        }
+        target.business_type = customerFilterBusinessType === 'all' ? undefined : customerFilterBusinessType || undefined;
+        target.city = customerFilterCity || undefined;
+        target.state = customerFilterState || undefined;
+        target.has_sales_representative =
+          customerFilterRepresentative === 'with' ? true
+            : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false
+              : customerFilterRepresentative !== 'all' ? true
+                : undefined;
+        target.sales_representative_id =
+          customerFilterRepresentative !== 'all' && customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION
+            ? Number(customerFilterRepresentative)
+            : undefined;
+        target.has_location =
+          customerFilterLocation === 'with' ? true
+            : customerFilterLocation === 'without' ? false
+              : undefined;
+        target.min_purchases = customerFilterMinPurchases ? Number(customerFilterMinPurchases) : undefined;
+        target.max_purchases = customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : undefined;
+        target.min_days_since_last_purchase = customerFilterMinDays ? Number(customerFilterMinDays) : undefined;
+        target.max_days_since_last_purchase = customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined;
+        target.customer_clv_segment = customerFilterClv || undefined;
+        target.customer_rfm_segment = customerFilterRfm || undefined;
       }
       return target;
     };
   }, [
+    buildSegmentPresetConfig,
     customerFilterBusinessType,
     customerFilterCity,
+    customerFilterClv,
+    customerFilterLocation,
+    customerFilterMaxDays,
+    customerFilterMaxPurchases,
+    customerFilterMinDays,
+    customerFilterMinPurchases,
+    customerFilterRepresentative,
+    customerFilterRfm,
     customerFilterState,
+    productApplicationMode,
     productFilterBrand,
     productFilterCategory,
-    productFilterLine,
+    productFilterSector,
     productFilterSpecies,
     scope,
     segment,
@@ -520,20 +766,34 @@ export function PromotionFormSheet({
       toast.error('No puedes guardar: el costo estimado supera el presupuesto gastable disponible.');
       return;
     }
-    const hasProductFilters = Boolean(productFilterBrand || productFilterCategory || productFilterLine || productFilterSpecies);
-    if (selectedProductSkus.length === 0 && !(scope === 'product_filters' && hasProductFilters)) {
+    const hasProductFilters = Boolean(productFilterBrand || productFilterSector || productFilterCategory || productFilterSpecies);
+    if (productApplicationMode === 'specific' && selectedProductSkus.length === 0) {
       toast.error('Selecciona al menos un producto o define filtros de producto para resolverlos');
+      return;
+    }
+    if (productApplicationMode === 'filters' && !hasProductFilters) {
+      toast.error('Define al menos un filtro de marca, sector, categoria o especie');
       return;
     }
     if (scope === 'customers' && selectedCustomerIds.length === 0) {
       toast.error('Selecciona al menos un cliente para este alcance');
       return;
     }
-    if (scope === 'product_filters' && !hasProductFilters) {
-      toast.error('Define al menos un filtro de linea, categoria, marca o especie');
-      return;
-    }
-    if (scope === 'customer_segment' && !customerFilterBusinessType && !customerFilterCity && !customerFilterState && !segment) {
+    if (
+      scope === 'customer_segment'
+      && !customerFilterBusinessType
+      && !customerFilterCity
+      && !customerFilterState
+      && customerFilterRepresentative === 'all'
+      && customerFilterLocation === 'all'
+      && !customerFilterMinPurchases
+      && !customerFilterMaxPurchases
+      && !customerFilterMinDays
+      && !customerFilterMaxDays
+      && !customerFilterClv
+      && !customerFilterRfm
+      && segment === 'custom'
+    ) {
       toast.error('Define al menos un filtro para el segmento de clientes');
       return;
     }
@@ -546,9 +806,9 @@ export function PromotionFormSheet({
         description: description.trim() || null,
         start_date: startDate,
         end_date: endDate,
-        product_skus: selectedProductSkus,
-        target_scope: scope as 'all' | 'customers' | 'customer_segment' | 'product_filters',
-        target_config: buildTargetSegment(),
+        product_skus: productApplicationMode === 'specific' ? selectedProductSkus : [],
+        target_scope: scope as 'all' | 'customers' | 'customer_segment',
+        target_config: buildTargetConfig(),
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
@@ -641,7 +901,7 @@ export function PromotionFormSheet({
 
                   <div className="space-y-2">
                     <Label htmlFor="title">Titulo de la Promocion</Label>
-                    <Input id="title" placeholder="Ej: BONIFICACION 10+1, DESCUENTO 7" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </div>
 
                   <div className="space-y-2">
@@ -666,14 +926,25 @@ export function PromotionFormSheet({
               <AccordionItem value="products" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-primary" />
+                    <Boxes className="h-4 w-4 text-primary" />
                     <span className="font-semibold">Productos de la Promocion</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-3 pt-4">
+                <AccordionContent className="space-y-4 pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Toda promocion debe quedar amarrada a uno o mas productos. Busca por SKU, nombre o marca.
+                    Define si la promocion aplica a productos especificos o a una familia de productos por filtros.
                   </p>
+                  <div className="space-y-2">
+                    <Label>Aplica a</Label>
+                    <Select value={productApplicationMode} onValueChange={setProductApplicationMode}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PRODUCT_APPLICATION_OPTIONS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {productApplicationMode === 'specific' ? (
+                    <>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
@@ -713,6 +984,65 @@ export function PromotionFormSheet({
                       ))
                     )}
                   </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted/35 text-primary">
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </span>
+                        <span>Filtros</span>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-4 shadow-sm">
+                        <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Marca</Label>
+                          <SearchableSelect
+                            value={productFilterBrand || 'all'}
+                            onValueChange={(value) => setProductFilterBrand(value === 'all' ? '' : value)}
+                            options={productBrandSelectOptions}
+                            allLabel="Todas las marcas"
+                            searchPlaceholder="Buscar marca..."
+                            emptyLabel="No hay marcas"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Sector</Label>
+                          <SearchableSelect
+                            value={productFilterSector || 'all'}
+                            onValueChange={(value) => setProductFilterSector(value === 'all' ? '' : value)}
+                            options={productSectorSelectOptions}
+                            allLabel="Todos los sectores"
+                            searchPlaceholder="Buscar sector..."
+                            emptyLabel="No hay sectores"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Categoria</Label>
+                          <SearchableSelect
+                            value={productFilterCategory || 'all'}
+                            onValueChange={(value) => setProductFilterCategory(value === 'all' ? '' : value)}
+                            options={productCategorySelectOptions}
+                            allLabel="Todas las categorias"
+                            searchPlaceholder="Buscar categoria..."
+                            emptyLabel="No hay categorias"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Especie</Label>
+                          <SearchableSelect
+                            value={productFilterSpecies || 'all'}
+                            onValueChange={(value) => setProductFilterSpecies(value === 'all' ? '' : value)}
+                            options={productSpeciesSelectOptions}
+                            allLabel="Todas las especies"
+                            searchPlaceholder="Buscar especie..."
+                            emptyLabel="No hay especies"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
 
@@ -734,54 +1064,11 @@ export function PromotionFormSheet({
                     </Select>
                   </div>
 
-                  {scope === 'products' && (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
-                      </div>
-                      {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos...</p>}
-                      {visibleProductOptions.length > 0 && (
-                        <div
-                          className="max-h-56 overflow-y-auto rounded-md border divide-y"
-                          onScroll={(e) => {
-                            const el = e.currentTarget;
-                            if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreProducts();
-                          }}
-                        >
-                          {visibleProductOptions.map((product) => (
-                            <button
-                              key={product.product_sku}
-                              type="button"
-                              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                              onClick={() => addProductSku(product.product_sku, product.product_commercial_name || product.product_sku)}
-                            >
-                              <span className="min-w-0 truncate">{product.product_commercial_name || product.product_sku}</span>
-                              <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
-                            </button>
-                          ))}
-                          {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Cargando más...</div>}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        {selectedProductSkus.length === 0 ? (
-                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
-                        ) : (
-                          selectedProductSkus.map((sku) => (
-                            <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[180px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
-                              <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="h-3 w-3 shrink-0" />
-                            </Button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {scope === 'customers' && (
                     <div className="space-y-3">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input className="pl-9" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Buscar clientes por nombre" />
+                        <Input className="pl-9" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Buscar clientes por nombre, NIT o email" />
                       </div>
                       {loadingCustomerOptions && <p className="text-xs text-muted-foreground">Buscando clientes...</p>}
                       {customerOptions.length > 0 && (
@@ -824,19 +1111,10 @@ export function PromotionFormSheet({
                     </div>
                   )}
 
-                  {scope === 'product_filters' && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2"><Label>Marca</Label><Input value={productFilterBrand} onChange={(e) => setProductFilterBrand(e.target.value)} placeholder="Marca" /></div>
-                      <div className="space-y-2"><Label>Categoria</Label><Input value={productFilterCategory} onChange={(e) => setProductFilterCategory(e.target.value)} placeholder="Categoria" /></div>
-                      <div className="space-y-2"><Label>Linea</Label><Input value={productFilterLine} onChange={(e) => setProductFilterLine(e.target.value)} placeholder="Linea" /></div>
-                      <div className="space-y-2"><Label>Especie</Label><Input value={productFilterSpecies} onChange={(e) => setProductFilterSpecies(e.target.value)} placeholder="Especie objetivo" /></div>
-                    </div>
-                  )}
-
                   {scope === 'customer_segment' && (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Segmento comercial</Label>
+                        <Label>Segmento</Label>
                         <Select value={segment} onValueChange={setSegment}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -844,11 +1122,97 @@ export function PromotionFormSheet({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2"><Label>Tipo de negocio</Label><Input value={customerFilterBusinessType} onChange={(e) => setCustomerFilterBusinessType(e.target.value)} placeholder="Veterinaria" /></div>
-                        <div className="space-y-2"><Label>Ciudad</Label><Input value={customerFilterCity} onChange={(e) => setCustomerFilterCity(e.target.value)} placeholder="Bogota" /></div>
-                        <div className="space-y-2"><Label>Departamento</Label><Input value={customerFilterState} onChange={(e) => setCustomerFilterState(e.target.value)} placeholder="Cundinamarca" /></div>
-                      </div>
+                      {segment === 'custom' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted/35 text-primary">
+                              <SlidersHorizontal className="h-4 w-4" />
+                            </span>
+                            <span>Filtros</span>
+                          </div>
+                          <div className="rounded-lg border border-border bg-muted/30 p-4 shadow-sm">
+                            <div className="grid gap-4 sm:grid-cols-2 sm:p-1">
+                            <div className="space-y-2">
+                              <Label>Tipo de negocio</Label>
+                              <SearchableSelect
+                                value={customerFilterBusinessType || 'all'}
+                                onValueChange={(value) => setCustomerFilterBusinessType(value === 'all' ? '' : value)}
+                                options={businessTypeSelectOptions}
+                                allLabel="Todos los tipos"
+                                searchPlaceholder="Buscar tipo..."
+                                emptyLabel="No hay tipos"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Representante</Label>
+                              <SearchableSelect
+                                value={customerFilterRepresentative}
+                                onValueChange={setCustomerFilterRepresentative}
+                                options={representativeSelectOptions}
+                                allLabel="Todos los representantes"
+                                searchPlaceholder="Buscar representante..."
+                                emptyLabel="No hay representantes"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Segmento CLV</Label>
+                              <SearchableSelect
+                                value={customerFilterClv || 'all'}
+                                onValueChange={(value) => setCustomerFilterClv(value === 'all' ? '' : value)}
+                                options={customerClvSelectOptions}
+                                allLabel="Todos los segmentos"
+                                searchPlaceholder="Buscar CLV..."
+                                emptyLabel="No hay segmentos CLV"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Segmento RFM</Label>
+                              <SearchableSelect
+                                value={customerFilterRfm || 'all'}
+                                onValueChange={(value) => setCustomerFilterRfm(value === 'all' ? '' : value)}
+                                options={customerRfmSelectOptions}
+                                allLabel="Todos los segmentos"
+                                searchPlaceholder="Buscar RFM..."
+                                emptyLabel="No hay segmentos RFM"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Ciudad</Label>
+                              <Input value={customerFilterCity} onChange={(e) => setCustomerFilterCity(e.target.value)} placeholder="Bogota" className="bg-background" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Departamento</Label>
+                              <Input value={customerFilterState} onChange={(e) => setCustomerFilterState(e.target.value)} placeholder="Cundinamarca" className="bg-background" />
+                            </div>
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label>Ubicacion</Label>
+                              <Select value={customerFilterLocation} onValueChange={setCustomerFilterLocation}>
+                                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">Todos</SelectItem>
+                                  <SelectItem value="with">Con ubicacion</SelectItem>
+                                  <SelectItem value="without">Sin ubicacion</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Compras realizadas</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input type="number" min={0} value={customerFilterMinPurchases} onChange={(e) => setCustomerFilterMinPurchases(e.target.value)} placeholder="Min." className="bg-background" />
+                                <Input type="number" min={0} value={customerFilterMaxPurchases} onChange={(e) => setCustomerFilterMaxPurchases(e.target.value)} placeholder="Max." className="bg-background" />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Dias sin compra</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input type="number" min={0} value={customerFilterMinDays} onChange={(e) => setCustomerFilterMinDays(e.target.value)} placeholder="Min. dias" className="bg-background" />
+                                <Input type="number" min={0} value={customerFilterMaxDays} onChange={(e) => setCustomerFilterMaxDays(e.target.value)} placeholder="Max. dias" className="bg-background" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </AccordionContent>
@@ -1022,3 +1386,4 @@ export function PromotionFormSheet({
     </Sheet>
   );
 }
+
