@@ -1,7 +1,7 @@
 import { Promotion, PromoMechanic } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ClipboardCheck, DollarSign, Gift, Megaphone, Target, WalletCards, Zap } from "lucide-react";
+import { Calendar, DollarSign, Megaphone, Target, WalletCards, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -21,18 +21,6 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   pausada: { label: "Pausada", variant: "secondary" },
   finalizada: { label: "Finalizada", variant: "outline" },
   cancelada: { label: "Cancelada", variant: "destructive" },
-};
-
-const CONDITION_LABELS: Record<string, string> = {
-  sku_list: "Lista de SKUs",
-  min_amount: "Monto minimo",
-  category: "Por categoria",
-};
-
-const REWARD_LABELS: Record<string, string> = {
-  free_product: "Producto gratis",
-  discount_percent: "Descuento %",
-  price_override: "Precio especial",
 };
 
 const ACCOUNTING_LABELS: Record<string, string> = {
@@ -121,8 +109,6 @@ export function PromotionDetailsSheet({
   const targetConfig = ((promotion.target_config as Record<string, unknown> | null)
     || (targetSegment?.target_config as Record<string, unknown> | null)
     || {}) as Record<string, unknown>;
-  const conditionConfig = mechanic?.condition_config as Record<string, unknown> | null;
-  const rewardConfig = mechanic?.reward_config as Record<string, unknown> | null;
   const scope = promotion.target_scope || targetSegment?.scope || (targetSegment?.type && targetSegment.type !== "todo" ? "customer_segment" : "all");
   const maxRedemptions = promotion.max_redemptions || 0;
   const redemptionPercent = maxRedemptions > 0 ? Math.min((promotion.current_redemptions / maxRedemptions) * 100, 100) : 0;
@@ -232,32 +218,24 @@ export function PromotionDetailsSheet({
             <div className="space-y-3">
               <div className="mb-3 flex items-center gap-2">
                 <Zap className="h-4 w-4 text-primary" />
-                <h3 className="font-semibold">Mecanica promocional</h3>
+                <h3 className="font-semibold">Regla comercial</h3>
               </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                <section className="rounded-md border bg-card p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold">Condicion</h3>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <PromoFact label="Tipo de promocion" value={mechanic.promotion_type_label || mechanic.promotion_type} />
+                <PromoFact label="Condicion" value={mechanic.condition_type_label || mechanic.condition_type} />
+                <PromoFact label="Beneficio" value={mechanic.benefit_type_label || mechanic.benefit_type || mechanic.reward_type} />
+              </div>
+              <section className="rounded-md border bg-card p-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase text-muted-foreground">Resumen comercial</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground">{mechanic.summary || "Promocion comercial configurada."}</p>
                   </div>
-                  <PromoFact label="Tipo" value={CONDITION_LABELS[mechanic.condition_type || ""] || mechanic.condition_type} />
-                  {conditionConfig && <KeyValueGrid values={conditionConfig} className="mt-3" currencyKeys={["min_amount"]} />}
-                </section>
-
-                <section className="rounded-md border bg-card p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Gift className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold">Beneficio</h3>
-                  </div>
-                  <PromoFact label="Tipo" value={REWARD_LABELS[mechanic.reward_type || ""] || mechanic.reward_type} />
-                  {rewardConfig && <KeyValueGrid values={rewardConfig} className="mt-3" currencyKeys={["special_price"]} />}
                   {mechanic.accounting_treatment && (
-                    <div className="mt-3">
-                      <PromoFact label="Tratamiento contable" value={ACCOUNTING_LABELS[mechanic.accounting_treatment] || mechanic.accounting_treatment} />
-                    </div>
+                    <PromoFact label="Tratamiento contable" value={ACCOUNTING_LABELS[mechanic.accounting_treatment] || mechanic.accounting_treatment} />
                   )}
-                </section>
-              </div>
+                </div>
+              </section>
             </div>
           ) : (
             <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
@@ -343,34 +321,6 @@ function BadgeList({ title, values }: { title: string; values: string[] }) {
       <div className="flex flex-wrap gap-1.5">
         {values.map((value) => <Badge key={value} variant="outline">{value}</Badge>)}
       </div>
-    </div>
-  );
-}
-
-function KeyValueGrid({
-  values,
-  className = "",
-  currencyKeys = [],
-}: {
-  values: Record<string, unknown>;
-  className?: string;
-  currencyKeys?: string[];
-}) {
-  const entries = Object.entries(values).filter(([, value]) => value !== null && value !== undefined && value !== "");
-  if (entries.length === 0) return null;
-  const formatValue = (key: string, value: unknown) => {
-    if (currencyKeys.includes(key)) {
-      return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Number(value || 0));
-    }
-    if (Array.isArray(value)) return value.join(", ");
-    if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
-  };
-  return (
-    <div className={`grid gap-2 sm:grid-cols-2 ${className}`}>
-      {entries.map(([key, value]) => (
-        <PromoFact key={key} label={key.replace(/_/g, " ")} value={formatValue(key, value)} />
-      ))}
     </div>
   );
 }

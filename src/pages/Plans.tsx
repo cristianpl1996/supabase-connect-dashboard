@@ -245,7 +245,7 @@ const Plans = () => {
               <Plus className="h-4 w-4" />
               Nuevo Plan Año
             </Button>
-          )} description={""} />
+          )} description={"Gestiona planes comerciales, metas de compra y presupuestos asignados por laboratorio."} />
       </ErrorDisabledContent>
 
       {/* Error Display */}

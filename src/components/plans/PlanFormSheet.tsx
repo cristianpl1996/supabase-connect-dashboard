@@ -19,8 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Layers3, Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { ContractAnalysisResult } from '@/services/aiPlanParser';
 import { ContractDropzone } from './ContractDropzone';
 
 interface PlanFundInput {
@@ -40,14 +41,22 @@ interface PlanFormSheetProps {
   editingPlan?: AnnualPlan | null;
 }
 
+const CUSTOM_CONCEPT_VALUE = '__custom__';
 const FUND_CONCEPTS = [
-  'Rebate Sell-In',
-  'Rebate Sell-Out',
-  'Marketing',
-  'Pronto Pago',
-  'Coop',
-  'Otro',
+  { value: 'Desc_Pie_Factura', label: 'Desc. Pie Factura', amountType: 'porcentaje' as const },
+  { value: 'Rebate_SellIn', label: 'Rebate Sell In', amountType: 'porcentaje' as const },
+  { value: 'Rebate_SellOut', label: 'Rebate Sell Out', amountType: 'porcentaje' as const },
+  { value: 'Marketing', label: 'Marketing', amountType: 'porcentaje' as const },
+  { value: 'Pronto_Pago', label: 'Pronto Pago', amountType: 'porcentaje' as const },
 ];
+
+function isPresetConcept(concept: string): boolean {
+  return FUND_CONCEPTS.some((item) => item.value === concept);
+}
+
+function getConceptLabel(concept: string): string {
+  return FUND_CONCEPTS.find((item) => item.value === concept)?.label ?? concept;
+}
 
 export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, editingPlan }: PlanFormSheetProps) {
   const currentYear = new Date().getFullYear();
@@ -58,6 +67,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   const [year, setYear] = useState(currentYear + 1);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
+  const [aiExtractedData, setAiExtractedData] = useState<Record<string, unknown> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFunds, setIsLoadingFunds] = useState(false);
 
@@ -67,6 +77,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       setLabNameFromAI('');
       setYear(editingPlan.year);
       setPurchaseGoal(editingPlan.total_purchase_goal || 0);
+      setAiExtractedData(editingPlan.ai_extracted_data ?? null);
 
       const fetchPlan = async () => {
         setIsLoadingFunds(true);
@@ -102,19 +113,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     return sum + (purchaseGoal * fund.amount_value / 100);
   }, 0);
 
-  const handleContractAnalyzed = useCallback((result: {
-    brand_name: string;
-    year: number;
-    annual_goal: number;
-    invoice_discount_perc: number;
-    rebate_sell_in_perc: number;
-    rebate_sell_out_perc: number;
-    marketing_perc: number;
-    marketing_fixed_value: number;
-    financial_discount_perc: number;
-    total_margin_perc: number;
-    funds: Array<{ concept: string; type: 'percentage' | 'fixed'; value: number }>;
-  }) => {
+  const handleContractAnalyzed = useCallback((result: ContractAnalysisResult) => {
     const matchedLab = laboratories.find(
       (lab) => lab.name.toLowerCase() === result.brand_name.toLowerCase()
         || lab.name.toLowerCase().includes(result.brand_name.toLowerCase())
@@ -131,6 +130,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
     setYear(result.year || currentYear + 1);
     setPurchaseGoal(result.annual_goal || 0);
+    setAiExtractedData(result as unknown as Record<string, unknown>);
 
     const mappedFunds: PlanFundInput[] = [];
     const addAIFund = (concept: string, amount_type: 'fijo' | 'porcentaje', amount_value: number) => {
@@ -144,12 +144,22 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       });
     };
 
-    addAIFund('Otro', 'porcentaje', result.invoice_discount_perc);
-    addAIFund('Rebate Sell-In', 'porcentaje', result.rebate_sell_in_perc);
-    addAIFund('Rebate Sell-Out', 'porcentaje', result.rebate_sell_out_perc);
-    addAIFund('Marketing', 'porcentaje', result.marketing_perc);
-    addAIFund('Marketing', 'fijo', result.marketing_fixed_value);
-    addAIFund('Pronto Pago', 'porcentaje', result.financial_discount_perc);
+    if (Array.isArray(result.funds) && result.funds.length > 0) {
+      result.funds.forEach((fund) => {
+        const concept = fund.concept_key === 'Otro'
+          ? (fund.custom_concept?.trim() || '')
+          : fund.concept_key;
+        const amountType = fund.type === 'fixed' ? 'fijo' : 'porcentaje';
+        addAIFund(concept, amountType, fund.value);
+      });
+    } else {
+      addAIFund('Desc_Pie_Factura', 'porcentaje', result.invoice_discount_perc);
+      addAIFund('Rebate_SellIn', 'porcentaje', result.rebate_sell_in_perc);
+      addAIFund('Rebate_SellOut', 'porcentaje', result.rebate_sell_out_perc);
+      addAIFund('Marketing', 'porcentaje', result.marketing_perc);
+      addAIFund('Marketing', 'fijo', result.marketing_fixed_value);
+      addAIFund('Pronto_Pago', 'porcentaje', result.financial_discount_perc);
+    }
 
     setFunds(mappedFunds);
     toast.success(`Datos extraidos: ${result.brand_name} - Margen Total: ${result.total_margin_perc}%`);
@@ -160,8 +170,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       ...funds,
       {
         id: crypto.randomUUID(),
-        concept: FUND_CONCEPTS[0],
-        amount_type: 'porcentaje',
+        concept: FUND_CONCEPTS[0].value,
+        amount_type: FUND_CONCEPTS[0].amountType,
         amount_value: 0,
         budget_period: 'annual',
       },
@@ -176,12 +186,29 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     setFunds(funds.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
   };
 
+  const updateFundConcept = (id: string, value: string) => {
+    setFunds(funds.map((fund) => {
+      if (fund.id !== id) return fund;
+      if (value === CUSTOM_CONCEPT_VALUE) {
+        return { ...fund, concept: '', amount_type: fund.amount_type };
+      }
+      const selectedConcept = FUND_CONCEPTS.find((item) => item.value === value);
+      if (!selectedConcept) return fund;
+      return {
+        ...fund,
+        concept: selectedConcept.value,
+        amount_type: selectedConcept.amountType,
+      };
+    }));
+  };
+
   const resetForm = () => {
     setLabId('');
     setLabNameFromAI('');
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
+    setAiExtractedData(null);
   };
 
   const handleSubmit = async () => {
@@ -197,6 +224,10 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       toast.error('La meta de compra debe ser mayor a 0');
       return;
     }
+    if (funds.some((fund) => !fund.concept.trim())) {
+      toast.error('Completa el nombre de todos los conceptos');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -207,6 +238,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
         year,
         name: `Plan Comercial ${lab?.name || 'Lab'} ${year}`,
         total_purchase_goal: purchaseGoal,
+        ai_extracted_data: aiExtractedData,
         funds: funds.map((fund) => ({
           id: fund.dbId,
           concept: fund.concept,
@@ -245,7 +277,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{isEditing ? 'Editar Plan' : 'Nuevo Plan Ano'}</SheetTitle>
           <SheetDescription>
@@ -345,7 +377,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                Estructura del Plan (Buckets)
+                Estructura de Fondos del Plan
               </h3>
               <Button variant="outline" size="sm" onClick={addFund}>
                 <Plus className="h-4 w-4 mr-1" />
@@ -354,69 +386,92 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
             </div>
 
             {funds.length === 0 ? (
-              <div className="text-center py-8 border border-dashed rounded-lg">
+              <div className="rounded-lg border border-dashed py-10 text-center">
+                <div className="mb-3 flex justify-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Layers3 className="h-5 w-5" />
+                  </div>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   No hay conceptos agregados
                 </p>
-                <Button variant="ghost" size="sm" className="mt-2" onClick={addFund}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Agregar primer concepto
-                </Button>
               </div>
             ) : (
               <div className="space-y-3">
                 {funds.map((fund, index) => (
                   <div
                     key={fund.id}
-                    className="grid gap-2 rounded-lg bg-muted/50 p-3 sm:grid-cols-[1.5rem_1fr_auto_auto_auto] sm:items-center"
+                    className={`grid gap-2 rounded-lg bg-muted/50 p-3 ${
+                      isPresetConcept(fund.concept)
+                        ? 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto]'
+                        : 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1.15fr)_minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto]'
+                    }`}
                   >
-                    <span className="text-xs text-muted-foreground w-6">
+                    <span className="text-xs text-muted-foreground sm:w-6 sm:self-center">
                       {index + 1}.
                     </span>
 
                     <Select
-                      value={fund.concept}
-                      onValueChange={(v) => updateFund(fund.id, 'concept', v)}
+                      value={isPresetConcept(fund.concept) ? fund.concept : CUSTOM_CONCEPT_VALUE}
+                      onValueChange={(v) => updateFundConcept(fund.id, v)}
                     >
-                      <SelectTrigger className="w-full sm:w-40">
-                        <SelectValue />
+                      <SelectTrigger className="w-full min-w-0">
+                        <SelectValue>
+                          {isPresetConcept(fund.concept) ? getConceptLabel(fund.concept) : 'Otro'}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {FUND_CONCEPTS.map((concept) => (
-                          <SelectItem key={concept} value={concept}>
-                            {concept}
+                          <SelectItem key={concept.value} value={concept.value}>
+                            {concept.label}
                           </SelectItem>
                         ))}
+                        <SelectItem value={CUSTOM_CONCEPT_VALUE}>Otro</SelectItem>
                       </SelectContent>
                     </Select>
 
-                    <Select
-                      value={fund.amount_type}
-                      onValueChange={(v) => updateFund(fund.id, 'amount_type', v as 'fijo' | 'porcentaje')}
-                    >
-                      <SelectTrigger className="w-full sm:w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="porcentaje">%</SelectItem>
-                        <SelectItem value="fijo">$ Fijo</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {!isPresetConcept(fund.concept) && (
+                      <Input
+                        value={fund.concept}
+                        onChange={(e) => updateFund(fund.id, 'concept', e.target.value)}
+                        placeholder="Escribe el concepto"
+                        className="w-full min-w-0"
+                      />
+                    )}
 
-                    <Input
-                      type="number"
-                      min={0}
-                      step={fund.amount_type === 'porcentaje' ? 0.1 : 1}
-                      className="w-full sm:w-24"
-                      value={fund.amount_value || ''}
-                      onChange={(e) => updateFund(fund.id, 'amount_value', parseFloat(e.target.value) || 0)}
-                      placeholder={fund.amount_type === 'porcentaje' ? '3.0' : '1000000'}
-                    />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Select
+                        value={fund.amount_type}
+                        onValueChange={(v) => updateFund(fund.id, 'amount_type', v as 'fijo' | 'porcentaje')}
+                      >
+                        <SelectTrigger className="w-full min-w-0 md:max-w-[130px]">
+                          <SelectValue>
+                            {fund.amount_type === 'porcentaje' ? '% Desc.' : '$ Fijo'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="porcentaje">% Desc.</SelectItem>
+                          <SelectItem value="fijo">$ Fijo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="w-full min-w-0">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={fund.amount_type === 'porcentaje' ? 0.1 : 1}
+                        className="w-full min-w-0 md:max-w-[140px]"
+                        value={fund.amount_value || ''}
+                        onChange={(e) => updateFund(fund.id, 'amount_value', parseFloat(e.target.value) || 0)}
+                        placeholder={fund.amount_type === 'porcentaje' ? '3.0' : '1000000'}
+                      />
+                    </div>
 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-8 w-8 justify-self-end text-destructive hover:text-destructive"
                       onClick={() => removeFund(fund.id)}
                     >
                       <Trash2 className="h-4 w-4" />

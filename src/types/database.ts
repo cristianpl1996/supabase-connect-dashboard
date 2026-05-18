@@ -4,6 +4,45 @@ export type PromoStatus = 'borrador' | 'revision' | 'aprobada' | 'activa' | 'pau
 export type WalletTxType = 'deposito_plan' | 'ajuste_manual' | 'reserva_promo' | 'gasto_real' | 'reintegro_no_usado';
 export type SourceRole = 'laboratorio' | 'distribuidor' | 'admin';
 export type PromotionTargetScope = 'all' | 'customers' | 'customer_segment' | 'product_filters';
+export type PromotionType = 'direct_discount' | 'special_price' | 'minimum_purchase' | 'quantity_bonus' | 'product_bundle' | 'minimum_purchase_bonus' | 'credit_note';
+export type MechanicConditionType = 'none' | 'minimum_amount' | 'minimum_quantity' | 'product_mix' | 'specific_products';
+export type MechanicBenefitType = 'percentage_discount' | 'fixed_discount' | 'bonus_product' | 'bonus_units' | 'special_price' | 'credit_note';
+export type DiscountType = 'percentage' | 'fixed';
+export type BonusProductType = 'same_product' | 'different_product';
+export type BundleRule = 'all_required' | 'any_required';
+export type CreditType = 'percentage' | 'fixed';
+export type CreditApplicationMoment = 'promotion_end' | 'manual' | 'after_validation';
+
+export interface RequiredPromotionProduct {
+  product_id: string;
+  minimum_quantity: number | null;
+  product_name?: string | null;
+}
+
+export interface PromotionMechanicData {
+  applies_to?: 'product' | 'brand' | 'category' | 'entire_order' | null;
+  minimum_amount?: number | null;
+  minimum_quantity?: number | null;
+  discount_type?: DiscountType | null;
+  discount_value?: number | null;
+  special_price?: number | null;
+  special_price_product_id?: string | null;
+  special_price_product_name?: string | null;
+  base_product_id?: string | null;
+  base_product_name?: string | null;
+  base_quantity?: number | null;
+  bonus_quantity?: number | null;
+  bonus_product_type?: BonusProductType | null;
+  bonus_product_id?: string | null;
+  bonus_product_name?: string | null;
+  bundle_rule?: BundleRule | null;
+  required_products?: RequiredPromotionProduct[];
+  credit_type?: CreditType | null;
+  credit_value?: number | null;
+  application_moment?: CreditApplicationMoment | null;
+  condition_type?: MechanicConditionType | null;
+  benefit_type?: MechanicBenefitType | null;
+}
 
 export interface Laboratory {
   id: string;
@@ -172,10 +211,14 @@ export interface Promotion {
 export interface PromoMechanic {
   id: string;
   promo_id: string;
+  promotion_type?: PromotionType | string | null;
   condition_type: string | null;
+  benefit_type?: MechanicBenefitType | string | null;
   condition_config: Record<string, unknown> | null;
   reward_type: string | null;
   reward_config: Record<string, unknown> | null;
+  mechanic?: PromotionMechanicData | null;
+  summary?: string | null;
   accounting_treatment: string | null;
 }
 

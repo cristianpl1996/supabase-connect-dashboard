@@ -1005,11 +1005,11 @@ export default function Customers() {
                         ]} />
                       </div>
                       <div className="grid items-stretch gap-3 lg:grid-cols-2">
-                        <InfoPanel icon={WalletCards} title="Contacto y billetera" rows={[
+                        <InfoPanel icon={WalletCards} title="Contacto" rows={[
+                          ["Nombre", field(currentProfile, "customer_full_name", "Cliente sin nombre")],
                           ["Email", field(currentProfile, "customer_email")],
                           ["Celular", formatPhone(currentProfile)],
-                          ["Billetera confirmada", yesNo(currentProfile?.customer_has_confirmed_digital_wallet)],
-                          ["Email billetera", field(currentProfile, "customer_wallet_confirmation_email")],
+                          ["Estado SAP", profileStatus?.label || "N/A"],
                         ]} />
                         <InfoPanel icon={BarChart3} title="Segmentacion comercial" rows={[
                           ["CLV actual", field(currentProfile, "customer_clv_segment")],

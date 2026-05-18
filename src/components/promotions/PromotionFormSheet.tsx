@@ -8,6 +8,7 @@ import {
   getPromotionBudget,
   getCustomersPage,
   listProducts,
+  RequiredPromotionProduct,
   updatePromotion,
   CustomerRecord,
   FilterOptionItem,
@@ -45,6 +46,29 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, FileText, Zap, DollarSign, AlertTriangle, Target, Search, X, Boxes, SlidersHorizontal } from 'lucide-react';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
+import {
+  APPLIES_TO_OPTIONS,
+  BONUS_PRODUCT_TYPE_OPTIONS,
+  BUNDLE_BENEFIT_OPTIONS,
+  BUNDLE_RULE_OPTIONS,
+  CREDIT_APPLICATION_OPTIONS,
+  CREDIT_TYPE_OPTIONS,
+  createRequiredProduct,
+  deriveConditionTypeAndBenefitType,
+  DISCOUNT_TYPE_OPTIONS,
+  EMPTY_MECHANIC,
+  inferMechanicStateFromPromotion,
+  MINIMUM_TYPE_OPTIONS,
+  PROMOTION_MECHANIC_CONFIG,
+  PROMOTION_TYPE_OPTIONS,
+  PURCHASE_BENEFIT_OPTIONS,
+  resetMechanicForPromotionType,
+  SPECIFIC_CONDITION_OPTIONS,
+  summarizePromotionMechanic,
+  validatePromotionMechanic,
+  buildPromotionMechanicPayload,
+  PromotionMechanicFormState,
+} from '@/lib/promotionMechanics';
 
 interface PromotionFormSheetProps {
   open: boolean;
@@ -73,22 +97,6 @@ const SCOPE_OPTIONS = [
 const PRODUCT_APPLICATION_OPTIONS = [
   { value: 'specific', label: 'Productos especificos' },
   { value: 'filters', label: 'Marca / Sector / Categoria / Especie' },
-];
-
-const CONDITION_TYPES = [
-  { value: 'none', label: 'Sin condicion' },
-  { value: 'min_quantity', label: 'Cantidad minima' },
-  { value: 'min_amount', label: 'Monto Minimo de Compra' },
-  { value: 'buy_x_get_y', label: 'Pague X Lleve Y' },
-  { value: 'product_mix', label: 'Mezcla de productos' },
-];
-
-const REWARD_TYPES = [
-  { value: 'discount_percent', label: 'Descuento Porcentual' },
-  { value: 'discount_amount', label: 'Descuento Fijo' },
-  { value: 'free_product', label: 'Producto Gratis (Bonificacion)' },
-  { value: 'price_override', label: 'Precio Especial' },
-  { value: 'cashback_credit', label: 'Credito / Nota Posterior' },
 ];
 
 const ACCOUNTING_TREATMENTS = [
@@ -190,6 +198,7 @@ export function PromotionFormSheet({
   const [customerSearch, setCustomerSearch] = useState('');
   const [productOptions, setProductOptions] = useState<ProductCatalogItem[]>([]);
   const [customerOptions, setCustomerOptions] = useState<CustomerRecord[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<ProductCatalogItem[]>([]);
   const [loadingProductOptions, setLoadingProductOptions] = useState(false);
   const [loadingCustomerOptions, setLoadingCustomerOptions] = useState(false);
   const [productOptionsHasMore, setProductOptionsHasMore] = useState(false);
@@ -201,11 +210,7 @@ export function PromotionFormSheet({
   const customerOffsetRef = useRef(0);
   const productSearchRef = useRef('');
   const customerSearchRef = useRef('');
-  const [conditionType, setConditionType] = useState('sku_list');
-  const [conditionValue, setConditionValue] = useState('');
-  const [conditionQty, setConditionQty] = useState<number>(0);
-  const [rewardType, setRewardType] = useState('free_product');
-  const [rewardValue, setRewardValue] = useState<number>(0);
+  const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(resetMechanicForPromotionType(''));
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
   const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
@@ -307,18 +312,8 @@ export function PromotionFormSheet({
 
           const mechanic = details.mechanic;
           if (mechanic) {
-            setConditionType(mechanic.condition_type || 'none');
+            setMechanicState(inferMechanicStateFromPromotion(mechanic));
             setAccountingTreatment(mechanic.accounting_treatment || 'descuento_pie');
-            setRewardType(mechanic.reward_type || 'free_product');
-            const condConfig = mechanic.condition_config as { skus?: string[]; quantity?: number; min_amount?: number; category?: string; min_qty?: number; buy_qty?: number } | null;
-            if (condConfig) {
-              setConditionValue(Array.isArray(condConfig.skus) ? condConfig.skus.join(', ') : condConfig.category || '');
-              setConditionQty(Number(condConfig.quantity ?? condConfig.min_qty ?? condConfig.min_amount ?? condConfig.buy_qty ?? 0));
-            }
-            const rewConfig = mechanic.reward_config as { value?: number; free_qty?: number; discount_percent?: number; discount_amount?: number; special_price?: number; credit_amount?: number } | null;
-            if (rewConfig) {
-              setRewardValue(Number(rewConfig.value ?? rewConfig.free_qty ?? rewConfig.discount_percent ?? rewConfig.discount_amount ?? rewConfig.special_price ?? rewConfig.credit_amount ?? 0));
-            }
           }
         } catch (err) {
           console.error('Error loading promotion:', err);
@@ -396,6 +391,7 @@ export function PromotionFormSheet({
       );
 
       if (productListResult.status === 'fulfilled') {
+        setCatalogProducts(productListResult.value);
         if (productFilterResult.status !== 'fulfilled' || !Array.isArray(productFilterResult.value.sectors)) {
           const sectors = Array.from(new Set(productListResult.value.map((item) => String(item.product_industry_sector || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
           setProductSectorOptions(sectors);
@@ -405,6 +401,7 @@ export function PromotionFormSheet({
           setProductSpeciesOptions(species);
         }
       } else if (productFilterResult.status !== 'fulfilled') {
+        setCatalogProducts([]);
         setProductSectorOptions([]);
         setProductSpeciesOptions([]);
       }
@@ -599,11 +596,7 @@ export function PromotionFormSheet({
     setCustomerOptionsHasMore(false);
     setProductNameMap({});
     setCustomerNameMap({});
-    setConditionType('none');
-    setConditionValue('');
-    setConditionQty(0);
-    setRewardType('free_product');
-    setRewardValue(0);
+    setMechanicState(resetMechanicForPromotionType(''));
     setEstimatedCost(0);
     setAccountingTreatment('descuento_pie');
     setMaxRedemptions('');
@@ -611,44 +604,6 @@ export function PromotionFormSheet({
     setSpendableBalance(null);
     setApprovalWarning(null);
   };
-
-  const buildConditionConfig = useMemo(() => {
-    return () => {
-      switch (conditionType) {
-        case 'none':
-          return {};
-        case 'min_quantity':
-          return { quantity: conditionQty };
-        case 'min_amount':
-          return { min_amount: conditionQty };
-        case 'buy_x_get_y':
-          return { buy_qty: conditionQty };
-        case 'product_mix':
-          return { skus: conditionValue.split(',').map((item) => item.trim()).filter(Boolean), quantity: conditionQty };
-        default:
-          return {};
-      }
-    };
-  }, [conditionType, conditionValue, conditionQty]);
-
-  const buildRewardConfig = useMemo(() => {
-    return () => {
-      switch (rewardType) {
-        case 'free_product':
-          return { free_qty: rewardValue, value: rewardValue };
-        case 'discount_percent':
-          return { discount_percent: rewardValue, value: rewardValue };
-        case 'discount_amount':
-          return { discount_amount: rewardValue, value: rewardValue };
-        case 'price_override':
-          return { special_price: rewardValue, value: rewardValue };
-        case 'cashback_credit':
-          return { credit_amount: rewardValue, value: rewardValue };
-        default:
-          return {};
-      }
-    };
-  }, [rewardType, rewardValue]);
 
   const buildTargetConfig = useMemo(() => {
     return () => {
@@ -729,6 +684,68 @@ export function PromotionFormSheet({
     selectedCustomerIds,
   ]);
 
+  const productSelectOptions = useMemo(
+    () =>
+      catalogProducts.map((product) => ({
+        value: product.product_sku,
+        label: `${product.product_commercial_name || product.product_sku} (${product.product_sku})`,
+      })),
+    [catalogProducts],
+  );
+
+  const productLabelBySku = useCallback(
+    (sku: string | null | undefined) =>
+      catalogProducts.find((product) => product.product_sku === sku)?.product_commercial_name
+      || productNameMap[sku || '']
+      || sku
+      || '',
+    [catalogProducts, productNameMap],
+  );
+
+  const updateMechanic = useCallback((patch: Partial<PromotionMechanicFormState['mechanic']>) => {
+    setMechanicState((prev) => ({
+      ...prev,
+      mechanic: {
+        ...prev.mechanic,
+        ...patch,
+      },
+    }));
+  }, []);
+
+  const setPromotionType = useCallback((value: string) => {
+    setMechanicState((prev) => {
+      const next = resetMechanicForPromotionType(value as PromotionMechanicFormState['promotionType']);
+      return {
+        ...next,
+        mechanic: {
+          ...next.mechanic,
+          applies_to: value === 'direct_discount' ? 'product' : next.mechanic.applies_to,
+          discount_type: value === 'direct_discount' ? 'percentage' : next.mechanic.discount_type,
+        },
+      };
+    });
+  }, []);
+
+  const setRequiredProducts = useCallback((required_products: RequiredPromotionProduct[]) => {
+    updateMechanic({ required_products });
+  }, [updateMechanic]);
+
+  const addRequiredProduct = useCallback(() => {
+    setRequiredProducts([...(mechanicState.mechanic.required_products || []), createRequiredProduct()]);
+  }, [mechanicState.mechanic.required_products, setRequiredProducts]);
+
+  const updateRequiredProduct = useCallback((index: number, patch: Partial<RequiredPromotionProduct>) => {
+    const next = [...(mechanicState.mechanic.required_products || [])];
+    next[index] = { ...next[index], ...patch };
+    setRequiredProducts(next);
+  }, [mechanicState.mechanic.required_products, setRequiredProducts]);
+
+  const removeRequiredProduct = useCallback((index: number) => {
+    const next = [...(mechanicState.mechanic.required_products || [])];
+    next.splice(index, 1);
+    setRequiredProducts(next);
+  }, [mechanicState.mechanic.required_products, setRequiredProducts]);
+
   const addProductSku = (sku: string, name?: string) => {
     if (!sku || selectedProductSkus.includes(sku)) return;
     if (name) setProductNameMap((prev) => ({ ...prev, [sku]: name }));
@@ -797,9 +814,28 @@ export function PromotionFormSheet({
       toast.error('Define al menos un filtro para el segmento de clientes');
       return;
     }
+    const mechanicError = validatePromotionMechanic(mechanicState);
+    if (mechanicError) {
+      toast.error(mechanicError);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      const mechanicPayload = buildPromotionMechanicPayload({
+        ...mechanicState,
+        mechanic: {
+          ...mechanicState.mechanic,
+          base_product_name: productLabelBySku(mechanicState.mechanic.base_product_id),
+          bonus_product_name: productLabelBySku(mechanicState.mechanic.bonus_product_id),
+          special_price_product_name: productLabelBySku(mechanicState.mechanic.special_price_product_id),
+          required_products: (mechanicState.mechanic.required_products || []).map((item) => ({
+            ...item,
+            product_name: productLabelBySku(item.product_id),
+          })),
+        },
+      });
+      mechanicPayload.accounting_treatment = accountingTreatment;
       const payload = {
         lab_id: labId,
         title: title.trim(),
@@ -812,13 +848,7 @@ export function PromotionFormSheet({
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
-        mechanic: {
-          condition_type: conditionType,
-          condition_config: buildConditionConfig(),
-          reward_type: rewardType,
-          reward_config: buildRewardConfig(),
-          accounting_treatment: accountingTreatment,
-        },
+        mechanic: mechanicPayload,
       };
 
       const result = isEditing && editingPromo
@@ -847,6 +877,8 @@ export function PromotionFormSheet({
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
+
+  const mechanicSummary = useMemo(() => summarizePromotionMechanic(mechanicState), [mechanicState]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -931,9 +963,6 @@ export function PromotionFormSheet({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Define si la promocion aplica a productos especificos o a una familia de productos por filtros.
-                  </p>
                   <div className="space-y-2">
                     <Label>Aplica a</Label>
                     <Select value={productApplicationMode} onValueChange={setProductApplicationMode}>
@@ -1221,93 +1250,237 @@ export function PromotionFormSheet({
               <AccordionItem value="mechanics" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-amber-500" />
-                    <span className="font-semibold">Mecanica de la Promocion</span>
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="font-semibold">Regla comercial</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-6 pt-4">
-                  <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                    <h4 className="text-sm font-medium text-foreground">Si el cliente compra... (Condicion)</h4>
-                    <div className="space-y-2">
-                      <Label>Tipo de Condicion</Label>
-                      <Select value={conditionType} onValueChange={setConditionType}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {CONDITION_TYPES.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {conditionType === 'none' ? (
-                      <div className="rounded-md border border-dashed bg-background p-3 text-sm text-muted-foreground">
-                        El beneficio aplica directo al alcance y productos definidos.
-                      </div>
-                    ) : (
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        {conditionType === 'product_mix' && (
-                          <div className="space-y-2">
-                            <Label>SKUs requeridos en la mezcla</Label>
-                            <Input
-                              placeholder="SKU001, SKU002"
-                              value={conditionValue}
-                              onChange={(e) => setConditionValue(e.target.value)}
-                            />
-                          </div>
-                        )}
-                        <div className="space-y-2">
-                          <Label>
-                            {conditionType === 'min_amount' && 'Monto Minimo ($)'}
-                            {conditionType === 'min_quantity' && 'Cantidad Minima'}
-                            {conditionType === 'buy_x_get_y' && 'Cantidad a Comprar'}
-                            {conditionType === 'product_mix' && 'Cantidad Total Minima'}
-                          </Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={conditionQty || ''}
-                            onChange={(e) => setConditionQty(parseFloat(e.target.value) || 0)}
-                            placeholder={conditionType === 'min_amount' ? '500000' : '10'}
-                          />
-                        </div>
-                      </div>
+                  <div className="space-y-2">
+                    <Label>¿Que tipo de promocion quieres crear?</Label>
+                    <Select value={mechanicState.promotionType} onValueChange={setPromotionType}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona el tipo de promocion" /></SelectTrigger>
+                      <SelectContent>
+                        {PROMOTION_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {mechanicState.promotionType && PROMOTION_MECHANIC_CONFIG[mechanicState.promotionType]?.helpText && (
+                      <p className="text-xs text-muted-foreground">{PROMOTION_MECHANIC_CONFIG[mechanicState.promotionType].helpText}</p>
                     )}
                   </div>
 
-                  <div className="p-4 bg-green-500/10 rounded-lg space-y-4">
-                    <h4 className="text-sm font-medium text-foreground">Entonces recibe... (Beneficio)</h4>
-                    <div className="space-y-2">
-                      <Label>Tipo de Beneficio</Label>
-                      <Select value={rewardType} onValueChange={setRewardType}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {REWARD_TYPES.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                  {mechanicState.promotionType && (
+                    <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+                      {mechanicState.promotionType === 'direct_discount' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Aplica sobre</Label>
+                            <Select value={mechanicState.mechanic.applies_to || 'product'} onValueChange={(value) => updateMechanic({ applies_to: value as PromotionMechanicFormState['mechanic']['applies_to'] })}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>{APPLIES_TO_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Tipo de descuento</Label>
+                            <Select value={mechanicState.mechanic.discount_type || 'percentage'} onValueChange={(value) => updateMechanic({ discount_type: value as PromotionMechanicFormState['mechanic']['discount_type'] })}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>{DISCOUNT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Valor del descuento</Label>
+                            <Input type="number" min={0} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_value: e.target.value ? Number(e.target.value) : null })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>¿Requiere compra minima?</Label>
+                            <Select value={mechanicState.conditionType || 'none'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, conditionType: value as PromotionMechanicFormState['conditionType'] }))}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No</SelectItem>
+                                {MINIMUM_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {mechanicState.conditionType === 'minimum_amount' && (
+                            <div className="space-y-2">
+                              <Label>Valor minimo</Label>
+                              <Input type="number" min={0} value={mechanicState.mechanic.minimum_amount || ''} onChange={(e) => updateMechanic({ minimum_amount: e.target.value ? Number(e.target.value) : null, minimum_quantity: null })} />
+                            </div>
+                          )}
+                          {mechanicState.conditionType === 'minimum_quantity' && (
+                            <div className="space-y-2">
+                              <Label>Valor minimo</Label>
+                              <Input type="number" min={1} step={1} value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Number(e.target.value) : null, minimum_amount: null })} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {mechanicState.promotionType === 'special_price' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Producto con precio especial</Label>
+                            <SearchableSelect value={mechanicState.mechanic.special_price_product_id || 'all'} onValueChange={(value) => updateMechanic({ special_price_product_id: value === 'all' ? null : value, special_price_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Precio especial</Label>
+                            <Input type="number" min={0} value={mechanicState.mechanic.special_price || ''} onChange={(e) => updateMechanic({ special_price: e.target.value ? Number(e.target.value) : null })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>¿Requiere cantidad minima?</Label>
+                            <Select value={mechanicState.conditionType || 'none'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, conditionType: value as PromotionMechanicFormState['conditionType'] }))}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No</SelectItem>
+                                <SelectItem value="minimum_quantity">Si</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {mechanicState.conditionType === 'minimum_quantity' && (
+                            <div className="space-y-2">
+                              <Label>Cantidad minima</Label>
+                              <Input type="number" min={1} step={1} value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Number(e.target.value) : null })} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {mechanicState.promotionType === 'minimum_purchase' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>La compra minima sera por</Label>
+                            <Select value={mechanicState.conditionType || 'minimum_amount'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, conditionType: value as PromotionMechanicFormState['conditionType'] }))}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>{MINIMUM_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Valor minimo</Label>
+                            <Input type="number" min={1} value={mechanicState.conditionType === 'minimum_amount' ? (mechanicState.mechanic.minimum_amount || '') : (mechanicState.mechanic.minimum_quantity || '')} onChange={(e) => mechanicState.conditionType === 'minimum_amount' ? updateMechanic({ minimum_amount: e.target.value ? Number(e.target.value) : null, minimum_quantity: null }) : updateMechanic({ minimum_quantity: e.target.value ? Number(e.target.value) : null, minimum_amount: null })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Beneficio que recibe</Label>
+                            <Select value={mechanicState.benefitType || 'percentage_discount'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, benefitType: value as PromotionMechanicFormState['benefitType'] }))}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>{PURCHASE_BENEFIT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          {mechanicState.benefitType === 'percentage_discount' && <div className="space-y-2"><Label>Porcentaje de descuento</Label><Input type="number" min={0} max={100} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'percentage', discount_value: e.target.value ? Number(e.target.value) : null })} /></div>}
+                          {mechanicState.benefitType === 'fixed_discount' && <div className="space-y-2"><Label>Valor del descuento</Label><Input type="number" min={0} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'fixed', discount_value: e.target.value ? Number(e.target.value) : null })} /></div>}
+                          {mechanicState.benefitType === 'bonus_product' && (
+                            <>
+                              <div className="space-y-2"><Label>Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(value) => updateMechanic({ bonus_product_id: value === 'all' ? null : value, bonus_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                              <div className="space-y-2"><Label>Cantidad bonificada</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Number(e.target.value) : null })} /></div>
+                            </>
+                          )}
+                          {mechanicState.benefitType === 'credit_note' && (
+                            <>
+                              <div className="space-y-2"><Label>Tipo de credito</Label><Select value={mechanicState.mechanic.credit_type || 'percentage'} onValueChange={(value) => updateMechanic({ credit_type: value as PromotionMechanicFormState['mechanic']['credit_type'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CREDIT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                              <div className="space-y-2"><Label>Valor del credito</Label><Input type="number" min={0} value={mechanicState.mechanic.credit_value || ''} onChange={(e) => updateMechanic({ credit_value: e.target.value ? Number(e.target.value) : null })} /></div>
+                              <div className="space-y-2 sm:col-span-2"><Label>Momento de aplicacion</Label><Select value={mechanicState.mechanic.application_moment || 'promotion_end'} onValueChange={(value) => updateMechanic({ application_moment: value as PromotionMechanicFormState['mechanic']['application_moment'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CREDIT_APPLICATION_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {mechanicState.promotionType === 'quantity_bonus' && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2"><Label>Producto base / producto comprado</Label><SearchableSelect value={mechanicState.mechanic.base_product_id || 'all'} onValueChange={(value) => updateMechanic({ base_product_id: value === 'all' ? null : value, base_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                          <div className="space-y-2"><Label>Cantidad que debe comprar</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.base_quantity || ''} onChange={(e) => updateMechanic({ base_quantity: e.target.value ? Number(e.target.value) : null })} /></div>
+                          <div className="space-y-2"><Label>Cantidad bonificada</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Number(e.target.value) : null })} /></div>
+                          <div className="space-y-2"><Label>Producto bonificado</Label><Select value={mechanicState.mechanic.bonus_product_type || 'same_product'} onValueChange={(value) => updateMechanic({ bonus_product_type: value as PromotionMechanicFormState['mechanic']['bonus_product_type'], bonus_product_id: value === 'same_product' ? mechanicState.mechanic.base_product_id || null : mechanicState.mechanic.bonus_product_id })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BONUS_PRODUCT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                          {mechanicState.mechanic.bonus_product_type === 'different_product' && (
+                            <div className="space-y-2 sm:col-span-2"><Label>Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(value) => updateMechanic({ bonus_product_id: value === 'all' ? null : value, bonus_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                          )}
+                        </div>
+                      )}
+
+                      {(mechanicState.promotionType === 'product_bundle' || mechanicState.promotionType === 'minimum_purchase_bonus' || mechanicState.promotionType === 'credit_note') && (
+                        <div className="space-y-4">
+                          {(mechanicState.promotionType === 'minimum_purchase_bonus' || mechanicState.promotionType === 'credit_note') && (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Condicion de compra</Label>
+                                <Select value={mechanicState.conditionType || 'minimum_amount'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, conditionType: value as PromotionMechanicFormState['conditionType'] }))}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>{SPECIFIC_CONDITION_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                              {mechanicState.conditionType === 'minimum_amount' && <div className="space-y-2"><Label>Monto minimo</Label><Input type="number" min={0} value={mechanicState.mechanic.minimum_amount || ''} onChange={(e) => updateMechanic({ minimum_amount: e.target.value ? Number(e.target.value) : null, minimum_quantity: null })} /></div>}
+                              {mechanicState.conditionType === 'minimum_quantity' && <div className="space-y-2"><Label>Cantidad minima</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Number(e.target.value) : null, minimum_amount: null })} /></div>}
+                            </div>
+                          )}
+
+                          {(mechanicState.promotionType === 'product_bundle' || mechanicState.conditionType === 'specific_products') && (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label>{mechanicState.promotionType === 'product_bundle' ? 'Productos requeridos en el combo' : 'Productos requeridos'}</Label>
+                                <Button type="button" variant="outline" size="sm" onClick={addRequiredProduct}>Agregar producto</Button>
+                              </div>
+                              <div className="space-y-3">
+                                {(mechanicState.mechanic.required_products || []).map((item, index) => (
+                                  <div key={`${item.product_id}-${index}`} className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
+                                    <SearchableSelect value={item.product_id || 'all'} onValueChange={(value) => updateRequiredProduct(index, { product_id: value === 'all' ? '' : value, product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." />
+                                    <Input type="number" min={1} step={1} value={item.minimum_quantity || ''} onChange={(e) => updateRequiredProduct(index, { minimum_quantity: e.target.value ? Number(e.target.value) : null })} placeholder="Cant. minima" />
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => removeRequiredProduct(index)}>Eliminar</Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {mechanicState.promotionType === 'product_bundle' && (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2"><Label>Regla del combo</Label><Select value={mechanicState.mechanic.bundle_rule || 'all_required'} onValueChange={(value) => updateMechanic({ bundle_rule: value as PromotionMechanicFormState['mechanic']['bundle_rule'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BUNDLE_RULE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                              <div className="space-y-2"><Label>Beneficio del combo</Label><Select value={mechanicState.benefitType || 'percentage_discount'} onValueChange={(value) => setMechanicState((prev) => ({ ...prev, benefitType: value as PromotionMechanicFormState['benefitType'] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BUNDLE_BENEFIT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                              {mechanicState.benefitType === 'percentage_discount' && <div className="space-y-2"><Label>Porcentaje de descuento</Label><Input type="number" min={0} max={100} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'percentage', discount_value: e.target.value ? Number(e.target.value) : null })} /></div>}
+                              {mechanicState.benefitType === 'fixed_discount' && <div className="space-y-2"><Label>Valor del descuento</Label><Input type="number" min={0} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'fixed', discount_value: e.target.value ? Number(e.target.value) : null })} /></div>}
+                              {mechanicState.benefitType === 'bonus_product' && (
+                                <>
+                                  <div className="space-y-2"><Label>Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(value) => updateMechanic({ bonus_product_id: value === 'all' ? null : value, bonus_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                                  <div className="space-y-2"><Label>Cantidad bonificada</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Number(e.target.value) : null })} /></div>
+                                </>
+                              )}
+                              {mechanicState.benefitType === 'special_price' && (
+                                <>
+                                  <div className="space-y-2"><Label>Producto con precio especial</Label><SearchableSelect value={mechanicState.mechanic.special_price_product_id || 'all'} onValueChange={(value) => updateMechanic({ special_price_product_id: value === 'all' ? null : value, special_price_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                                  <div className="space-y-2"><Label>Precio especial</Label><Input type="number" min={0} value={mechanicState.mechanic.special_price || ''} onChange={(e) => updateMechanic({ special_price: e.target.value ? Number(e.target.value) : null })} /></div>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {mechanicState.promotionType === 'minimum_purchase_bonus' && (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2"><Label>Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(value) => updateMechanic({ bonus_product_id: value === 'all' ? null : value, bonus_product_name: value === 'all' ? null : productLabelBySku(value) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto..." /></div>
+                              <div className="space-y-2"><Label>Cantidad bonificada</Label><Input type="number" min={1} step={1} value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Number(e.target.value) : null })} /></div>
+                            </div>
+                          )}
+
+                          {mechanicState.promotionType === 'credit_note' && (
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              <div className="space-y-2"><Label>Tipo de credito</Label><Select value={mechanicState.mechanic.credit_type || 'percentage'} onValueChange={(value) => updateMechanic({ credit_type: value as PromotionMechanicFormState['mechanic']['credit_type'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CREDIT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                              <div className="space-y-2"><Label>Valor del credito</Label><Input type="number" min={0} value={mechanicState.mechanic.credit_value || ''} onChange={(e) => updateMechanic({ credit_value: e.target.value ? Number(e.target.value) : null })} /></div>
+                              <div className="space-y-2"><Label>Momento de aplicacion</Label><Select value={mechanicState.mechanic.application_moment || 'promotion_end'} onValueChange={(value) => updateMechanic({ application_moment: value as PromotionMechanicFormState['mechanic']['application_moment'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CREDIT_APPLICATION_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="rounded-md border border-dashed bg-background p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resumen dinamico</p>
+                        <p className="mt-1 text-sm text-foreground">{mechanicSummary}</p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>
-                        {rewardType === 'free_product' && 'Cantidad a Regalar'}
-                        {rewardType === 'discount_percent' && 'Porcentaje de Descuento (%)'}
-                        {rewardType === 'discount_amount' && 'Descuento Fijo ($)'}
-                        {rewardType === 'price_override' && 'Precio Especial ($)'}
-                        {rewardType === 'cashback_credit' && 'Credito Posterior ($)'}
-                      </Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={rewardType === 'discount_percent' ? 0.1 : 1}
-                        value={rewardValue || ''}
-                        onChange={(e) => setRewardValue(parseFloat(e.target.value) || 0)}
-                        placeholder={rewardType === 'discount_percent' ? '15' : '2'}
-                      />
-                    </div>
-                  </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="financial" className="overflow-hidden rounded-lg border border-border bg-background px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-green-500" />
+                    <DollarSign className="h-4 w-4 text-primary" />
                     <span className="font-semibold">Control Financiero</span>
                   </div>
                 </AccordionTrigger>

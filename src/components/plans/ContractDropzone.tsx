@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ContractDropzoneProps {
@@ -14,7 +14,12 @@ interface ContractDropzoneProps {
     marketing_fixed_value: number;
     financial_discount_perc: number;
     total_margin_perc: number;
-    funds: Array<{ concept: string; type: 'percentage' | 'fixed'; value: number }>;
+    funds: Array<{
+      concept_key: 'Desc_Pie_Factura' | 'Rebate_SellIn' | 'Rebate_SellOut' | 'Marketing' | 'Pronto_Pago' | 'Otro';
+      custom_concept?: string;
+      type: 'percentage' | 'fixed';
+      value: number;
+    }>;
   }) => void;
   disabled?: boolean;
 }
@@ -38,7 +43,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
     setErrorMessage('');
 
     try {
-      const { analyzeContract } = await import('@/services/gemini');
+      const { analyzeContract } = await import('@/services/aiPlanParser');
       const result = await analyzeContract(file);
       setState('success');
       onFileAnalyzed(result);
@@ -51,9 +56,8 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (disabled) return;
-    
     const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    if (file) void handleFile(file);
   }, [handleFile, disabled]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -67,7 +71,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) void handleFile(file);
   }, [handleFile]);
 
   const resetDropzone = useCallback(() => {
@@ -82,73 +86,59 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       className={cn(
-        'relative border-2 border-dashed rounded-lg p-6 transition-all duration-200',
+        'relative rounded-lg border-2 border-dashed p-6 transition-all duration-200',
         state === 'idle' && 'border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50',
         state === 'dragover' && 'border-primary bg-primary/10',
         state === 'analyzing' && 'border-amber-500 bg-amber-500/10',
         state === 'success' && 'border-green-500 bg-green-500/10',
         state === 'error' && 'border-destructive bg-destructive/10',
-        disabled && 'opacity-50 pointer-events-none'
+        disabled && 'pointer-events-none opacity-50',
       )}
     >
       <input
         type="file"
         accept="application/pdf"
         onChange={handleInputChange}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         disabled={disabled || state === 'analyzing'}
       />
 
-      <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
+      <div className="pointer-events-none flex flex-col items-center gap-2 text-center">
         {state === 'idle' && (
           <>
             <Upload className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium text-foreground">
-              📄 Arrastra tu contrato PDF aquí
-            </p>
-            <p className="text-xs text-muted-foreground">
-              o haz clic para seleccionar un archivo
-            </p>
+            <p className="text-sm font-medium text-foreground">Arrastra tu contrato PDF aqui</p>
+            <p className="text-xs text-muted-foreground">o haz clic para seleccionar un archivo</p>
           </>
         )}
 
         {state === 'dragover' && (
           <>
-            <Upload className="h-8 w-8 text-primary animate-bounce" />
-            <p className="text-sm font-medium text-primary">
-              Suelta el archivo aquí
-            </p>
+            <Upload className="h-8 w-8 animate-bounce text-primary" />
+            <p className="text-sm font-medium text-primary">Suelta el archivo aqui</p>
           </>
         )}
 
         {state === 'analyzing' && (
           <>
-            <Loader2 className="h-8 w-8 text-amber-600 animate-spin" />
-            <p className="text-sm font-medium text-amber-700">
-              Analizando con IA...
-            </p>
-            <p className="text-xs text-amber-600">
-              {fileName}
-            </p>
+            <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+            <p className="text-sm font-medium text-amber-700">Analizando el archivo PDF...</p>
+            <p className="text-xs text-amber-600">{fileName}</p>
           </>
         )}
 
         {state === 'success' && (
           <>
             <CheckCircle2 className="h-8 w-8 text-green-600" />
-            <p className="text-sm font-medium text-green-700">
-              ¡Contrato analizado!
-            </p>
-            <p className="text-xs text-green-600">
-              {fileName} - Revisa los datos abajo
-            </p>
+            <p className="text-sm font-medium text-green-700">Contrato analizado</p>
+            <p className="text-xs text-green-600">{fileName} - Revisa los datos abajo</p>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 resetDropzone();
               }}
-              className="mt-1 text-xs text-muted-foreground underline hover:text-foreground pointer-events-auto"
+              className="pointer-events-auto mt-1 text-xs text-muted-foreground underline hover:text-foreground"
             >
               Subir otro archivo
             </button>
@@ -158,19 +148,15 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
         {state === 'error' && (
           <>
             <AlertCircle className="h-8 w-8 text-destructive" />
-            <p className="text-sm font-medium text-destructive">
-              Error al analizar
-            </p>
-            <p className="text-xs text-destructive/80">
-              {errorMessage}
-            </p>
+            <p className="text-sm font-medium text-destructive">Error al analizar</p>
+            <p className="text-xs text-destructive/80">{errorMessage}</p>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 resetDropzone();
               }}
-              className="mt-1 text-xs text-muted-foreground underline hover:text-foreground pointer-events-auto"
+              className="pointer-events-auto mt-1 text-xs text-muted-foreground underline hover:text-foreground"
             >
               Intentar de nuevo
             </button>

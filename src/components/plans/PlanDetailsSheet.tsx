@@ -114,7 +114,6 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                 <FileText className="h-4 w-4 text-primary" />
                 <h3 className="font-semibold">Datos del acuerdo</h3>
               </div>
-              {plan.contract_pdf_url && <Badge variant="outline">Contrato cargado</Badge>}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <PlanFact label="Responsable" value={plan.created_by_responsible} />
