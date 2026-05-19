@@ -125,6 +125,7 @@ export interface EcommerceProduct {
   product_unit_of_measurement?: string | null;
   product_brand_name?: string | null;
   external_product_id?: string | null;
+  product_image_url?: string | null;
   product_industry_sector?: string | null;
   product_category?: string | null;
   product_target_animal_species?: string | null;
@@ -603,6 +604,7 @@ export interface ProductCatalogItem {
   product_commercial_name?: string | null;
   product_brand_name?: string | null;
   external_product_id?: string | null;
+  image_url?: string | null;
   product_industry_sector?: string | null;
   product_category?: string | null;
   product_line_name?: string | null;

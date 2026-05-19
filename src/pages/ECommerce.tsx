@@ -38,6 +38,7 @@ import logoFull from "@/assets/logo.png";
 import logoIcon from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
 import bgImage2 from "@/assets/background2.png";
+import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import {
   checkoutEcommerce,
   createEcommerceSession,
@@ -46,7 +47,6 @@ import {
   EcommerceProduct,
   EcommerceSession,
   getEcommerceFilterOptions,
-  getEcommerceProduct,
   getEcommerceProductsPage,
   listTotal,
   quoteEcommerceCart,
@@ -170,7 +170,6 @@ export default function ECommerce() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<EcommerceProduct | null>(null);
   const [productDetailOpen, setProductDetailOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -364,17 +363,9 @@ export default function ECommerce() {
     setCart((prev) => prev.map((item) => item.sku === sku ? { ...item, quantity } : item));
   };
 
-  const openProduct = async (product: EcommerceProduct) => {
+  const openProduct = (product: EcommerceProduct) => {
     setSelectedProduct(product);
     setProductDetailOpen(true);
-    setDetailLoading(true);
-    try {
-      setSelectedProduct(await getEcommerceProduct(token, product.product_sku));
-    } catch {
-      setSelectedProduct(product);
-    } finally {
-      setDetailLoading(false);
-    }
   };
 
   const submitCheckout = async (event: React.FormEvent) => {
@@ -585,8 +576,8 @@ export default function ECommerce() {
           >
             <ShoppingCart className="h-4 w-4" />
             {cartCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground ring-2 ring-background">
-                {cartCount}
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold leading-none text-primary-foreground ring-1 ring-background">
+                {cartCount > 99 ? "99+" : cartCount}
               </span>
             )}
           </button>
@@ -640,7 +631,7 @@ export default function ECommerce() {
                 onWithPriceChange={setWithPriceOnly}
                 onClear={clearAllFilters}
                 hasActiveFilters={activeFilters.length > 0}
-                disabled={loadingProducts}
+                disabled={loadingProducts || !!productError}
               />
             </div>
           </aside>
@@ -665,17 +656,22 @@ export default function ECommerce() {
               onViewModeChange={setViewMode}
               onOpenMobileFilters={() => setMobileFiltersOpen(true)}
               onClear={clearAllFilters}
-              disabled={loadingProducts}
+              disabled={loadingProducts || !!productError}
+              hasError={!!productError}
             />
             {productError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{productError}</div>
+              <ModuleErrorCard
+                message={productError}
+                onRetry={() => void fetchProducts(currentPage)}
+                loading={loadingProducts}
+              />
             )}
             {loadingProducts ? (
               <EcommerceSkeletonGrid viewMode={viewMode} />
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-20 text-center">
                 <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                <p className="mt-1 max-w-sm text-md text-muted-foreground">
                   {activeFilters.length > 0 ? "No encontramos productos con los filtros aplicados." : "No hay productos disponibles en este momento."}
                 </p>
                 {activeFilters.length > 0 && (
@@ -781,34 +777,75 @@ export default function ECommerce() {
       </Sheet>
 
       <Dialog open={productDetailOpen} onOpenChange={setProductDetailOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0">
           {selectedProduct && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{text(selectedProduct.product_commercial_name, "Producto sin nombre")}</DialogTitle>
-                <DialogDescription>SKU: {selectedProduct.product_sku}</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 md:grid-cols-[12rem_1fr]">
-                <div className="flex aspect-square items-center justify-center rounded-md border bg-muted/35">
-                  {detailLoading ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <Package className="h-12 w-12 text-muted-foreground" />}
+            <div className="flex flex-col">
+              {/* Header */}
+              <div className="px-4 pb-2 pt-4">
+                <DialogHeader>
+                  <DialogTitle className="text-[17px] font-semibold leading-snug">
+                    {text(selectedProduct.product_commercial_name, "Producto sin nombre")}
+                  </DialogTitle>
+                  <DialogDescription asChild>
+                    <span className="mt-1 inline-flex">
+                      <span className="font-mono text-[11px] bg-background/90 border rounded-md px-1.5 py-0.5 text-muted-foreground">
+                        SKU: {selectedProduct.product_sku}
+                      </span>
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              {/* Body: image left + info right */}
+              <div className="flex gap-0">
+                {/* Image — fixed width, zoom on hover */}
+                <div className="relative flex w-36 shrink-0 items-center justify-center overflow-hidden bg-white p-2">
+                  {selectedProduct.product_image_url ? (
+                    <img
+                      src={selectedProduct.product_image_url}
+                      alt={selectedProduct.product_commercial_name ?? ""}
+                      className="h-32 w-32 cursor-zoom-in object-contain transition-transform duration-300 ease-out hover:scale-110"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <div className="flex h-32 w-32 flex-col items-center justify-center gap-2 text-muted-foreground/50">
+                      <Package className="h-8 w-8" />
+                      <span className="text-[11px]">Sin imagen</span>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
+
+                {/* Vertical divider */}
+                <div className="w-px self-stretch bg-border/40" />
+
+                {/* Info */}
+                <div className="flex flex-1 flex-col justify-between gap-2 px-3 py-3">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <Fact label="Marca" value={selectedProduct.product_brand_name} />
-                    <Fact label="Categoria" value={selectedProduct.product_category} />
-                    <Fact label="Disponible" value={Number(selectedProduct.total_units_available || 0).toLocaleString("es-CO")} />
-                    <Fact label="Precio" value={selectedProduct.price === null || selectedProduct.price === undefined ? "Sin precio" : money(selectedProduct.price)} />
+                    <Fact label="Categoría" value={selectedProduct.product_category} />
+                    <Fact label="Inventario" value={Number(selectedProduct.total_units_available || 0) > 0 ? "Disponible" : "No disponible"} />
+                    <Fact label="Precio" value={selectedProduct.price == null ? "Sin precio" : money(selectedProduct.price)} />
                   </div>
-                  <div className="rounded-md border bg-card p-3">
-                    <p className="text-xs font-medium text-muted-foreground">Descripcion</p>
-                    <p className="mt-1 text-sm">{text(selectedProduct.product_technical_description, "Sin informacion disponible.")}</p>
-                  </div>
-                  <Button className="w-full" disabled={!selectedProduct.can_add_to_cart} onClick={() => addToCart(selectedProduct)}>
-                    Agregar al carrito
-                  </Button>
+                  {selectedProduct.product_technical_description && (
+                    <div className="rounded-md border border-border/40 bg-muted/30 px-2.5 py-2">
+                      <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Descripción</p>
+                      <p className="line-clamp-3 text-[12px] leading-relaxed text-foreground/80">{selectedProduct.product_technical_description}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </>
+
+              {/* Footer CTA */}
+              <div className="border-t border-border/40 px-4 py-4">
+                <Button
+                  className="w-full gap-2 font-semibold"
+                  disabled={!selectedProduct.can_add_to_cart}
+                  onClick={() => addToCart(selectedProduct)}
+                >
+                  <ShoppingCart className="h-4 w-4" />Añadir al carrito
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -911,6 +948,17 @@ interface SidebarFiltersProps {
 }
 
 function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, category, inStockOnly, withPriceOnly, onBrandChange, onCategoryChange, onInStockChange, onWithPriceChange, onClear, hasActiveFilters, disabled }: SidebarFiltersProps) {
+  const [brandSearch, setBrandSearch] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+
+  const filteredBrands = brandSearch.trim()
+    ? brandOptions.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase()))
+    : brandOptions;
+
+  const filteredCategories = categorySearch.trim()
+    ? categoryOptions.filter((c) => c.toLowerCase().includes(categorySearch.toLowerCase()))
+    : categoryOptions;
+
   return (
     <div className={cn("space-y-3", disabled && "pointer-events-none opacity-50")}>
       {/* Marcas */}
@@ -920,18 +968,38 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
           <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <RadioGroup value={brand} onValueChange={onBrandChange} className="pt-1 space-y-0.5">
-            <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-              <RadioGroupItem value="all" id="brand-all" className="shrink-0" />
-              <Label htmlFor="brand-all" className="cursor-pointer truncate text-sm font-normal">Todas las marcas</Label>
-            </div>
+          <div className="relative mb-1.5 mt-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={brandSearch}
+              onChange={(e) => setBrandSearch(e.target.value)}
+              placeholder="Buscar marca..."
+              className="h-8 w-full rounded-md border border-input bg-background pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {brandSearch && (
+              <button
+                onClick={() => setBrandSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <RadioGroup value={brand} onValueChange={onBrandChange} className="pt-0.5 space-y-0.5">
+            {!brandSearch.trim() && (
+              <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                <RadioGroupItem value="all" id="brand-all" className="shrink-0" />
+                <Label htmlFor="brand-all" className="cursor-pointer truncate text-sm font-normal">Todas las marcas</Label>
+              </div>
+            )}
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
-              {brandOptions.map((b) => (
+              {filteredBrands.map((b) => (
                 <div key={b} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value={b} id={`brand-${b}`} className="shrink-0" />
                   <Label htmlFor={`brand-${b}`} className="cursor-pointer truncate text-sm font-normal">{b}</Label>
                 </div>
               ))}
+              {filteredBrands.length === 0 && <p className="px-1 py-2 text-xs text-muted-foreground">Sin resultados</p>}
             </div>
           </RadioGroup>
         </CollapsibleContent>
@@ -946,18 +1014,38 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
           <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <RadioGroup value={category} onValueChange={onCategoryChange} className="pt-1 space-y-0.5">
-            <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
-              <RadioGroupItem value="all" id="cat-all" className="shrink-0" />
-              <Label htmlFor="cat-all" className="cursor-pointer truncate text-sm font-normal">Todas las categorías</Label>
-            </div>
+          <div className="relative mb-1.5 mt-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={categorySearch}
+              onChange={(e) => setCategorySearch(e.target.value)}
+              placeholder="Buscar categoría..."
+              className="h-8 w-full rounded-md border border-input bg-background pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {categorySearch && (
+              <button
+                onClick={() => setCategorySearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <RadioGroup value={category} onValueChange={onCategoryChange} className="pt-0.5 space-y-0.5">
+            {!categorySearch.trim() && (
+              <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                <RadioGroupItem value="all" id="cat-all" className="shrink-0" />
+                <Label htmlFor="cat-all" className="cursor-pointer truncate text-sm font-normal">Todas las categorías</Label>
+              </div>
+            )}
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
-              {categoryOptions.map((c) => (
+              {filteredCategories.map((c) => (
                 <div key={c} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value={c} id={`cat-${c}`} className="shrink-0" />
                   <Label htmlFor={`cat-${c}`} className="cursor-pointer truncate text-sm font-normal">{c}</Label>
                 </div>
               ))}
+              {filteredCategories.length === 0 && <p className="px-1 py-2 text-xs text-muted-foreground">Sin resultados</p>}
             </div>
           </RadioGroup>
         </CollapsibleContent>
@@ -1026,9 +1114,10 @@ interface ResultsHeaderProps {
   onOpenMobileFilters: () => void;
   onClear: () => void;
   disabled?: boolean;
+  hasError?: boolean;
 }
 
-function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSearchCommit, onSearchClear, sort, onSortChange, inStockOnly, withPriceOnly, onInStockToggle, onWithPriceToggle, totalProducts, currentPage, activeFilters, viewMode, onViewModeChange, onOpenMobileFilters, onClear, disabled }: ResultsHeaderProps) {
+function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSearchCommit, onSearchClear, sort, onSortChange, inStockOnly, withPriceOnly, onInStockToggle, onWithPriceToggle, totalProducts, currentPage, activeFilters, viewMode, onViewModeChange, onOpenMobileFilters, onClear, disabled, hasError }: ResultsHeaderProps) {
   const from = ((currentPage - 1) * PAGE_SIZE + 1).toLocaleString("es-CO");
   const to = totalProducts !== null
     ? Math.min(currentPage * PAGE_SIZE, totalProducts).toLocaleString("es-CO")
@@ -1038,11 +1127,13 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
     <div className="space-y-3">
       {/* Row 1: count + sort + view toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {totalProducts === null
-            ? <Skeleton className="inline-block h-4 w-40 align-middle" />
-            : <>Mostrando <span className="text-foreground">{from}–{to}</span> de <span className="text-foreground">{totalProducts.toLocaleString("es-CO")}</span> productos</>}
-        </p>
+        <div className="text-sm text-muted-foreground">
+          {hasError
+            ? <>Mostrando <span className="text-foreground">0</span> de <span className="text-foreground">0</span> productos</>
+            : totalProducts === null
+              ? <Skeleton className="inline-block h-4 w-40 align-middle" />
+              : <>Mostrando <span className="text-foreground">{from}–{to}</span> de <span className="text-foreground">{totalProducts.toLocaleString("es-CO")}</span> productos</>}
+        </div>
         <div className="flex items-center gap-2">
           <Select value={sort} onValueChange={onSortChange} disabled={disabled}>
             <SelectTrigger className="h-9 w-44 bg-background text-sm">
@@ -1136,9 +1227,18 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
         type="button"
         onClick={onOpen}
         className="relative flex shrink-0 items-center justify-center bg-muted/40 dark:bg-muted transition group-hover:bg-muted/60 dark:group-hover:bg-muted
-                   h-28 w-full sm:h-40 sm:w-full"
+                   h-28 w-full sm:h-40 sm:w-full overflow-hidden"
       >
-        <Package className="h-10 w-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:h-12 sm:w-12" />
+        {product.product_image_url ? (
+          <img
+            src={product.product_image_url}
+            alt={product.product_commercial_name ?? ""}
+            className="h-full w-full object-contain p-2"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <Package className="h-10 w-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:h-12 sm:w-12" />
+        )}
         <span className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-0.5 text-[11px] font-mono font-medium text-muted-foreground shadow-sm">
           {product.product_sku}
         </span>
@@ -1201,9 +1301,9 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Disponible</span>
+          <span className="text-xs text-muted-foreground">Inventario</span>
           <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", stock > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-            {stock > 0 ? `${stock.toLocaleString("es-CO")} und.` : "Sin stock"}
+            {stock > 0 ? "Disponible" : "No disponible"}
           </span>
         </div>
 
@@ -1230,8 +1330,17 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
 
   return (
     <article className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40 dark:bg-muted">
-        <Package className="h-6 w-6 text-muted-foreground/60" />
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40 dark:bg-muted overflow-hidden">
+        {product.product_image_url ? (
+          <img
+            src={product.product_image_url}
+            alt={product.product_commercial_name ?? ""}
+            className="h-full w-full object-contain p-1"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <Package className="h-6 w-6 text-muted-foreground/60" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -1281,7 +1390,7 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
       </div>
       <div className="hidden md:block shrink-0">
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", stock > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-          {stock > 0 ? `${stock.toLocaleString("es-CO")} und.` : "Sin stock"}
+          {stock > 0 ? "Disponible" : "No disponible"}
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -1402,8 +1511,8 @@ function MobileFiltersDrawer({ open, onOpenChange, ...filterProps }: { open: boo
 
 function Fact({ label, value }: { label: string; value: unknown }) {
   return (
-    <div className="min-h-[4rem] rounded-md bg-muted/35 px-3 py-2">
-      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+    <div className="rounded-md border border-border/40 bg-muted/30 px-2.5 py-2">
+      <p className="text-[11px] font-medium capitalize text-muted-foreground">{label}</p>
       <p className="mt-1 break-words text-sm font-medium">{text(value)}</p>
     </div>
   );

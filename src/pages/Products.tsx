@@ -3,12 +3,10 @@ import type React from "react";
 import {
   getProductFilterOptions,
   getProductsPage,
-  getSupabaseProduct,
   listTotal,
   ProductCatalogItem,
   ProductInventoryLocation,
   ProductListParams,
-  SupabaseProduct,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,12 +42,6 @@ import { buildExportFileName, exportRowsToWorkbook, fetchAllPagesParallel } from
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 200;
-const SUPABASE_PUBLIC_URL = (
-  import.meta.env.VITE_SUPABASE_PUBLIC_URL as string | undefined
-) ?? "https://supabase.bettercode.com.co";
-const PRODUCT_IMAGE_BUCKET = (
-  import.meta.env.VITE_SUPABASE_PRODUCT_IMAGE_BUCKET as string | undefined
-) ?? "product-images";
 const CORE_PRODUCT_FIELDS = new Set([
   "product_sku",
   "product_commercial_name",
@@ -81,6 +73,7 @@ const CORE_PRODUCT_FIELDS = new Set([
   "inventories",
   "price_lists_count",
   "price_lists",
+  "image_url",
 ]);
 
 function text(value: unknown, fallback = "N/A") {
@@ -264,17 +257,6 @@ function averagePositive(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function resolveExternalProductImageUrl(imagePath?: unknown) {
-  if (typeof imagePath !== "string") return null;
-  const path = imagePath.trim();
-  if (!path) return null;
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-
-  const cleanBase = SUPABASE_PUBLIC_URL.replace(/\/+$/, "");
-  const cleanBucket = PRODUCT_IMAGE_BUCKET.replace(/^\/+|\/+$/g, "");
-  const cleanPath = path.replace(/^\/+/, "");
-  return `${cleanBase}/storage/v1/object/public/${cleanBucket}/${cleanPath}`;
-}
 
 function productSortParams(value: string): Pick<ProductListParams, "sort_by" | "sort_dir"> {
   if (value === "name_desc") return { sort_by: "name", sort_dir: "desc" };
@@ -306,11 +288,6 @@ export default function Products() {
   const [minUnits, setMinUnits] = useState("");
   const [maxUnits, setMaxUnits] = useState("");
   const [selected, setSelected] = useState<ProductCatalogItem | null>(null);
-  const [externalProduct, setExternalProduct] = useState<SupabaseProduct | null>(null);
-  const [externalProductLoading, setExternalProductLoading] = useState(false);
-  const [externalProductError, setExternalProductError] = useState<string | null>(null);
-  const [imageLoadFailed, setImageLoadFailed] = useState(false);
-
   const buildParams = useCallback((offset: number): ProductListParams => ({
     sku: sku.trim() || undefined,
     search: search.trim() || undefined,
@@ -408,39 +385,6 @@ export default function Products() {
     return () => observer.disconnect();
   }, [fetchPage, hasMore, loadingInitial, loadingMore, products.length]);
 
-  useEffect(() => {
-    setExternalProduct(null);
-    setExternalProductError(null);
-    setImageLoadFailed(false);
-
-    if (!selected) {
-      setExternalProductLoading(false);
-      return;
-    }
-
-    // Only fetch from Supabase if external_product_id exists — to get the image
-    const externalId = selected.external_product_id;
-    const productId = externalId != null ? Number(externalId) : NaN;
-    if (Number.isFinite(productId) && productId > 0) {
-      let cancelled = false;
-      setExternalProductLoading(true);
-      getSupabaseProduct(productId)
-        .then((product) => {
-          if (!cancelled) setExternalProduct(product);
-        })
-        .catch(() => {
-          // Image not found — show placeholder silently
-        })
-        .finally(() => {
-          if (!cancelled) setExternalProductLoading(false);
-        });
-      return () => { cancelled = true; };
-    } else {
-      // No external_product_id — open modal with list data only
-      setExternalProductLoading(false);
-    }
-  }, [selected]);
-
   const brands = filterOptions.brands;
   const categories = filterOptions.categories;
   const brandOptions = useMemo(() => brands.map((item) => ({ value: item, label: item })), [brands]);
@@ -464,7 +408,7 @@ export default function Products() {
     selectedSapPrices.length > 0
       ? averagePositive(selectedSapPrices)
       : numberValue(currentProduct?.avg_unit_sale_price);
-  const externalImageUrl = resolveExternalProductImageUrl(externalProduct?.image_path);
+  const externalImageUrl = selected?.image_url ?? null;
   const priceListColumns = selectedPriceLists.length > 0
     ? Object.keys(selectedPriceLists[0]).filter((k) => selectedPriceLists[0][k] != null)
     : [];
@@ -745,6 +689,7 @@ export default function Products() {
                   <Table className="min-w-[960px]">
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-14">Imagen</TableHead>
                         <TableHead>Producto</TableHead>
                         <TableHead>Marca</TableHead>
                         <TableHead>Categoria</TableHead>
@@ -759,6 +704,9 @@ export default function Products() {
                         const statusInfo = productStatus(product);
                         return (
                           <TableRow key={product.product_sku}>
+                            <TableCell className="w-14 py-1.5 pl-4 pr-2">
+                              <ProductThumb imageUrl={product.image_url ?? null} name={product.product_commercial_name} />
+                            </TableCell>
                             <TableCell className="max-w-[340px]">
                               <p className="truncate font-medium">{text(product.product_commercial_name, "Producto sin nombre")}</p>
                               <p className="truncate text-xs text-muted-foreground">SKU: {product.product_sku}</p>
@@ -819,12 +767,7 @@ export default function Products() {
                 <div className="space-y-5 px-4 py-4 sm:px-6">
                   <ProductExternalMedia
                     catalogProduct={selected}
-                    externalProduct={externalProduct}
                     imageUrl={externalImageUrl}
-                    loading={externalProductLoading}
-                    error={externalProductError}
-                    imageLoadFailed={imageLoadFailed}
-                    onImageError={() => setImageLoadFailed(true)}
                     metrics={[
                       ["Sector", text(currentProduct.product_industry_sector)],
                       ["Categoria", text(currentProduct.product_category)],
@@ -1175,23 +1118,14 @@ function ProfileMetric({ label, value }: { label: string; value: string }) {
 
 function ProductExternalMedia({
   catalogProduct,
-  externalProduct,
   imageUrl,
-  loading,
-  error,
-  imageLoadFailed,
-  onImageError,
   metrics,
 }: {
   catalogProduct: ProductCatalogItem;
-  externalProduct: SupabaseProduct | null;
   imageUrl: string | null;
-  loading: boolean;
-  error: string | null;
-  imageLoadFailed: boolean;
-  onImageError: () => void;
   metrics: Array<[string, string]>;
 }) {
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const showImage = Boolean(imageUrl && !imageLoadFailed);
   const isNumericMetric = (label: string) => label === "Disponible" || label === "Listas precio";
 
@@ -1204,14 +1138,12 @@ function ProductExternalMedia({
             showImage ? "bg-white" : "bg-muted/30",
           )}
         >
-          {loading ? (
-            <div className="h-full w-full animate-pulse bg-muted" />
-          ) : showImage ? (
+          {showImage ? (
             <img
-              src={imageUrl}
+              src={imageUrl!}
               alt={text(catalogProduct.product_commercial_name, "Producto")}
               className="h-full w-full object-contain p-3"
-              onError={onImageError}
+              onError={() => setImageLoadFailed(true)}
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -1222,31 +1154,123 @@ function ProductExternalMedia({
         </div>
 
         <div className="min-w-0 p-2.5 sm:p-3">
-          {error ? (
-            <div className="flex min-h-[11.5rem] items-center rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              No se pudo cargar el producto externo: {error}
-            </div>
-          ) : (
-            <div className="grid h-full gap-2.5 sm:grid-cols-2">
-              {metrics.map(([label, value]) => (
-                <div key={label} className="flex min-h-[5.45rem] flex-col rounded-md border bg-muted/60 px-4 py-3 shadow-sm">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-                  <p
-                    className={cn(
-                      "mt-2 break-words text-foreground",
-                      isNumericMetric(label)
-                        ? "text-[1.2rem] font-bold leading-none sm:text-[1.3rem]"
-                        : "text-[0.9rem] font-semibold leading-[1.2] sm:text-[0.88rem]",
-                    )}
-                  >
-                    {value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid h-full gap-2.5 sm:grid-cols-2">
+            {metrics.map(([label, value]) => (
+              <div key={label} className="flex min-h-[5.45rem] flex-col rounded-md border bg-muted/60 px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+                <p
+                  className={cn(
+                    "mt-2 break-words text-foreground",
+                    isNumericMetric(label)
+                      ? "text-[1.2rem] font-bold leading-none sm:text-[1.3rem]"
+                      : "text-[0.9rem] font-semibold leading-[1.2] sm:text-[0.88rem]",
+                  )}
+                >
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    setScale((s) => Math.min(8, Math.max(0.5, s - e.deltaY * 0.002)));
+  };
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (scale <= 1) return;
+    setDragging(true);
+    dragStart.current = { mx: e.clientX, my: e.clientY, ox: offset.x, oy: offset.y };
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging || !dragStart.current) return;
+    setOffset({ x: dragStart.current.ox + e.clientX - dragStart.current.mx, y: dragStart.current.oy + e.clientY - dragStart.current.my });
+  };
+
+  const onMouseUp = () => { setDragging(false); dragStart.current = null; };
+
+  const reset = () => { setScale(1); setOffset({ x: 0, y: 0 }); };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <button
+        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+        onClick={onClose}
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/50 px-4 py-1.5 text-xs text-white select-none">
+        <button onClick={() => setScale((s) => Math.max(0.5, s - 0.5))} className="px-1 text-base hover:text-white/70">−</button>
+        <span onClick={reset} className="w-12 cursor-pointer text-center">{Math.round(scale * 100)}%</span>
+        <button onClick={() => setScale((s) => Math.min(8, s + 0.5))} className="px-1 text-base hover:text-white/70">+</button>
+      </div>
+      <div
+        className="overflow-hidden"
+        style={{ cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "default" }}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+      >
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="max-h-[80vh] max-w-[80vw] select-none object-contain transition-transform duration-100"
+          style={{ transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ProductThumb({ imageUrl, name }: { imageUrl: string | null; name: unknown }) {
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      <>
+        <div
+          className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded border bg-white transition-opacity hover:opacity-80"
+          onClick={() => setOpen(true)}
+          title="Ver imagen"
+        >
+          <img
+            src={imageUrl}
+            alt={text(name, "Producto")}
+            className="h-full w-full object-contain p-0.5"
+            onError={() => setFailed(true)}
+          />
+        </div>
+        {open && <ImageLightbox src={imageUrl} alt={text(name, "Producto")} onClose={() => setOpen(false)} />}
+      </>
+    );
+  }
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
+      <ImageOff className="h-4 w-4" />
     </div>
   );
 }
