@@ -77,7 +77,7 @@ export function MapModule({ data, title = "Mapa de Clientes", isLoading = false,
       <div className="relative min-h-0 flex-1">
         {isLoading ? (
           <div className="absolute inset-0 flex animate-pulse items-center justify-center bg-gray-100 dark:bg-background">
-            <span className="text-sm text-gray-400">Cargando mapa...</span>
+            <span className="text-sm text-gray-400">Cargando mapa…</span>
           </div>
         ) : (
           <MapView

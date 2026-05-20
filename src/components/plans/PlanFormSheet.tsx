@@ -303,8 +303,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
           {isLoadingFunds && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Cargando datos...</span>
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Cargando datos…</span>
             </div>
           )}
 
@@ -380,7 +380,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                 Estructura de Fondos del Plan
               </h3>
               <Button variant="outline" size="sm" onClick={addFund}>
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="size-4 mr-1" />
                 Agregar Concepto
               </Button>
             </div>
@@ -388,8 +388,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
             {funds.length === 0 ? (
               <div className="rounded-lg border border-dashed py-10 text-center">
                 <div className="mb-3 flex justify-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <Layers3 className="h-5 w-5" />
+                  <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Layers3 className="size-5" />
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -471,10 +471,10 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 justify-self-end text-destructive hover:text-destructive"
+                      className="size-8 justify-self-end text-destructive hover:text-destructive"
                       onClick={() => removeFund(fund.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 ))}
@@ -511,8 +511,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {isEditing ? 'Actualizando...' : 'Guardando...'}
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  {isEditing ? 'Actualizando…' : 'Guardando…'}
                 </>
               ) : (
                 isEditing ? 'Actualizar Plan' : 'Guardar Plan'

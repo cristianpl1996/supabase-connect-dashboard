@@ -106,14 +106,14 @@ export function MapView({
   onToggleRep,
 }: MapViewProps) {
   return (
-    <div className="relative h-full w-full">
+    <div className="relative size-full">
       {/* Inject popup CSS once */}
       <style>{POPUP_CSS}</style>
 
       <MapContainer
         center={[4.5709, -74.2973]}
         zoom={6}
-        className="h-full w-full z-0"
+        className="size-full z-0"
         scrollWheelZoom
         style={{ background: "#e8eaed" }}
         zoomControl={false}

@@ -57,13 +57,12 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secon
 };
 
 const MECHANIC_LABELS: Record<string, string> = {
-  none: 'Sin condicion',
-  min_quantity: 'Cantidad minima',
-  min_amount: 'Monto Minimo',
-  buy_x_get_y: 'Pague X Lleve Y',
-  product_mix: 'Mezcla de productos',
-  sku_list: 'Pague X Lleve Y',
-  category: 'Por Categoria',
+  descuento_linea: 'Descuento en Linea',
+  bonificacion_cantidad: 'Bonificacion X+N',
+  precio_especial: 'Precio Especial',
+  descuento_volumen: 'Descuento por Volumen',
+  bonificacion_volumen: 'Bonificacion por Volumen',
+  combo: 'Combo de Productos',
 };
 
 const Promotions = () => {
@@ -118,7 +117,7 @@ const Promotions = () => {
         || promo.title.toLowerCase().includes(query))
       && (statusFilter === 'all' || promo.status === statusFilter)
       && (laboratoryFilter === 'all' || (promo.laboratory_name || 'Sin laboratorio') === laboratoryFilter)
-      && (mechanicFilter === 'all' || (promo.mechanic?.condition_type || 'N/A') === mechanicFilter)
+      && (mechanicFilter === 'all' || (promo.mechanic?.promotion_type || 'N/A') === mechanicFilter)
     ));
   }, [laboratoryFilter, mechanicFilter, promotions, searchQuery, statusFilter]);
 
@@ -133,7 +132,7 @@ const Promotions = () => {
 
   const mechanicOptions = useMemo(() => {
     const values = new Set<string>();
-    promotions.forEach((promo) => values.add(promo.mechanic?.condition_type || 'N/A'));
+    promotions.forEach((promo) => values.add(promo.mechanic?.promotion_type || 'N/A'));
     return Array.from(values).sort((a, b) => (MECHANIC_LABELS[a] || a).localeCompare(MECHANIC_LABELS[b] || b));
   }, [promotions]);
 
@@ -325,11 +324,11 @@ const Promotions = () => {
                 className="hidden"
               />
               <Button variant="outline" onClick={handleImportClick} disabled={loading || isImporting} className="w-full gap-2">
-                <Upload className="h-4 w-4" />
-                {isImporting ? 'Importando...' : 'Importar Excel'}
+                <Upload className="size-4" />
+                {isImporting ? 'Importando…' : 'Importar Excel'}
               </Button>
               <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading} className="w-full gap-2">
-                <Plus className="h-4 w-4" />
+                <Plus className="size-4" />
                 Nueva Promocion
               </Button>
             </div>
@@ -346,7 +345,7 @@ const Promotions = () => {
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Promociones Activas</CardTitle>
-              <Zap className="h-4 w-4 text-green-500" />
+              <Zap className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
               {loading ? <div className="h-8 bg-muted animate-pulse rounded" /> : <p className="text-2xl font-bold text-foreground">{activeCount}</p>}
@@ -356,7 +355,7 @@ const Promotions = () => {
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Promociones</CardTitle>
-              <Tag className="h-4 w-4 text-primary" />
+              <Tag className="size-4 text-primary" />
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -370,7 +369,7 @@ const Promotions = () => {
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Costo Estimado Total</CardTitle>
-              <DollarSign className="h-4 w-4 text-amber-500" />
+              <DollarSign className="size-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -392,7 +391,7 @@ const Promotions = () => {
             <div className="grid gap-3 md:grid-cols-[minmax(240px,1.5fr)_repeat(3,minmax(160px,1fr))_auto]">
               <div className="relative min-w-0">
                 <button type="button" onClick={commitSearch} disabled={loading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
-                  <Search className="h-4 w-4" />
+                  <Search className="size-4" />
                 </button>
                 <Input
                   placeholder="Buscar por titulo o laboratorio"
@@ -404,7 +403,7 @@ const Promotions = () => {
                 />
                 {searchQuery && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>
@@ -444,7 +443,7 @@ const Promotions = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-10 w-full gap-2 md:w-44" disabled={loading}>
-                    <Columns3 className="h-4 w-4" />
+                    <Columns3 className="size-4" />
                     Columnas
                   </Button>
                 </DropdownMenuTrigger>
@@ -455,8 +454,8 @@ const Promotions = () => {
                     className="min-h-12 rounded-md border border-border bg-background py-2 pl-3 pr-3 focus:bg-accent [&>span:first-child]:hidden"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${showCostColumn ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"}`}>
-                        {showCostColumn && <Check className="h-3.5 w-3.5" />}
+                      <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${showCostColumn ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"}`}>
+                        {showCostColumn && <Check className="size-3.5" />}
                       </span>
                       <div className="flex min-w-0 flex-col">
                         <span className="font-medium text-foreground">Costo estimado</span>
@@ -482,11 +481,11 @@ const Promotions = () => {
                     className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15"
                   >
                     <span className="truncate">{filter.label}</span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="size-3 shrink-0" />
                   </button>
                 ))}
                 <button type="button" onClick={clearFilters} disabled={loading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" /> Limpiar
+                  <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
@@ -496,18 +495,18 @@ const Promotions = () => {
               <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}</div>
             ) : filteredPromotions.length === 0 ? (
               <div className="text-center py-12">
-                <Tag className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <Tag className="size-12 text-muted-foreground/40 mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {hasActiveFilters ? 'No se encontraron promociones con los filtros aplicados' : 'No hay promociones registradas'}
                 </p>
                 {hasActiveFilters ? (
                   <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loading}>
-                    <X className="h-4 w-4 mr-2" />
+                    <X className="size-4 mr-2" />
                     Limpiar filtros
                   </Button>
                 ) : (
                   <Button variant="outline" className="mt-4" onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="size-4 mr-2" />
                     Crear primera promocion
                   </Button>
                 )}
@@ -517,7 +516,7 @@ const Promotions = () => {
                 <div className="space-y-3 md:hidden">
                   {filteredPromotions.map((promo) => {
                     const statusConfig = STATUS_CONFIG[promo.status] || STATUS_CONFIG.borrador;
-                    const mechanicType = promo.mechanic?.condition_type || 'N/A';
+                    const mechanicType = promo.mechanic?.promotion_type_label || promo.mechanic?.promotion_type || 'N/A';
                     const isCostHidden = hiddenCostRows.has(promo.id);
                     return (
                       <div key={promo.id} className="rounded-md border bg-card p-3">
@@ -550,10 +549,10 @@ const Promotions = () => {
                           )}
                         </div>
                         <div className="mt-3 grid grid-cols-4 gap-1">
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion"><Copy className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(promo)} disabled={loading} title="Eliminar"><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion"><Copy className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar"><Pencil className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(promo)} disabled={loading} title="Eliminar"><Trash2 className="size-4" /></Button>
                         </div>
                       </div>
                     );
@@ -576,7 +575,7 @@ const Promotions = () => {
                     <TableBody>
                       {filteredPromotions.map((promo) => {
                         const statusConfig = STATUS_CONFIG[promo.status] || STATUS_CONFIG.borrador;
-                        const mechanicType = promo.mechanic?.condition_type || 'N/A';
+                        const mechanicType = promo.mechanic?.promotion_type_label || promo.mechanic?.promotion_type || 'N/A';
                         const isCostHidden = hiddenCostRows.has(promo.id);
                         return (
                           <TableRow key={promo.id}>
@@ -594,7 +593,7 @@ const Promotions = () => {
                             <TableCell>{promo.laboratory_name || '—'}</TableCell>
                             <TableCell className="whitespace-nowrap text-sm">
                               <div className="flex items-center gap-1 text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
+                                <Calendar className="size-3" />
                                 {formatDateRange(promo.start_date, promo.end_date)}
                               </div>
                             </TableCell>
@@ -613,29 +612,29 @@ const Promotions = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-6 w-6"
+                                    className="size-6"
                                     onClick={() => toggleRowCostHidden(promo.id)}
                                     disabled={loading}
                                     title={isCostHidden ? 'Mostrar valor' : 'Ocultar valor'}
                                   >
-                                    {isCostHidden ? <EyeOff className="h-3 w-3 text-muted-foreground" /> : <Eye className="h-3 w-3 text-muted-foreground" />}
+                                    {isCostHidden ? <EyeOff className="size-3 text-muted-foreground" /> : <Eye className="size-3 text-muted-foreground" />}
                                   </Button>
                                 </div>
                               </TableCell>
                             )}
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles">
-                                  <Eye className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles">
+                                  <Eye className="size-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion">
-                                  <Copy className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion">
+                                  <Copy className="size-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar">
-                                  <Pencil className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar">
+                                  <Pencil className="size-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(promo)} disabled={loading} title="Eliminar">
-                                  <Trash2 className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(promo)} disabled={loading} title="Eliminar">
+                                  <Trash2 className="size-4" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -684,7 +683,7 @@ const Promotions = () => {
                 disabled={isDeleting}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+                {isDeleting ? 'Eliminando…' : 'Eliminar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

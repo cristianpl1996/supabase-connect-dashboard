@@ -46,10 +46,10 @@ function MarketingAiLoader() {
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-x-[-10%] top-[18%] h-28 rounded-full bg-primary/10 blur-3xl animate-[marketing-ai-sweep_4.2s_ease-in-out_infinite]" />
         <div className="absolute inset-x-[-14%] bottom-[14%] h-32 rounded-full bg-primary/8 blur-3xl animate-[marketing-ai-sweep-reverse_5.4s_ease-in-out_infinite]" />
-        <div className="absolute left-[18%] top-[34%] h-2 w-2 rounded-full bg-primary/35 animate-[marketing-ai-float_3.4s_ease-in-out_infinite]" />
-        <div className="absolute right-[20%] top-[42%] h-2 w-2 rounded-full bg-primary/40 animate-[marketing-ai-float_4.1s_ease-in-out_infinite]" />
-        <div className="absolute left-[30%] top-[58%] h-1.5 w-1.5 rounded-full bg-primary/25 animate-[marketing-ai-float_3.1s_ease-in-out_infinite]" />
-        <div className="absolute right-[32%] top-[62%] h-1.5 w-1.5 rounded-full bg-primary/30 animate-[marketing-ai-float_3.8s_ease-in-out_infinite]" />
+        <div className="absolute left-[18%] top-[34%] size-2 rounded-full bg-primary/35 animate-[marketing-ai-float_3.4s_ease-in-out_infinite]" />
+        <div className="absolute right-[20%] top-[42%] size-2 rounded-full bg-primary/40 animate-[marketing-ai-float_4.1s_ease-in-out_infinite]" />
+        <div className="absolute left-[30%] top-[58%] size-1.5 rounded-full bg-primary/25 animate-[marketing-ai-float_3.1s_ease-in-out_infinite]" />
+        <div className="absolute right-[32%] top-[62%] size-1.5 rounded-full bg-primary/30 animate-[marketing-ai-float_3.8s_ease-in-out_infinite]" />
       </div>
 
       <div className="relative z-10 flex min-h-[180px] flex-col items-center justify-center gap-6 text-center">
@@ -65,7 +65,7 @@ function MarketingAiLoader() {
             />
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">Generando resultado...</p>
+        <p className="text-sm text-muted-foreground">Generando resultado…</p>
       </div>
     </div>
   );
@@ -372,7 +372,7 @@ export default function Marketing() {
           <CardContent>
             <Select value={selectedPromoId} onValueChange={setSelectedPromoId} disabled={isLoadingPromotions}>
               <SelectTrigger className="w-full md:w-[400px]">
-                <SelectValue placeholder="Seleccionar promocion..." />
+                <SelectValue placeholder="Seleccionar promocion…" />
               </SelectTrigger>
               <SelectContent>
                 {promotions.map((promo) => (
@@ -393,7 +393,7 @@ export default function Marketing() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <Sparkles className="size-5 text-primary" />
                   Copywriting IA
                 </CardTitle>
                 <CardDescription>Texto optimizado para promociones</CardDescription>
@@ -412,7 +412,7 @@ export default function Marketing() {
                           setIsTypingCopy(false);
                         }}
                         disabled={isGenerating}
-                        placeholder="El texto generado aparecera aqui..."
+                        placeholder="El texto generado aparecera aqui…"
                         className="min-h-[180px] pr-8 text-base"
                       />
                       {isTypingCopy && (
@@ -421,11 +421,11 @@ export default function Marketing() {
                     </div>
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                       <Button onClick={handleCopyToClipboard} disabled={!displayedCopy || isGenerating} className="w-full">
-                        <Copy className="h-4 w-4 mr-2" />
+                        <Copy className="size-4 mr-2" />
                         Copiar al Portapapeles
                       </Button>
                       <Button variant="outline" onClick={() => void handleGenerateCopy(selectedPromo)} disabled={isGenerating} className="w-full sm:w-auto">
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        <Sparkles className="size-4 mr-2" />
                         Regenerar
                       </Button>
                     </div>
@@ -437,7 +437,7 @@ export default function Marketing() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5 text-primary" />
+                  <ImageIcon className="size-5 text-primary" />
                   Flashcard Visual (1080x1080)
                 </CardTitle>
                 <CardDescription>Imagen profesional para Instagram y WhatsApp</CardDescription>
@@ -490,7 +490,7 @@ export default function Marketing() {
                           onClick={() => fileInputRef.current?.click()}
                         >
                           <div className="flex flex-col items-center text-white/80">
-                            <Camera className="h-10 w-10 mb-2" />
+                            <Camera className="size-10 mb-2" />
                             <span className="text-sm font-medium text-center">Clic para subir foto del producto</span>
                           </div>
                         </div>
@@ -520,11 +520,11 @@ export default function Marketing() {
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button onClick={() => void handleDownloadFlashcard()} disabled={isDownloading || isGenerating} className="w-full" size="lg">
-                    {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    {isDownloading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Download className="size-4 mr-2" />}
                     Descargar PNG
                   </Button>
                   <Button onClick={() => void handleSaveToHistory()} disabled={isSaving || isGenerating} variant="secondary" size="lg" className="w-full">
-                    {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    {isSaving ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Save className="size-4 mr-2" />}
                     Guardar en Historial
                   </Button>
                 </div>
@@ -534,7 +534,7 @@ export default function Marketing() {
         ) : (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <Megaphone className="h-16 w-16 text-muted-foreground/50 mb-4" />
+              <Megaphone className="size-16 text-muted-foreground/50 mb-4" />
               <h3 className="text-xl font-semibold text-muted-foreground">Selecciona una promocion</h3>
               <p className="text-muted-foreground mt-2 max-w-md">
                 Elige una promocion del dropdown para generar automaticamente el texto y la imagen para redes sociales.

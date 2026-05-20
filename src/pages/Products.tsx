@@ -507,8 +507,8 @@ export default function Products() {
           description="Consulta la informacion de los productos, incluyendo su disponibilidad, pedidos y bodegas reales."
           actions={(
             <Button onClick={() => void exportProducts()} disabled={loadingInitial || exporting} className="w-full gap-2 md:w-auto">
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exporting ? "Exportando..." : "Exportar"}
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {exporting ? "Exportando…" : "Exportar"}
             </Button>
           )}
         />
@@ -520,7 +520,7 @@ export default function Products() {
 
       <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "..." : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
+          <KpiCard title="Productos cargados" value={`${formatCount(products.length)} / ${totalProducts === null ? "…" : formatCount(totalProducts)}`} note="Segun filtros actuales" icon={Package} loading={loadingInitial} />
           <KpiCard title="Con stock disponible" value={`${stockCoverage}%`} note={`${formatCount(productsWithStock)} SKUs con unidades`} icon={Boxes} loading={loadingInitial} />
           <KpiCard title="Bodegas con inventario" value={formatCount(inventoryLocations)} note={`${averageLocations.toLocaleString("es-CO", { maximumFractionDigits: 1 })} bodegas por SKU visible`} icon={Layers3} loading={loadingInitial} />
           <KpiCard title="Marcas visibles" value={formatCount(visibleBrandCount)} note="Segun filtros actuales" icon={Tags} loading={loadingInitial} />
@@ -531,12 +531,12 @@ export default function Products() {
             <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_220px_auto]">
               <div className="relative min-w-0">
                 <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
-                  <Search className="h-4 w-4" />
+                  <Search className="size-4" />
                 </button>
                 <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} disabled={loadingInitial} placeholder="Buscar SKU, producto, marca, categoria o bodega" className="h-10 pl-9 pr-9" />
                 {search && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>
@@ -545,7 +545,7 @@ export default function Products() {
                 onValueChange={setBrand}
                 options={brandOptions}
                 allLabel="Todas las marcas"
-                searchPlaceholder="Buscar marca..."
+                searchPlaceholder="Buscar marca…"
                 emptyLabel="No hay marcas"
                 disabled={loadingInitial}
               />
@@ -554,7 +554,7 @@ export default function Products() {
                 onValueChange={setCategory}
                 options={categoryOptions}
                 allLabel="Todas las categorias"
-                searchPlaceholder="Buscar categoria..."
+                searchPlaceholder="Buscar categoria…"
                 emptyLabel="No hay categorias"
                 disabled={loadingInitial}
               />
@@ -562,7 +562,7 @@ export default function Products() {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant={advancedFilterCount > 0 ? "default" : "outline"} className="h-10 w-full gap-2 xl:w-auto" disabled={loadingInitial}>
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="size-4" />
                     Filtros
                     {advancedFilterCount > 0 && <span className="rounded bg-background/20 px-1.5 text-xs">{advancedFilterCount}</span>}
                   </Button>
@@ -576,7 +576,7 @@ export default function Products() {
                       </div>
                       {advancedFilterCount > 0 ? (
                         <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                          <X className="h-4 w-4" /> Limpiar todo
+                          <X className="size-4" /> Limpiar todo
                         </Button>
                       ) : null}
                     </div>
@@ -635,11 +635,11 @@ export default function Products() {
                 {activeFilters.map((filter) => (
                   <button key={filter.key} type="button" onClick={filter.clear} disabled={loadingInitial} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
                     <span className="truncate">{filter.label}</span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="size-3 shrink-0" />
                   </button>
                 ))}
                 <button type="button" onClick={clearFilters} disabled={loadingInitial} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" /> Limpiar
+                  <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
@@ -649,12 +649,12 @@ export default function Products() {
               <div className="space-y-3">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-12 animate-pulse rounded bg-muted" />)}</div>
             ) : products.length === 0 ? (
               <div className="text-center py-12">
-                <Package className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <Package className="size-12 text-muted-foreground/40 mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {activeFilters.length > 0 ? "No se encontraron productos con los filtros aplicados" : "No hay productos registrados"}
                 </p>
                 {activeFilters.length > 0 && (
-                  <Button className="mt-4" variant="outline" onClick={clearFilters} disabled={loadingInitial}><X className="h-4 w-4 mr-2" />Limpiar filtros</Button>
+                  <Button className="mt-4" variant="outline" onClick={clearFilters} disabled={loadingInitial}><X className="size-4 mr-2" />Limpiar filtros</Button>
                 )}
               </div>
             ) : (
@@ -679,7 +679,7 @@ export default function Products() {
                           <div><p className="text-xs text-muted-foreground">Pedido</p><p className="font-semibold">{formatCount(numberValue(product.ordered_quantity))}</p></div>
                         </div>
                         <Button variant="outline" className="mt-3 w-full gap-2" onClick={() => setSelected(product)} disabled={loadingInitial}>
-                          <Eye className="h-4 w-4" /> Ver detalle
+                          <Eye className="size-4" /> Ver detalle
                         </Button>
                       </div>
                     );
@@ -717,8 +717,8 @@ export default function Products() {
                             <TableCell className="text-center">{formatCount(numberValue(product.inventory_locations_count))}</TableCell>
                             <TableCell className="text-center"><Badge variant={statusInfo.variant}>{statusInfo.label}</Badge></TableCell>
                             <TableCell className="text-center">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelected(product)} disabled={loadingInitial} title="Ver detalle">
-                                <Eye className="h-4 w-4" />
+                              <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelected(product)} disabled={loadingInitial} title="Ver detalle">
+                                <Eye className="size-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -733,8 +733,8 @@ export default function Products() {
             <div ref={sentinelRef} className="h-px" aria-hidden="true" />
             {loadingMore && (
               <div className="flex items-center justify-center gap-2 py-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-medium text-foreground">Cargando siguiente lote...</span>
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="font-medium text-foreground">Cargando siguiente lote…</span>
               </div>
             )}
           </CardContent>
@@ -788,7 +788,7 @@ export default function Products() {
                       {/* Clasificacion */}
                       <div className="rounded-md border bg-card p-4 shadow-sm">
                         <div className="mb-3 flex items-center gap-2">
-                          <Tags className="h-4 w-4 text-primary" />
+                          <Tags className="size-4 text-primary" />
                           <p className="font-semibold">Clasificacion</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -811,7 +811,7 @@ export default function Products() {
                       {[currentProduct.product_technical_description, currentProduct.product_recommended_application_frequency, currentProduct.product_substitute_skus].some(Boolean) && (
                         <div className="rounded-md border bg-card p-4 shadow-sm">
                           <div className="mb-3 flex items-center gap-2">
-                            <Package className="h-4 w-4 text-primary" />
+                            <Package className="size-4 text-primary" />
                             <p className="font-semibold">Descripcion</p>
                           </div>
                           <div className="space-y-3 text-sm">
@@ -837,10 +837,10 @@ export default function Products() {
                         </div>
                       )}
 
-                      {/* Inventario agregado — números destacados */}
+                      {/* Inventario agregado — numeros destacados */}
                       <div className="rounded-md border bg-card p-4 shadow-sm">
                         <div className="mb-3 flex items-center gap-2">
-                          <Boxes className="h-4 w-4 text-primary" />
+                          <Boxes className="size-4 text-primary" />
                           <p className="font-semibold">Inventario</p>
                         </div>
                         <div className="grid grid-cols-3 gap-2.5">
@@ -964,7 +964,7 @@ export default function Products() {
                             </TableBody>
                           </Table>
                           {(() => {
-                            const prices = selectedPriceLists.map((r) => numberValue(r.sap_price)).filter((p) => p > 0);
+                            const prices = selectedPriceLists.map((r) => numberValue(r.sap_price)).filter((price) => price > 0);
                             const min = prices.length > 0 ? Math.min(...prices) : 0;
                             const max = prices.length > 0 ? Math.max(...prices) : 0;
                             return (
@@ -1026,7 +1026,7 @@ function KpiCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-primary" />
+        <Icon className="size-4 text-primary" />
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -1054,8 +1054,8 @@ function ProductFilterSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
         <p className="text-sm font-semibold">{title}</p>
       </div>
@@ -1142,12 +1142,12 @@ function ProductExternalMedia({
             <img
               src={imageUrl!}
               alt={text(catalogProduct.product_commercial_name, "Producto")}
-              className="h-44 w-44 cursor-default object-contain p-2 transition-transform duration-300 ease-out hover:scale-125"
+              className="size-44 cursor-default object-contain p-2 transition-transform duration-300 ease-out hover:scale-125"
               onError={() => setImageLoadFailed(true)}
             />
           ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ImageOff className="h-10 w-10" />
+            <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ImageOff className="size-10" />
               <span className="text-xs font-medium">Sin imagen</span>
             </div>
           )}
@@ -1215,10 +1215,10 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <button
-        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+        className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
         onClick={onClose}
       >
-        <X className="h-5 w-5" />
+        <X className="size-5" />
       </button>
       <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/50 px-4 py-1.5 text-xs text-white select-none">
         <button onClick={() => setScale((s) => Math.max(0.5, s - 0.5))} className="px-1 text-base hover:text-white/70">−</button>
@@ -1253,14 +1253,14 @@ function ProductThumb({ imageUrl, name }: { imageUrl: string | null; name: unkno
     return (
       <>
         <div
-          className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded border bg-white transition-opacity hover:opacity-80"
+          className="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded border bg-white transition-opacity hover:opacity-80"
           onClick={() => setOpen(true)}
           title="Ver imagen"
         >
           <img
             src={imageUrl}
             alt={text(name, "Producto")}
-            className="h-full w-full object-contain p-0.5"
+            className="size-full object-contain p-0.5"
             onError={() => setFailed(true)}
           />
         </div>
@@ -1269,8 +1269,8 @@ function ProductThumb({ imageUrl, name }: { imageUrl: string | null; name: unkno
     );
   }
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
-      <ImageOff className="h-4 w-4" />
+    <div className="flex size-10 items-center justify-center rounded border bg-muted/40 text-muted-foreground">
+      <ImageOff className="size-4" />
     </div>
   );
 }
@@ -1298,7 +1298,7 @@ function InfoPanel({
   return (
     <div className="rounded-md border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-primary" />
+        <Icon className="size-4 text-primary" />
         <p className="font-semibold">{title}</p>
       </div>
       {visibleRows.length === 0 ? (

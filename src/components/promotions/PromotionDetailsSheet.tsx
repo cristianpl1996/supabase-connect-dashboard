@@ -187,7 +187,7 @@ export function PromotionDetailsSheet({
 
           <section className="rounded-md border bg-card p-4">
             <div className="mb-3 flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
+              <Target className="size-4 text-primary" />
               <h3 className="font-semibold">Segmentacion</h3>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
@@ -217,13 +217,13 @@ export function PromotionDetailsSheet({
           {mechanic ? (
             <div className="space-y-3">
               <div className="mb-3 flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" />
+                <Zap className="size-4 text-primary" />
                 <h3 className="font-semibold">Regla comercial</h3>
               </div>
               <div className="grid gap-3 lg:grid-cols-3">
                 <PromoFact label="Tipo de promocion" value={mechanic.promotion_type_label || mechanic.promotion_type} />
                 <PromoFact label="Condicion" value={mechanic.condition_type_label || mechanic.condition_type} />
-                <PromoFact label="Beneficio" value={mechanic.benefit_type_label || mechanic.benefit_type || mechanic.reward_type} />
+                <PromoFact label="Beneficio" value={mechanic.benefit_type_label || mechanic.benefit_type} />
               </div>
               <section className="rounded-md border bg-card p-4">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -245,7 +245,7 @@ export function PromotionDetailsSheet({
 
           <section className="rounded-md border bg-card p-4">
             <div className="mb-3 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-primary" />
+              <DollarSign className="size-4 text-primary" />
               <h3 className="font-semibold">Control financiero</h3>
             </div>
             <FinancialProgress
@@ -273,8 +273,8 @@ function PromoMetric({ icon: Icon, label, value, note }: { icon: React.ElementTy
           <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
           <p className="mt-2 break-words text-xl font-bold leading-tight text-foreground">{value}</p>
         </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
       </div>
       <p className="mt-3 break-words text-xs text-muted-foreground">{note}</p>

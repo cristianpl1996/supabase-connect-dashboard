@@ -85,7 +85,7 @@ export function LaboratoriesTab() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <FlaskConical className="h-5 w-5 text-primary" />
+                <FlaskConical className="size-5 text-primary" />
                 Laboratorios
               </CardTitle>
               <CardDescription className="mt-1">
@@ -93,7 +93,7 @@ export function LaboratoriesTab() {
               </CardDescription>
             </div>
             <Button onClick={handleCreate} className="gap-2">
-              <Plus className="h-4 w-4" />
+              <Plus className="size-4" />
               Nuevo Laboratorio
             </Button>
           </div>
@@ -101,12 +101,12 @@ export function LaboratoriesTab() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground">Cargando laboratorios…</span>
             </div>
           ) : laboratories.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <FlaskConical className="size-12 mx-auto mb-4 opacity-30" />
               <p>No hay laboratorios registrados</p>
               <p className="text-sm mt-1">
                 Crea tu primer laboratorio para empezar a asignar planes y promociones.
@@ -129,7 +129,7 @@ export function LaboratoriesTab() {
                 {laboratories.map((lab) => (
                   <TableRow key={lab.id}>
                     <TableCell>
-                      <Avatar className="h-9 w-9">
+                      <Avatar className="size-9">
                         <AvatarImage src={lab.logo_url || ''} alt={lab.name} />
                         <AvatarFallback
                           className="text-xs font-bold"
@@ -164,7 +164,7 @@ export function LaboratoriesTab() {
                       {lab.brand_color ? (
                         <div className="flex items-center gap-2">
                           <div
-                            className="h-5 w-5 rounded-full border border-border"
+                            className="size-5 rounded-full border border-border"
                             style={{ backgroundColor: lab.brand_color }}
                           />
                           <span className="text-xs text-muted-foreground font-mono">
@@ -186,7 +186,7 @@ export function LaboratoriesTab() {
                           onClick={() => handleEdit(lab)}
                           title="Editar"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="size-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -195,7 +195,7 @@ export function LaboratoriesTab() {
                           className="text-destructive hover:text-destructive"
                           title="Eliminar"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="size-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -224,7 +224,7 @@ export function LaboratoriesTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar laboratorio?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>"{deletingLab?.name}"</strong> permanentemente. 
+              Se eliminará <strong>"{deletingLab?.name}"</strong> permanentemente.
               Esto puede afectar planes y promociones asociados. Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -235,7 +235,7 @@ export function LaboratoriesTab() {
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {isDeleting && <Loader2 className="size-4 animate-spin mr-2" />}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

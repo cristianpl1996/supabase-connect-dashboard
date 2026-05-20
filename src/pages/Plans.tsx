@@ -242,7 +242,7 @@ const Plans = () => {
           title="Planes y Negociaciones"
           actions={(
             <Button onClick={handleOpenCreate} disabled={loading} className="gap-2">
-              <Plus className="h-4 w-4" />
+              <Plus className="size-4" />
               Nuevo Plan Año
             </Button>
           )} description={"Gestiona planes comerciales, metas de compra y presupuestos asignados por laboratorio."} />
@@ -259,7 +259,7 @@ const Plans = () => {
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Meta Total de Compras</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary" />
+              <TrendingUp className="size-4 text-primary" />
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -273,7 +273,7 @@ const Plans = () => {
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Total Asignado</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
+              <DollarSign className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -291,7 +291,7 @@ const Plans = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <button type="button" onClick={commitSearch} disabled={loading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
-                  <Search className="h-4 w-4" />
+                  <Search className="size-4" />
                 </button>
                 <Input
                   placeholder="Buscar plan, laboratorio, año..."
@@ -303,7 +303,7 @@ const Plans = () => {
                 />
                 {searchQuery && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>
@@ -321,7 +321,7 @@ const Plans = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-10 gap-2 shrink-0" disabled={loading}>
-                    <Columns3 className="h-4 w-4" />
+                    <Columns3 className="size-4" />
                     Columnas
                   </Button>
                 </DropdownMenuTrigger>
@@ -337,8 +337,8 @@ const Plans = () => {
                       className="min-h-12 rounded-md border border-border bg-background py-2 pl-3 pr-3 focus:bg-accent [&>span:first-child]:hidden"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"}`}>
-                          {checked && <Check className="h-3.5 w-3.5" />}
+                        <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"}`}>
+                          {checked && <Check className="size-3.5" />}
                         </span>
                         <div className="flex min-w-0 flex-col">
                           <span className="font-medium text-foreground">{label}</span>
@@ -359,11 +359,11 @@ const Plans = () => {
                 {activeFilters.map((filter) => (
                   <button key={filter.key} type="button" onClick={filter.clear} disabled={loading} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
                     <span className="truncate">{filter.label}</span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="size-3 shrink-0" />
                   </button>
                 ))}
                 <button type="button" onClick={clearFilters} disabled={loading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" /> Limpiar
+                  <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
@@ -377,18 +377,18 @@ const Plans = () => {
               </div>
             ) : filteredPlans.length === 0 ? (
               <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <FileText className="size-12 text-muted-foreground/40 mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {activeFilters.length > 0 ? "No se encontraron planes con los filtros aplicados" : "No hay planes anuales registrados"}
                 </p>
                 {activeFilters.length > 0 ? (
                   <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loading}>
-                    <X className="h-4 w-4 mr-2" />
+                    <X className="size-4 mr-2" />
                     Limpiar filtros
                   </Button>
                 ) : (
                   <Button variant="outline" className="mt-4" onClick={handleOpenCreate} disabled={loading}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="size-4 mr-2" />
                     Crear primer plan
                   </Button>
                 )}
@@ -430,9 +430,9 @@ const Plans = () => {
                           )}
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-1">
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={loading} title="Ver detalles"><Eye className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading} title="Eliminar"><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading} title="Editar"><Pencil className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading} title="Eliminar"><Trash2 className="size-4" /></Button>
                         </div>
                       </div>
                     );
@@ -453,7 +453,7 @@ const Plans = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6"
+                                className="size-6"
                                 onClick={() => {
                                   setAllGoalsHidden((prev) => !prev);
                                   setHiddenGoalRows(new Set());
@@ -462,9 +462,9 @@ const Plans = () => {
                                 title={allGoalsHidden ? "Mostrar todos" : "Ocultar todos"}
                               >
                                 {allGoalsHidden ? (
-                                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <EyeOff className="size-3.5 text-muted-foreground" />
                                 ) : (
-                                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Eye className="size-3.5 text-muted-foreground" />
                                 )}
                               </Button>
                             </div>
@@ -477,7 +477,7 @@ const Plans = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6"
+                                className="size-6"
                                 onClick={() => {
                                   setAllBudgetsHidden((prev) => !prev);
                                   setHiddenBudgetRows(new Set());
@@ -486,9 +486,9 @@ const Plans = () => {
                                 title={allBudgetsHidden ? "Mostrar todos" : "Ocultar todos"}
                               >
                                 {allBudgetsHidden ? (
-                                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <EyeOff className="size-3.5 text-muted-foreground" />
                                 ) : (
-                                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Eye className="size-3.5 text-muted-foreground" />
                                 )}
                               </Button>
                             </div>
@@ -529,15 +529,15 @@ const Plans = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-6 w-6"
+                                    className="size-6"
                                     onClick={() => toggleRowGoalHidden(plan.id)}
                                     disabled={loading}
                                     title={isGoalHidden ? "Mostrar valor" : "Ocultar valor"}
                                   >
                                     {isGoalHidden ? (
-                                      <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                      <EyeOff className="size-3 text-muted-foreground" />
                                     ) : (
-                                      <Eye className="h-3 w-3 text-muted-foreground" />
+                                      <Eye className="size-3 text-muted-foreground" />
                                     )}
                                   </Button>
                                 </div>
@@ -552,15 +552,15 @@ const Plans = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-6 w-6"
+                                    className="size-6"
                                     onClick={() => toggleRowBudgetHidden(plan.id)}
                                     disabled={loading}
                                     title={isBudgetHidden ? "Mostrar valor" : "Ocultar valor"}
                                   >
                                     {isBudgetHidden ? (
-                                      <EyeOff className="h-3 w-3 text-muted-foreground" />
+                                      <EyeOff className="size-3 text-muted-foreground" />
                                     ) : (
-                                      <Eye className="h-3 w-3 text-muted-foreground" />
+                                      <Eye className="size-3 text-muted-foreground" />
                                     )}
                                   </Button>
                                 </div>
@@ -571,32 +571,32 @@ const Plans = () => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8"
+                                  className="size-8"
                                   onClick={() => handleViewPlan(plan)}
                                   disabled={loading}
                                   title="Ver detalles"
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Eye className="size-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8"
+                                  className="size-8"
                                   onClick={() => handleEditPlan(plan)}
                                   disabled={loading}
                                   title="Editar"
                                 >
-                                  <Pencil className="h-4 w-4" />
+                                  <Pencil className="size-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  className="size-8 text-destructive hover:text-destructive"
                                   onClick={() => handleDeleteClick(plan)}
                                   disabled={loading}
                                   title="Eliminar"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="size-4" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -648,7 +648,7 @@ const Plans = () => {
                 disabled={isDeleting}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isDeleting ? "Eliminando..." : "Eliminar"}
+                {isDeleting ? "Eliminando…" : "Eliminar"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

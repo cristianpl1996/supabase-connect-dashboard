@@ -19,7 +19,7 @@ export function PageHeader({
   return (
     <div className={cn("flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between", className)}>
       <div className="flex min-w-0 items-start gap-3">
-        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary sm:mt-1 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+        <Icon className="mt-0.5 size-5 shrink-0 text-primary sm:mt-1 sm:size-6 md:size-7" />
         <div className="min-w-0">
           <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl md:text-3xl">
             {title}

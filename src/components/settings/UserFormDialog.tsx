@@ -151,7 +151,7 @@ export function UserFormDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-primary" />
+            <UserPlus className="size-5 text-primary" />
             Invitar Usuario
           </DialogTitle>
           <DialogDescription>
@@ -187,7 +187,7 @@ export function UserFormDialog({
               <SelectContent>
                 <SelectItem value="admin">
                   <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <ShieldCheck className="size-3.5" />
                     Admin
                   </span>
                 </SelectItem>
@@ -198,7 +198,7 @@ export function UserFormDialog({
                 </SelectItem>
                 <SelectItem value="promotor">
                   <span className="flex items-center gap-2">
-                    <FlaskConical className="h-3.5 w-3.5" />
+                    <FlaskConical className="size-3.5" />
                     Promotor
                   </span>
                 </SelectItem>
@@ -210,7 +210,7 @@ export function UserFormDialog({
           {isPromotor && (
             <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
               <p className="text-xs font-medium text-primary flex items-center gap-1.5">
-                <FlaskConical className="h-3.5 w-3.5" />
+                <FlaskConical className="size-3.5" />
                 Configuración de Promotor
               </p>
 
@@ -219,7 +219,7 @@ export function UserFormDialog({
                 <Label htmlFor="promotor-lab">Asignar Laboratorio *</Label>
                 {labsLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                     Cargando laboratorios…
                   </div>
                 ) : laboratories.length === 0 ? (
@@ -241,7 +241,7 @@ export function UserFormDialog({
                           <span className="flex items-center gap-2">
                             {lab.brand_color && (
                               <span
-                                className="inline-block h-3 w-3 rounded-full border border-border"
+                                className="inline-block size-3 rounded-full border border-border"
                                 style={{ backgroundColor: lab.brand_color }}
                               />
                             )}
@@ -289,7 +289,7 @@ export function UserFormDialog({
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="gap-2">
-            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSaving && <Loader2 className="size-4 animate-spin" />}
             {isPromotor ? 'Crear Promotor' : 'Invitar Usuario'}
           </Button>
         </DialogFooter>

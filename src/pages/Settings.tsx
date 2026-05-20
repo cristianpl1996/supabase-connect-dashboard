@@ -63,15 +63,15 @@ const Settings = () => {
       <Tabs defaultValue="budget" className="space-y-6">
         <TabsList className="w-full">
           <TabsTrigger value="budget" className="gap-2">
-            <ShieldCheck className="h-4 w-4" />
+            <ShieldCheck className="size-4" />
             Reglas de Presupuesto
           </TabsTrigger>
           <TabsTrigger value="labs" className="gap-2">
-            <FlaskConical className="h-4 w-4" />
+            <FlaskConical className="size-4" />
             Laboratorios
           </TabsTrigger>
           <TabsTrigger value="users" className="gap-2">
-            <Users className="h-4 w-4" />
+            <Users className="size-4" />
             Usuarios y Accesos
           </TabsTrigger>
         </TabsList>
@@ -81,7 +81,7 @@ const Settings = () => {
           {/* Info Banner */}
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="flex items-start gap-3 pt-6">
-              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <Info className="size-5 text-primary shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-medium text-foreground">
                   ¿Qué es "Presupuesto Gastable"?
@@ -102,7 +102,7 @@ const Settings = () => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-primary" />
+                    <ShieldCheck className="size-5 text-primary" />
                     Conceptos del Plan Anual
                   </CardTitle>
                   <CardDescription className="mt-1">
@@ -114,8 +114,8 @@ const Settings = () => {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Cargando reglas...</span>
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Cargando reglas…</span>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -164,7 +164,7 @@ const Settings = () => {
           {/* Impact Summary */}
           <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-500/35 dark:bg-amber-500/10">
             <CardContent className="flex items-start gap-3 pt-6">
-              <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-300" />
+              <ShieldCheck className="size-5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-300" />
               <div className="space-y-1">
                 <p className="font-medium text-foreground dark:text-amber-50">Impacto en la Billetera</p>
                 <p className="text-sm text-muted-foreground dark:text-amber-100/75">
@@ -190,7 +190,7 @@ const Settings = () => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" />
+                    <Users className="size-5 text-primary" />
                     Gestión de Usuarios
                   </CardTitle>
                   <CardDescription>
@@ -198,7 +198,7 @@ const Settings = () => {
                   </CardDescription>
                 </div>
                 <Button onClick={() => setUserFormOpen(true)} disabled={usersLoading} className="w-full gap-2 sm:w-auto">
-                  <Plus className="h-4 w-4" />
+                  <Plus className="size-4" />
                   Invitar Usuario
                 </Button>
               </div>
@@ -206,12 +206,12 @@ const Settings = () => {
             <CardContent>
               {usersLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
                   <span className="ml-2 text-muted-foreground">Cargando usuarios…</span>
                 </div>
               ) : users.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                  <Users className="size-12 mx-auto mb-4 opacity-30" />
                   <p>No hay usuarios registrados</p>
                   <p className="text-sm mt-1">
                     Invita a tu equipo para colaborar en la plataforma
@@ -247,7 +247,7 @@ const Settings = () => {
                         disabled={usersLoading || deletingId === user.id}
                         className="mt-3 w-full text-destructive hover:text-destructive"
                       >
-                        {deletingId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        {deletingId === user.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                         Eliminar
                       </Button>
                     </div>
@@ -303,9 +303,9 @@ const Settings = () => {
                             className="text-destructive hover:text-destructive"
                           >
                             {deletingId === user.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="size-4 animate-spin" />
                             ) : (
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="size-4" />
                             )}
                           </Button>
                         </TableCell>

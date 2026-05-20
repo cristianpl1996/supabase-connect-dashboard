@@ -138,13 +138,12 @@ const Calendar = () => {
   const allCategories = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.category))).sort(), [ganttItems.items]);
   const conflictCount = useMemo(() => ganttItems.items.filter((item) => item.hasConflict).length, [ganttItems.items]);
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 
   const ganttRows = useMemo(
     () =>
@@ -203,7 +202,7 @@ const Calendar = () => {
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Promociones este mes</CardTitle>
-            <CalendarDays className="h-4 w-4 text-primary" />
+            <CalendarDays className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -217,7 +216,7 @@ const Calendar = () => {
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Categorias activas</CardTitle>
-            <Layers className="h-4 w-4 text-primary" />
+            <Layers className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -251,13 +250,13 @@ const Calendar = () => {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center justify-between gap-2 sm:justify-start">
               <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={loading}>
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="size-4" />
               </Button>
               <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-foreground sm:min-w-[200px] sm:text-xl">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
               </h2>
               <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={loading}>
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="size-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={loading} className="text-xs text-muted-foreground">
                 Hoy
@@ -265,7 +264,7 @@ const Calendar = () => {
             </div>
             <div className="hidden lg:flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Info className="h-3 w-3" />
+                <Info className="size-3" />
                 <span>Leyenda:</span>
               </div>
               {allCategories.slice(0, 6).map((cat) => {
@@ -293,7 +292,7 @@ const Calendar = () => {
             <div className="space-y-3 md:hidden">
               {ganttRows.length === 0 ? (
                 <div className="text-center py-12">
-                  <CalendarDays className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <CalendarDays className="size-12 text-muted-foreground/30 mx-auto mb-4" />
                   <p className="text-muted-foreground">No hay promociones en este mes</p>
                 </div>
               ) : (
@@ -312,7 +311,7 @@ const Calendar = () => {
                         <p className="truncate font-semibold">{row.title}</p>
                         <p className="mt-1 truncate text-sm text-muted-foreground">{row.labName}</p>
                       </div>
-                      {row.hasConflict && <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />}
+                      {row.hasConflict && <AlertTriangle className="size-4 shrink-0 text-destructive" />}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge variant="outline">{row.category}</Badge>
@@ -348,7 +347,7 @@ const Calendar = () => {
                 <div className="space-y-1">
                   {ganttRows.length === 0 ? (
                     <div className="text-center py-16">
-                      <CalendarDays className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                      <CalendarDays className="size-12 text-muted-foreground/30 mx-auto mb-4" />
                       <p className="text-muted-foreground">No hay promociones en este mes</p>
                     </div>
                   ) : (
@@ -358,7 +357,7 @@ const Calendar = () => {
                           {row.hasConflict && (
                             <Tooltip>
                               <TooltipTrigger>
-                                <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                <AlertTriangle className="size-3.5 text-destructive shrink-0" />
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-xs">
                                 <p className="font-medium text-destructive">Conflicto Comercial</p>
@@ -378,8 +377,9 @@ const Calendar = () => {
                           return (
                             <Tooltip key={day.toISOString()}>
                               <TooltipTrigger asChild>
-                                <div
-                                  className={`h-9 border-y-2 cursor-pointer transition-all hover:opacity-80 ${row.status === 'revision' ? 'bg-muted text-muted-foreground' : `${row.colors.bg} ${row.colors.text}`} ${row.hasConflict ? 'border-destructive' : row.status === 'revision' ? 'border-muted-foreground/40' : row.colors.border} ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''} ${isBarEnd ? 'rounded-r-md border-r-2' : ''} flex items-center overflow-hidden`}
+                                <button
+                                  type="button"
+                                  className={`h-9 appearance-none border-x-0 border-y-2 p-0 text-left font-[inherit] cursor-pointer transition-all hover:opacity-80 ${row.status === 'revision' ? 'bg-muted text-muted-foreground' : `${row.colors.bg} ${row.colors.text}`} ${row.hasConflict ? 'border-destructive' : row.status === 'revision' ? 'border-muted-foreground/40' : row.colors.border} ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''} ${isBarEnd ? 'rounded-r-md border-r-2' : ''} flex items-center overflow-hidden`}
                                   onClick={() => {
                                     setSelectedPromo(row.promotion);
                                     setDetailsOpen(true);
@@ -392,7 +392,7 @@ const Calendar = () => {
                                       {row.title}
                                     </span>
                                   )}
-                                </div>
+                                </button>
                               </TooltipTrigger>
                               <TooltipContent side="top" className="max-w-xs z-50">
                                 <div className="space-y-1.5">

@@ -111,7 +111,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
           <section className="rounded-md border bg-card p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
+                <FileText className="size-4 text-primary" />
                 <h3 className="font-semibold">Datos del acuerdo</h3>
               </div>
             </div>
@@ -126,7 +126,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
           <section className="rounded-md border bg-card p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" />
+                <DollarSign className="size-4 text-primary" />
                 <h3 className="font-semibold">Fondos del plan</h3>
               </div>
               <Badge variant="secondary">{funds.length} conceptos</Badge>
@@ -134,7 +134,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
 
             {loading ? (
               <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <Loader2 className="size-5 animate-spin text-primary" />
               </div>
             ) : resolvedFunds.length === 0 ? (
               <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
@@ -169,7 +169,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                               <Badge variant="outline" className="gap-1">
-                                {fund.amount_type === "porcentaje" ? <Percent className="h-3 w-3" /> : <DollarSign className="h-3 w-3" />}
+                                {fund.amount_type === "porcentaje" ? <Percent className="size-3" /> : <DollarSign className="size-3" />}
                                 {fund.amount_type === "porcentaje" ? `${fund.amount_value}%` : "Fijo"}
                               </Badge>
                               <Badge variant="secondary">{fund.budget_period || "annual"}</Badge>
@@ -202,8 +202,8 @@ function PlanMetric({ icon: Icon, label, value, note }: { icon: React.ElementTyp
           <p className="truncate text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
           <p className="mt-2 break-words text-2xl font-bold leading-tight text-foreground">{value}</p>
         </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
       </div>
       <p className="mt-2 truncate text-xs text-muted-foreground">{note}</p>

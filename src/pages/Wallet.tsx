@@ -196,7 +196,7 @@ export default function WalletPage() {
       const tableData = ledgerEntries.map((entry) => [
         format(new Date(entry.date), 'dd/MM/yyyy'),
         entry.type === 'ingreso' ? 'Ingreso' : 'Egreso',
-        entry.concept.length > 40 ? `${entry.concept.substring(0, 40)}...` : entry.concept,
+        entry.concept.length > 40 ? `${entry.concept.substring(0, 40)}…` : entry.concept,
         entry.source,
         `${entry.type === 'ingreso' ? '+' : '-'} ${formatCurrency(entry.amount)}`,
       ]);
@@ -265,15 +265,15 @@ export default function WalletPage() {
               <Dialog open={isAdjustmentOpen} onOpenChange={setIsAdjustmentOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" disabled={isLoading || isLoadingLabs}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="size-4 mr-2" />
                     Nuevo Ajuste
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="p-0 sm:max-w-xl">
                   <div className="px-5 pb-3 pt-5">
                   <DialogHeader>
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <Wallet className="h-5 w-5" />
+                    <div className="mb-2 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Wallet className="size-5" />
                     </div>
                     <DialogTitle>Registrar ajuste manual</DialogTitle>
                     <DialogDescription>Nota credito o debito al saldo del laboratorio seleccionado.</DialogDescription>
@@ -316,7 +316,7 @@ export default function WalletPage() {
                     <div className="space-y-2">
                       <Label>Motivo</Label>
                       <Textarea
-                        placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123..."
+                        placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123…"
                         value={adjustmentReason}
                         onChange={(e) => setAdjustmentReason(e.target.value)}
                         disabled={isLoading || isSavingAdjustment}
@@ -332,7 +332,7 @@ export default function WalletPage() {
                             disabled={isLoading || isSavingAdjustment}
                             className={cn('w-full justify-start text-left font-normal', !adjustmentDate && 'text-muted-foreground')}
                           >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            <CalendarIcon className="mr-2 size-4" />
                             {adjustmentDate ? format(adjustmentDate, 'PPP', { locale: es }) : 'Seleccionar fecha'}
                           </Button>
                         </PopoverTrigger>
@@ -354,7 +354,7 @@ export default function WalletPage() {
                       Cancelar
                     </Button>
                     <Button onClick={() => void handleSaveAdjustment()} disabled={isLoading || isSavingAdjustment}>
-                      {isSavingAdjustment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {isSavingAdjustment && <Loader2 className="size-4 mr-2 animate-spin" />}
                       Guardar Ajuste
                     </Button>
                   </DialogFooter>
@@ -363,7 +363,7 @@ export default function WalletPage() {
             )}
 
             <Button onClick={handleExportPDF} disabled={isLoading || isLoadingLabs || isExporting || !walletView}>
-              {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+              {isExporting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <FileText className="size-4 mr-2" />}
               Exportar PDF
             </Button>
           </div>
@@ -388,7 +388,7 @@ export default function WalletPage() {
         <CardContent>
           <Select value={selectedLabId} onValueChange={setSelectedLabId} disabled={isLoadingLabs || isLoading || user?.role === 'promotor'}>
             <SelectTrigger className="w-full md:w-[400px]">
-              <SelectValue placeholder="Seleccionar laboratorio..." />
+              <SelectValue placeholder="Seleccionar laboratorio…" />
             </SelectTrigger>
             <SelectContent>
               {laboratories.map((lab) => (
@@ -404,7 +404,7 @@ export default function WalletPage() {
       {!selectedLabId ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Wallet className="h-16 w-16 text-muted-foreground/50 mb-4" />
+            <Wallet className="size-16 text-muted-foreground/50 mb-4" />
             <h3 className="text-xl font-semibold text-muted-foreground">Selecciona un laboratorio</h3>
             <p className="text-muted-foreground mt-2 max-w-md">
               Elige un laboratorio del dropdown para ver su presupuesto anual, el monto comprometido y el saldo disponible.
@@ -413,7 +413,7 @@ export default function WalletPage() {
         </Card>
       ) : isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="size-8 animate-spin text-primary" />
         </div>
       ) : walletView ? (
         <>
@@ -421,7 +421,7 @@ export default function WalletPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Gastable</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <DollarSign className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">{formatCurrency(totalIncome)}</div>
@@ -435,7 +435,7 @@ export default function WalletPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Comprometido</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                <TrendingDown className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-amber-600">{formatCurrency(totalExpense)}</div>
@@ -455,7 +455,7 @@ export default function WalletPage() {
             <Card className={isNegativeBalance ? 'border-destructive' : ''}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Disponible</CardTitle>
-                {isNegativeBalance ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                {isNegativeBalance ? <AlertTriangle className="size-4 text-destructive" /> : <TrendingUp className="size-4 text-muted-foreground" />}
               </CardHeader>
               <CardContent>
                 <div className={`text-2xl font-bold ${isNegativeBalance ? 'text-destructive' : 'text-green-600'}`}>
@@ -519,7 +519,7 @@ export default function WalletPage() {
           {isNegativeBalance && (
             <Card className="border-destructive bg-destructive/5">
               <CardContent className="flex items-center gap-4 py-4">
-                <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
+                <AlertTriangle className="size-8 text-destructive flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold text-destructive">Presupuesto Excedido</h4>
                   <p className="text-sm text-muted-foreground">

@@ -138,10 +138,10 @@ export function LaboratoryFormDialog({
               </Label>
               <div className="overflow-hidden rounded-md border border-input bg-background transition-colors focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/20">
                 <div className="flex items-center border-b border-input/70 px-3">
-                  <Search className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <Search className="mr-2 size-4 text-muted-foreground" />
                   <Input
                     id="lab-brand-search"
-                    placeholder="Buscar brand oficial..."
+                    placeholder="Buscar brand oficial…"
                     value={brandSearch}
                     onChange={(e) => setBrandSearch(e.target.value)}
                     className="h-10 rounded-none border-0 bg-transparent px-0 shadow-none outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
@@ -150,8 +150,8 @@ export function LaboratoryFormDialog({
                 <div className="max-h-44 overflow-y-auto p-1">
                   {isLoadingBrands ? (
                     <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Cargando marcas...
+                      <Loader2 className="size-4 animate-spin" />
+                      Cargando marcas…
                     </div>
                   ) : filteredBrands.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">
@@ -174,7 +174,7 @@ export function LaboratoryFormDialog({
                             <span className="block truncate text-xs text-muted-foreground">{brand.code}</span>
                           )}
                         </span>
-                        {externalBrandId === brand.id && <Check className="h-4 w-4 shrink-0" />}
+                        {externalBrandId === brand.id && <Check className="size-4 shrink-0" />}
                       </button>
                     ))
                   )}
@@ -216,7 +216,7 @@ export function LaboratoryFormDialog({
                   <img
                     src={logoUrl}
                     alt="Preview"
-                    className="h-8 w-8 rounded-md border border-border object-contain"
+                    className="size-8 rounded-md border border-border object-contain"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
@@ -273,7 +273,7 @@ export function LaboratoryFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isSaving || externalBrandId == null}>
-              {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSaving && <Loader2 className="size-4 animate-spin" />}
               {isEditing ? 'Guardar Cambios' : 'Crear Laboratorio'}
             </Button>
           </DialogFooter>

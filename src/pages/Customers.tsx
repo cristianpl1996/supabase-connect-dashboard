@@ -130,7 +130,7 @@ function money(value: unknown) {
 
 function yesNo(value: unknown, positive = "Si", negative = "No") {
   if (value === null || value === undefined) return "N/A";
-  return Boolean(value) ? positive : negative;
+  return value ? positive : negative;
 }
 
 function formatPhone(customer: CustomerRecord | null | undefined) {
@@ -643,8 +643,8 @@ export default function Customers() {
           description="Analiza, segmenta y prioriza clientes comerciales"
           actions={(
             <Button onClick={() => void exportCustomers()} disabled={loadingInitial || exporting} className="w-full gap-2 md:w-auto">
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exporting ? "Exportando..." : "Exportar"}
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {exporting ? "Exportando…" : "Exportar"}
             </Button>
           )}
         />
@@ -665,7 +665,7 @@ export default function Customers() {
             <Card key={item.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{item.title}</CardTitle>
-                <item.icon className="h-4 w-4 text-primary" />
+                <item.icon className="size-4 text-primary" />
               </CardHeader>
               <CardContent>
                 {loadingInitial ? <div className="h-7 w-24 animate-pulse rounded bg-muted" /> : <p className="text-2xl font-bold">{item.value}</p>}
@@ -680,12 +680,12 @@ export default function Customers() {
             <div className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_220px_260px_240px_auto]">
               <div className="relative min-w-0">
                 <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
-                  <Search className="h-4 w-4" />
+                  <Search className="size-4" />
                 </button>
                 <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} disabled={loadingInitial} placeholder="Buscar por nombre, NIT, email o celular" className="h-10 pl-9 pr-9" />
                 {search && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>
@@ -694,7 +694,7 @@ export default function Customers() {
                 onValueChange={setBusinessType}
                 options={businessTypeOptions}
                 allLabel="Todos los tipos"
-                searchPlaceholder="Buscar tipo..."
+                searchPlaceholder="Buscar tipo…"
                 emptyLabel="No hay tipos"
                 disabled={loadingInitial}
               />
@@ -703,13 +703,13 @@ export default function Customers() {
                 onValueChange={setSalesRepId}
                 options={representativeOptions}
                 allLabel="Todos los representantes"
-                searchPlaceholder="Buscar representante..."
+                searchPlaceholder="Buscar representante…"
                 emptyLabel="No hay representantes"
                 disabled={loadingInitial}
               />
               <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
                 <SelectTrigger className="h-10 w-full">
-                  <ArrowUpAZ className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <ArrowUpAZ className="mr-2 size-4 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
@@ -723,7 +723,7 @@ export default function Customers() {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant={advancedFilterCount > 0 ? "default" : "outline"} className="h-10 w-full gap-2 xl:w-auto" disabled={loadingInitial}>
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="size-4" />
                     Filtros
                     {advancedFilterCount > 0 && <span className="rounded bg-background/20 px-1.5 text-xs">{advancedFilterCount}</span>}
                   </Button>
@@ -737,7 +737,7 @@ export default function Customers() {
                       </div>
                       {advancedFilterCount > 0 ? (
                         <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                          <X className="h-4 w-4" /> Limpiar todo
+                          <X className="size-4" /> Limpiar todo
                         </Button>
                       ) : null}
                     </div>
@@ -746,13 +746,13 @@ export default function Customers() {
                   <div className="space-y-5 p-4">
                     <FilterSection icon={UserRound} title="Identificacion y territorio">
                       <FilterField label="Documento / NIT">
-                        <Input value={governmentId} onChange={(event) => setGovernmentId(event.target.value)} disabled={loadingInitial} placeholder="Ej: CN901..." />
+                        <Input value={governmentId} onChange={(event) => setGovernmentId(event.target.value)} disabled={loadingInitial} placeholder="Ej: CN901…" />
                       </FilterField>
                       <FilterField label="Ciudad">
-                        <Input value={city} onChange={(event) => setCity(event.target.value)} disabled={loadingInitial} placeholder="Medellin, Cali..." />
+                        <Input value={city} onChange={(event) => setCity(event.target.value)} disabled={loadingInitial} placeholder="Medellin, Cali…" />
                       </FilterField>
                       <FilterField label="Departamento">
-                        <Input value={stateName} onChange={(event) => setStateName(event.target.value)} disabled={loadingInitial} placeholder="Antioquia..." />
+                        <Input value={stateName} onChange={(event) => setStateName(event.target.value)} disabled={loadingInitial} placeholder="Antioquia…" />
                       </FilterField>
                       <FilterField label="Georreferenciacion">
                         <Select value={hasLocation} onValueChange={setHasLocation} disabled={loadingInitial}>
@@ -783,7 +783,7 @@ export default function Customers() {
                           onValueChange={setClvSegment}
                           options={clvSegmentOptions}
                           allLabel="Todos los segmentos CLV"
-                          searchPlaceholder="Buscar CLV..."
+                          searchPlaceholder="Buscar CLV…"
                           emptyLabel="No hay segmentos CLV"
                           disabled={loadingInitial}
                         />
@@ -794,7 +794,7 @@ export default function Customers() {
                           onValueChange={setRfmSegment}
                           options={rfmSegmentOptions}
                           allLabel="Todos los segmentos RFM"
-                          searchPlaceholder="Buscar RFM..."
+                          searchPlaceholder="Buscar RFM…"
                           emptyLabel="No hay segmentos RFM"
                           disabled={loadingInitial}
                         />
@@ -823,7 +823,7 @@ export default function Customers() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant={hasLocation === "yes" ? "default" : "outline"} onClick={() => setHasLocation(hasLocation === "yes" ? "all" : "yes")} disabled={loadingInitial} className="h-8 gap-2"><MapPinned className="h-3.5 w-3.5" /> Con ubicacion</Button>
+              <Button type="button" size="sm" variant={hasLocation === "yes" ? "default" : "outline"} onClick={() => setHasLocation(hasLocation === "yes" ? "all" : "yes")} disabled={loadingInitial} className="h-8 gap-2"><MapPinned className="size-3.5" /> Con ubicacion</Button>
               <Button type="button" size="sm" variant={showInactive ? "default" : "outline"} onClick={() => setShowInactive(!showInactive)} disabled={loadingInitial} className="h-8">Inactivos</Button>
             </div>
 
@@ -832,11 +832,11 @@ export default function Customers() {
                 {activeFilters.map((filter) => (
                   <button key={filter.key} type="button" onClick={filter.clear} disabled={loadingInitial} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
                     <span className="truncate">{filter.label}</span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="size-3 shrink-0" />
                   </button>
                 ))}
                 <button type="button" onClick={clearFilters} disabled={loadingInitial} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" /> Limpiar
+                  <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
@@ -846,9 +846,9 @@ export default function Customers() {
               <div className="space-y-3">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="h-12 animate-pulse rounded bg-muted" />)}</div>
             ) : customers.length === 0 ? (
               <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center">
-                <UserRound className="h-10 w-10 text-muted-foreground/50" />
+                <UserRound className="size-10 text-muted-foreground/50" />
                 <p className="text-muted-foreground">{activeFilters.length > 0 ? "No encontramos clientes con los filtros aplicados" : "Aun no hay clientes disponibles para tu alcance"}</p>
-                {activeFilters.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loadingInitial}><X className="h-4 w-4 mr-2" />Limpiar filtros</Button>}
+                {activeFilters.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loadingInitial}><X className="size-4 mr-2" />Limpiar filtros</Button>}
               </div>
             ) : (
               <>
@@ -874,10 +874,10 @@ export default function Customers() {
                           <div><p className="text-xs text-muted-foreground">Ingresos</p><p className="font-semibold">{money(customer.customer_total_lifetime_revenue)}</p></div>
                         </div>
                         <div className="mt-3 grid grid-cols-4 gap-1">
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => openProfile(customer)} disabled={loadingInitial} title="Ver perfil"><Eye className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")} disabled={loadingInitial} title="Copiar NIT"><Copy className="h-4 w-4" /></Button>
-                          {field(customer, "customer_email", "") ? <Button variant="outline" size="icon" className="h-9 w-full" asChild title="Escribir email"><a href={`mailto:${field(customer, "customer_email", "")}`}><Mail className="h-4 w-4" /></a></Button> : <div />}
-                          {field(customer, "customer_cellphone", "") ? <Button variant="outline" size="icon" className="h-9 w-full" asChild title="Llamar"><a href={`tel:${field(customer, "customer_cellphone_country_dial_code", "")}${field(customer, "customer_cellphone", "")}`}><Phone className="h-4 w-4" /></a></Button> : <div />}
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => openProfile(customer)} disabled={loadingInitial} title="Ver perfil"><Eye className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")} disabled={loadingInitial} title="Copiar NIT"><Copy className="size-4" /></Button>
+                          {field(customer, "customer_email", "") ? <Button variant="outline" size="icon" className="h-9 w-full" asChild title="Escribir email"><a href={`mailto:${field(customer, "customer_email", "")}`}><Mail className="size-4" /></a></Button> : <div />}
+                          {field(customer, "customer_cellphone", "") ? <Button variant="outline" size="icon" className="h-9 w-full" asChild title="Llamar"><a href={`tel:${field(customer, "customer_cellphone_country_dial_code", "")}${field(customer, "customer_cellphone", "")}`}><Phone className="size-4" /></a></Button> : <div />}
                         </div>
                       </div>
                     );
@@ -918,10 +918,10 @@ export default function Customers() {
                             </TableCell>
                             <TableCell>
                               <div className="flex justify-start gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openProfile(customer)} disabled={loadingInitial} title="Ver perfil"><Eye className="h-4 w-4" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")} disabled={loadingInitial} title="Copiar NIT"><Copy className="h-4 w-4" /></Button>
-                                {field(customer, "customer_email", "") && <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Escribir email"><a href={`mailto:${field(customer, "customer_email", "")}`}><Mail className="h-4 w-4" /></a></Button>}
-                                {field(customer, "customer_cellphone", "") && <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Llamar"><a href={`tel:${field(customer, "customer_cellphone_country_dial_code", "")}${field(customer, "customer_cellphone", "")}`}><Phone className="h-4 w-4" /></a></Button>}
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => openProfile(customer)} disabled={loadingInitial} title="Ver perfil"><Eye className="size-4" /></Button>
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")} disabled={loadingInitial} title="Copiar NIT"><Copy className="size-4" /></Button>
+                                {field(customer, "customer_email", "") && <Button variant="ghost" size="icon" className="size-8" asChild title="Escribir email"><a href={`mailto:${field(customer, "customer_email", "")}`}><Mail className="size-4" /></a></Button>}
+                                {field(customer, "customer_cellphone", "") && <Button variant="ghost" size="icon" className="size-8" asChild title="Llamar"><a href={`tel:${field(customer, "customer_cellphone_country_dial_code", "")}${field(customer, "customer_cellphone", "")}`}><Phone className="size-4" /></a></Button>}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -937,8 +937,8 @@ export default function Customers() {
 
             {loadingMore && (
               <div className="flex items-center justify-center gap-2 py-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-medium text-foreground">Cargando siguiente lote...</span>
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="font-medium text-foreground">Cargando siguiente lote…</span>
               </div>
             )}
           </CardContent>
@@ -965,9 +965,9 @@ export default function Customers() {
                           </SheetDescription>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => copyText(field(currentProfile, "customer_government_id", ""), "NIT")} title="Copiar NIT"><Copy className="h-4 w-4" /> NIT</Button>
-                          {field(currentProfile, "customer_email", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Email"><a href={`mailto:${field(currentProfile, "customer_email", "")}`}><Mail className="h-4 w-4" /> Email</a></Button>}
-                          {field(currentProfile, "customer_cellphone", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Llamar"><a href={`tel:${field(currentProfile, "customer_cellphone_country_dial_code", "")}${field(currentProfile, "customer_cellphone", "")}`}><Phone className="h-4 w-4" /> Llamar</a></Button>}
+                          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => copyText(field(currentProfile, "customer_government_id", ""), "NIT")} title="Copiar NIT"><Copy className="size-4" /> NIT</Button>
+                          {field(currentProfile, "customer_email", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Email"><a href={`mailto:${field(currentProfile, "customer_email", "")}`}><Mail className="size-4" /> Email</a></Button>}
+                          {field(currentProfile, "customer_cellphone", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Llamar"><a href={`tel:${field(currentProfile, "customer_cellphone_country_dial_code", "")}${field(currentProfile, "customer_cellphone", "")}`}><Phone className="size-4" /> Llamar</a></Button>}
                         </div>
                       </div>
                     </div>
@@ -1040,7 +1040,7 @@ export default function Customers() {
                           </div>
                           {topProducts.map((product, index) => (
                             <div key={`${product.product_commercial_name}-${index}`} className="grid grid-cols-[2.5rem_1fr_5rem_7rem] items-center border-t px-3 py-2.5">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
+                              <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{product.product_commercial_name || "Producto"}</p>
                                 {product.product_brand_name && <p className="truncate text-xs text-muted-foreground">{product.product_brand_name}</p>}
@@ -1065,7 +1065,7 @@ export default function Customers() {
                         <div key={`${field(sale, "id", String(index))}`} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{field(sale, "sale_invoice_number", field(sale, "id", "Venta"))}</p>
-                            <p className="text-xs text-muted-foreground">{field(sale, "created_at")} Â· {field(sale, "sale_origin_channel")}</p>
+                            <p className="text-xs text-muted-foreground">{field(sale, "created_at")} · {field(sale, "sale_origin_channel")}</p>
                           </div>
                           <div className="text-left sm:text-right">
                             <p className="font-semibold">{money(saleAmount(sale))}</p>
@@ -1112,8 +1112,8 @@ function FilterSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
         <p className="text-sm font-semibold">{title}</p>
       </div>
@@ -1194,7 +1194,7 @@ function InfoPanel({
 }) {
   return (
     <div className="rounded-md border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /><p className="font-semibold">{title}</p></div>
+      <div className="mb-3 flex items-center gap-2"><Icon className="size-4 text-primary" /><p className="font-semibold">{title}</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
         {rows.map(([label, value]) => (
           <CustomerFact key={label} label={label} value={value} />
@@ -1219,7 +1219,7 @@ function InsightCard({
     <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
       <div className="mb-1.5 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{title}</p>
-        <Icon className="h-4 w-4 text-primary" />
+        <Icon className="size-4 text-primary" />
       </div>
       <p className="break-words text-xl font-bold leading-tight">{value}</p>
       <p className="mt-2 text-xs text-muted-foreground">{note}</p>

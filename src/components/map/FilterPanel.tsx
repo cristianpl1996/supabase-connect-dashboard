@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type React from "react";
 import {
   ChevronDown,
@@ -57,11 +57,10 @@ function PopoverSearch({
   placeholder?: string;
 }) {
   return (
-    <div className="border-b border-gray-100 px-2 py-2 dark:border-border">
+    <div className="border-b border-gray-100 p-2 dark:border-border">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-gray-400" />
         <input
-          autoFocus
           className="h-7 w-full rounded-md border border-gray-200 bg-white pl-7 pr-2 text-xs text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-primary dark:border-border dark:bg-background dark:text-foreground dark:placeholder:text-muted-foreground"
           placeholder={placeholder}
           value={value}
@@ -73,7 +72,7 @@ function PopoverSearch({
             onClick={() => onChange("")}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-muted-foreground dark:hover:text-foreground"
           >
-            <X className="h-3 w-3" />
+            <X className="size-3" />
           </button>
         )}
       </div>
@@ -96,6 +95,7 @@ function RepMultiSelect({
   triggerClassName?: string;
   disabled?: boolean;
 }) {
+  const listId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -124,11 +124,13 @@ function RepMultiSelect({
         <Button
           variant="outline"
           role="combobox"
+          aria-controls={listId}
+          aria-expanded={open}
           disabled={disabled}
           className={triggerClassName ?? "h-8 min-w-[200px] justify-between text-sm font-normal px-3"}
         >
           <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-            <Users className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
+            <Users className="size-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
             {selectedIds.length > 0 && (
               <div className="flex -space-x-1 shrink-0">
                 {selectedIds.slice(0, 3).map((id) => {
@@ -136,7 +138,7 @@ function RepMultiSelect({
                   return rep ? (
                     <span
                       key={id}
-                      className="h-3.5 w-3.5 rounded-full ring-1 ring-white dark:ring-background"
+                      className="size-3.5 rounded-full ring-1 ring-white dark:ring-background"
                       style={{ backgroundColor: rep.color }}
                     />
                   ) : null;
@@ -145,7 +147,7 @@ function RepMultiSelect({
             )}
             <span className="truncate text-gray-700 dark:text-foreground">{label}</span>
           </div>
-          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
+          <ChevronDown className="ml-1 size-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
@@ -160,7 +162,7 @@ function RepMultiSelect({
               disabled={disabled}
               className="flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-700 dark:text-muted-foreground dark:hover:text-foreground"
             >
-              <X className="h-3 w-3" /> Limpiar
+              <X className="size-3" /> Limpiar
             </button>
           )}
         </div>
@@ -169,9 +171,9 @@ function RepMultiSelect({
         <PopoverSearch value={search} onChange={setSearch} placeholder="Buscar representante…" />
 
         {/* Rep list */}
-        <div className="max-h-56 overflow-y-auto py-1">
+        <div id={listId} role="listbox" aria-multiselectable="true" className="max-h-56 overflow-y-auto py-1">
           {filtered.length === 0 && (
-            <p className="px-3 py-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
+            <p className="p-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
           )}
           {filtered.map((rep) => {
             const checked = selectedIds.includes(rep.id);
@@ -185,17 +187,17 @@ function RepMultiSelect({
               >
                 <Checkbox
                   checked={checked}
-                  className="pointer-events-none h-3.5 w-3.5 shrink-0"
+                  className="pointer-events-none size-3.5 shrink-0"
                   style={checked ? { backgroundColor: rep.color, borderColor: rep.color } : {}}
                 />
                 <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
+                  className="size-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: rep.color }}
                 />
                 <span className="flex-1 truncate text-[12px] leading-tight text-gray-700 dark:text-foreground">
                   {rep.name}
                 </span>
-                {checked && <Check className="h-3 w-3 shrink-0" style={{ color: rep.color }} />}
+                {checked && <Check className="size-3 shrink-0" style={{ color: rep.color }} />}
               </button>
             );
           })}
@@ -235,6 +237,7 @@ function SearchableSelect({
   triggerClassName?: string;
   disabled?: boolean;
 }) {
+  const listId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -251,6 +254,7 @@ function SearchableSelect({
         <Button
           variant="outline"
           role="combobox"
+          aria-controls={listId}
           aria-expanded={open}
           disabled={disabled}
           className={triggerClassName ?? "h-8 w-[175px] justify-between text-sm font-normal px-3"}
@@ -259,7 +263,7 @@ function SearchableSelect({
             <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : "text-gray-400 dark:text-muted-foreground"}`} />
             <span className={`truncate ${active ? "font-medium text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}>{label}</span>
           </div>
-          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
+          <ChevronDown className="ml-1 size-3.5 shrink-0 text-gray-400 dark:text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
@@ -274,7 +278,7 @@ function SearchableSelect({
               disabled={disabled}
               className="flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-700 dark:text-muted-foreground dark:hover:text-foreground"
             >
-              <X className="h-3 w-3" /> Limpiar
+              <X className="size-3" /> Limpiar
             </button>
           )}
         </div>
@@ -283,7 +287,7 @@ function SearchableSelect({
         <PopoverSearch value={search} onChange={setSearch} placeholder={`Buscar ${placeholder.toLowerCase()}…`} />
 
         {/* Options */}
-        <div className="max-h-56 overflow-y-auto py-1">
+        <div id={listId} role="listbox" className="max-h-56 overflow-y-auto py-1">
           <button
             type="button"
             onClick={() => { onChange(""); setSearch(""); setOpen(false); }}
@@ -291,11 +295,11 @@ function SearchableSelect({
             className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-gray-50 dark:hover:bg-accent ${!active ? "font-semibold text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}
           >
             <span className="flex-1">{allLabel}</span>
-            {!active && <Check className="h-3 w-3 text-primary shrink-0" />}
+            {!active && <Check className="size-3 text-primary shrink-0" />}
           </button>
 
           {filtered.length === 0 && (
-            <p className="px-3 py-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
+            <p className="p-3 text-center text-xs text-gray-400 dark:text-muted-foreground">Sin resultados</p>
           )}
           {filtered.map((o) => (
             <button
@@ -306,7 +310,7 @@ function SearchableSelect({
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-gray-50 dark:hover:bg-accent ${value === o ? "font-semibold text-gray-900 dark:text-foreground" : "text-gray-600 dark:text-muted-foreground"}`}
             >
               <span className="flex-1 truncate">{o}</span>
-              {value === o && <Check className="h-3 w-3 text-primary shrink-0" />}
+              {value === o && <Check className="size-3 text-primary shrink-0" />}
             </button>
           ))}
         </div>
@@ -349,7 +353,7 @@ function RangeInputs({
   return (
     <div className="flex flex-col gap-1.5">
       <Label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground">
-        <Icon className="h-3 w-3" />
+        <Icon className="size-3" />
         {label}
       </Label>
       <div className="flex items-center gap-1.5">
@@ -402,7 +406,7 @@ export function FilterPanel({
 
         {/* Search — toma todo el espacio sobrante */}
         <div className="relative min-w-full flex-1 sm:min-w-[280px] lg:min-w-[320px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 dark:text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400 dark:text-muted-foreground" />
           <Input
             className="pl-8 pr-7 h-8 text-sm"
             placeholder="Nombre, NIT, dirección…"
@@ -417,7 +421,7 @@ export function FilterPanel({
               disabled={disabled}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-muted-foreground dark:hover:text-foreground"
             >
-              <X className="h-3 w-3" />
+              <X className="size-3" />
             </button>
           )}
         </div>
@@ -459,11 +463,11 @@ export function FilterPanel({
           onClick={() => setAdvancedOpen((o) => !o)}
           disabled={disabled}
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <SlidersHorizontal className="size-3.5" />
           {activeFilterCount > 0 && (
             <Badge className="h-4 min-w-[16px] px-1 text-[10px]">{activeFilterCount}</Badge>
           )}
-          {advancedOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {advancedOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
         </Button>
 
         {/* Reset */}
@@ -475,21 +479,21 @@ export function FilterPanel({
             disabled={disabled}
             className="h-8 shrink-0 gap-1.5 px-2.5 text-sm text-gray-600 dark:text-foreground"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-3.5" />
             <span>Limpiar</span>
           </Button>
         )}
 
         {/* Zoom */}
         <Button variant="outline" size="sm" onClick={onZoomToAll} disabled={disabled} className="h-8 flex-1 shrink-0 gap-1.5 text-sm sm:flex-none">
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="size-3.5" />
           Ver todos
         </Button>
       </div>
 
       {/* ── Advanced (ranges only) ── */}
       {advancedOpen && (
-        <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3 dark:border-border dark:bg-card">
+        <div className="border-t border-gray-100 bg-gray-50/60 p-3 dark:border-border dark:bg-card">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <RangeInputs
               label="Días sin comprar"
@@ -557,7 +561,7 @@ export function FilterPanel({
                     disabled={disabled}
                     className="opacity-80 hover:opacity-100"
                   >
-                    <X className="h-2.5 w-2.5" />
+                    <X className="size-2.5" />
                   </button>
                 </span>
               );

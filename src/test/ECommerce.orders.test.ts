@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterEcommerceOrders, getEcommerceOrderStateLabel, getItemCountLabel } from "./ecommerceOrderUtils";
+import { filterEcommerceOrders, getEcommerceOrderStateLabel, getItemCountLabel } from "@/lib/ecommerceOrderUtils";
 import type { EcommerceMyOrder } from "@/lib/api";
 
 function order(overrides: Partial<EcommerceMyOrder>): EcommerceMyOrder {

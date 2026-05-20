@@ -142,8 +142,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             )}
 
             {!isMobile && (
-              <SidebarTrigger className="-ml-1 h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
-                <Menu className="h-4 w-4" />
+              <SidebarTrigger className="-ml-1 size-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                <Menu className="size-4" />
                 <span className="sr-only">Toggle menu</span>
               </SidebarTrigger>
             )}
@@ -156,7 +156,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               <Sun
                 className={cn(
-                  "h-3.5 w-3.5 transition-colors",
+                  "size-3.5 transition-colors",
                   !isDarkTheme && "text-primary",
                 )}
               />
@@ -164,11 +164,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 checked={isDarkTheme}
                 onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
                 aria-label="Cambiar tema"
-                className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
+                className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:size-4 [&>span]:data-[state=checked]:translate-x-4"
               />
               <Moon
                 className={cn(
-                  "h-3.5 w-3.5 transition-colors",
+                  "size-3.5 transition-colors",
                   isDarkTheme && "text-primary",
                 )}
               />
@@ -187,10 +187,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="relative h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                  className="relative size-8 rounded-full text-muted-foreground hover:text-foreground"
                   aria-label="Notificaciones"
                 >
-                  <Bell className="h-4 w-4" />
+                  <Bell className="size-4" />
                   {unreadCount > 0 && (
                     <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                       {unreadCount > 9 ? "9+" : unreadCount}
@@ -224,7 +224,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       onClick={() => void handleNotificationClick(notification)}
                     >
                       <div
-                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                        className={`mt-1 size-2.5 rounded-full ${
                           notification.is_read
                             ? "bg-muted-foreground/40"
                             : notification.level === "critical"
@@ -248,7 +248,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/40">
+                <Avatar className="size-9 cursor-pointer ring-2 ring-border/40">
                   <AvatarFallback className="bg-primary/10 text-base font-bold text-primary">
                     {initials}
                   </AvatarFallback>
@@ -274,7 +274,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   className="cursor-pointer gap-2 font-medium text-destructive focus:bg-destructive/10 focus:text-destructive dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20 dark:hover:text-red-200 dark:focus:bg-red-500/20 dark:focus:text-red-200"
                   onClick={handleLogout}
                 >
-                  <LogOut className="h-4 w-4 text-current" />
+                  <LogOut className="size-4 text-current" />
                   Cerrar sesion
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -314,10 +314,10 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={scrollToPageTop}
               className={cn(
                 "relative rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform duration-200 hover:scale-105 hover:bg-primary/90 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                isMobile ? "h-12 w-12" : "h-11 w-11",
+                isMobile ? "size-12" : "size-11",
               )}
             >
-              <ArrowUp className={cn(isMobile ? "h-5 w-5" : "h-5 w-5")} />
+              <ArrowUp className={cn(isMobile ? "size-5" : "size-5")} />
             </Button>
           </div>
         </SidebarInset>

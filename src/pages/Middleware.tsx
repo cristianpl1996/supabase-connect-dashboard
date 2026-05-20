@@ -127,7 +127,7 @@ export default function Middleware() {
       <ErrorDisabledContent disabled={!!error}>
       <div className="mb-8">
         <Link to="/" className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="mr-1 h-4 w-4" />
+          <ArrowLeft className="mr-1 size-4" />
           Volver al Dashboard
         </Link>
         <PageHeader
@@ -136,8 +136,8 @@ export default function Middleware() {
           description="Monitor de pedidos simulados y ejecuciones promocionales desde la API."
           actions={(
           <Button onClick={simulateSAPOrder} disabled={simulating} className="gap-2">
-            <Zap className="h-4 w-4" />
-            {simulating ? "Procesando..." : "Simular Pedido SAP"}
+            <Zap className="size-4" />
+            {simulating ? "Procesando…" : "Simular Pedido SAP"}
           </Button>
           )}
         />
@@ -167,7 +167,7 @@ export default function Middleware() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ultima sincronizacion</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Clock className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-lg font-semibold">
@@ -180,7 +180,7 @@ export default function Middleware() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Promociones activas</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <CheckCircle2 className="size-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-lg font-semibold">{activePromos.length}</div>
@@ -205,11 +205,11 @@ export default function Middleware() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              <RefreshCw className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : executions.length === 0 ? (
             <div className="py-12 text-center">
-              <Server className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <Server className="mx-auto mb-4 size-12 text-muted-foreground" />
               <h3 className="mb-1 text-lg font-semibold">Sin transacciones</h3>
               <p className="mb-4 text-muted-foreground">
                 No hay ejecuciones registradas aun. Usa el boton de simular para probar el flujo.
@@ -248,12 +248,12 @@ export default function Middleware() {
                     <TableCell className="text-center">
                       {execution.promo_id ? (
                         <Badge className="border-green-500/20 bg-green-500/10 text-green-600">
-                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                          <CheckCircle2 className="mr-1 size-3" />
                           SI
                         </Badge>
                       ) : (
                         <Badge variant="secondary">
-                          <XCircle className="mr-1 h-3 w-3" />
+                          <XCircle className="mr-1 size-3" />
                           NO
                         </Badge>
                       )}

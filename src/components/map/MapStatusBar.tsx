@@ -28,7 +28,7 @@ export function MapStatusBar({
     return (
       <div className="bg-white px-4 py-2 dark:bg-background">
         <div className="flex animate-pulse items-center gap-2 text-sm text-gray-500 dark:text-muted-foreground">
-          <div className="h-4 w-4 rounded-full bg-gray-200 dark:bg-muted" />
+          <div className="size-4 rounded-full bg-gray-200 dark:bg-muted" />
           <div className="h-3 w-40 rounded bg-gray-200 dark:bg-muted" />
         </div>
       </div>
@@ -44,7 +44,7 @@ export function MapStatusBar({
     <div className="flex flex-col gap-1.5 bg-white px-4 pb-2 dark:bg-background">
       {showEmpty && (
         <div className="flex items-center gap-2 py-1.5 text-sm text-gray-500 dark:text-muted-foreground">
-          <MapPin className="h-4 w-4 shrink-0" />
+          <MapPin className="size-4 shrink-0" />
           <span>
             {isFiltered
               ? "Ningún punto coincide con los filtros aplicados."
@@ -55,7 +55,7 @@ export function MapStatusBar({
 
       {showInvalidWarning && (
         <Alert variant="destructive" className="py-2 text-xs">
-          <AlertCircle className="h-4 w-4" />
+          <AlertCircle className="size-4" />
           <AlertDescription>
             {invalidCount} registro{invalidCount !== 1 ? "s" : ""} omitido
             {invalidCount !== 1 ? "s" : ""} por datos inválidos o incompletos.

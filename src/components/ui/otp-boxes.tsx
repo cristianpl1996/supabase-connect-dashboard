@@ -66,7 +66,7 @@ export function OtpBoxes({ value, onChange, onComplete }: {
         color: "#111827",
         backgroundColor: digits[i] ? "#f0fdf4" : "#f9fafb",
         border: `2px solid ${digits[i] ? "#16a34a" : "#d1d5db"}`,
-        borderRadius: 12, outline: "none", caretColor: "transparent",
+        borderRadius: 12, outline: "2px solid transparent", outlineOffset: 2, caretColor: "transparent",
         transition: "border-color 0.15s, box-shadow 0.15s, background-color 0.15s",
       }}
     />

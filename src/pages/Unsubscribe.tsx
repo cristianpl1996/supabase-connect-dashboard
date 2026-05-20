@@ -143,7 +143,7 @@ const FormState = ({ email, reason, loading, onReasonChange, onConfirm, onCancel
       onClick={onConfirm}
       disabled={loading}
     >
-      {loading ? "Procesando..." : "Confirmar baja"}
+      {loading ? "Procesando…" : "Confirmar baja"}
     </button>
     <button className="unsubscribe-btn-ghost" onClick={onCancel} disabled={loading}>
       Cancelar

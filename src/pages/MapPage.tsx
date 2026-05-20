@@ -62,11 +62,11 @@ export default function MapPage() {
     return (
       <div className="-mx-3 -my-4 flex h-[calc(100svh-3.5rem)] items-center justify-center bg-slate-50 px-4 dark:bg-background sm:-mx-5 md:-mx-8 md:-my-8 xl:-mx-10">
         <div className="flex flex-col items-center text-center">
-          <div className="relative flex h-24 w-24 items-center justify-center">
-            <span className="absolute h-12 w-12 animate-ping rounded-full bg-primary/20" />
-            <span className="absolute h-16 w-16 animate-ping rounded-full bg-primary/10 [animation-delay:180ms]" />
-            <span className="absolute h-20 w-20 animate-ping rounded-full bg-primary/5 [animation-delay:360ms]" />
-            <Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+          <div className="relative flex size-24 items-center justify-center">
+            <span className="absolute size-12 animate-ping rounded-full bg-primary/20" />
+            <span className="absolute size-16 animate-ping rounded-full bg-primary/10 [animation-delay:180ms]" />
+            <span className="absolute size-20 animate-ping rounded-full bg-primary/5 [animation-delay:360ms]" />
+            <Loader2 className="relative size-8 animate-spin text-primary" />
           </div>
           <h2 className="mt-3 text-base font-bold text-foreground">Cargando mapa de clientes</h2>
           <p className="mt-1 text-sm text-muted-foreground">Preparando clientes georreferenciados</p>
@@ -102,9 +102,9 @@ export default function MapPage() {
             <div className="flex items-center justify-between gap-3 px-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
                 {badge === "loading" ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
                 ) : (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
+                  <CheckCircle2 className="size-4 shrink-0 text-green-500" />
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-gray-900 dark:text-foreground">
@@ -123,7 +123,7 @@ export default function MapPage() {
               {badge === "loading" ? (
                 <div className="h-full animate-[progress_1.4s_ease-in-out_infinite] bg-primary" style={{ width: "40%" }} />
               ) : (
-                <div className="h-full w-full bg-green-500 transition-all duration-500" />
+                <div className="size-full bg-green-500 transition-all duration-500" />
               )}
             </div>
           </div>

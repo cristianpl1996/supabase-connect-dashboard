@@ -58,7 +58,7 @@ function NavItem({ item, isCollapsed }: NavItemProps) {
               : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
           )}
         >
-          <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+          <item.icon className={cn("size-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
           <span className="truncate">{item.title}</span>
         </Link>
       </SidebarMenuButton>
@@ -127,7 +127,7 @@ export function AppSidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex justify-center py-1">
-                <Avatar className="h-7 w-7 ring-2 ring-border/30">
+                <Avatar className="size-7 ring-2 ring-border/30">
                   <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
                     {initials}
                   </AvatarFallback>
@@ -141,7 +141,7 @@ export function AppSidebar() {
           </Tooltip>
         ) : (
           <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/40 px-0.5 py-2.5 dark:bg-transparent">
-            <Avatar className="h-7 w-7 shrink-0 ring-2 ring-border/30">
+            <Avatar className="size-7 shrink-0 ring-2 ring-border/30">
               <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">

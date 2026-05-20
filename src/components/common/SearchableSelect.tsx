@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,7 @@ export function SearchableSelect({
   emptyLabel = "Sin resultados",
   disabled = false,
 }: SearchableSelectProps) {
+  const listId = useId();
   const [open, setOpen] = useState(false);
   const allOption = useMemo(() => ({ value: "all", label: allLabel }), [allLabel]);
   const normalizedOptions = useMemo(() => [allOption, ...options], [allOption, options]);
@@ -49,18 +50,19 @@ export function SearchableSelect({
           type="button"
           variant="outline"
           role="combobox"
+          aria-controls={listId}
           aria-expanded={open}
           disabled={disabled}
           className="h-10 w-full justify-between px-3 font-normal"
         >
           <span className="truncate">{selected.label}</span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronsUpDown className="ml-2 size-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList id={listId}>
             <CommandEmpty>{emptyLabel}</CommandEmpty>
             <CommandGroup>
               {normalizedOptions.map((option) => (
@@ -72,7 +74,7 @@ export function SearchableSelect({
                     setOpen(false);
                   }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", value === option.value ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("mr-2 size-4", value === option.value ? "opacity-100" : "opacity-0")} />
                   <span className="truncate">{option.label}</span>
                 </CommandItem>
               ))}

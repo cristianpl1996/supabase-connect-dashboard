@@ -107,7 +107,7 @@ import {
   getEcommerceOrderStateLabel,
   getItemCountLabel,
   type OrderStateFilter,
-} from "./ecommerceOrderUtils";
+} from "@/lib/ecommerceOrderUtils";
 
 // Fix Leaflet default icon paths broken by Vite bundler
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -300,8 +300,8 @@ export function CheckoutDialog({
                   Validaremos precio, inventario y condiciones comerciales antes de enviar la orden.
                 </DialogDescription>
               </div>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/12 backdrop-blur">
-                <ClipboardCheck className="h-5 w-5" />
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/12 backdrop-blur">
+                <ClipboardCheck className="size-5" />
               </div>
             </div>
 
@@ -339,11 +339,11 @@ export function CheckoutDialog({
 
             <div className="relative mt-4 grid gap-2.5 text-sm font-medium text-white/82">
               <div className="flex items-center gap-2.5 rounded-md bg-black/10 px-3 py-2 ring-1 ring-white/10 backdrop-blur">
-                <ShieldCheck className="h-4 w-4 shrink-0 text-white" />
+                <ShieldCheck className="size-4 shrink-0 text-white" />
                 Stock y precios confirmados
               </div>
               <div className="flex items-center gap-2.5 rounded-md bg-black/10 px-3 py-2 ring-1 ring-white/10 backdrop-blur">
-                <Truck className="h-4 w-4 shrink-0 text-white" />
+                <Truck className="size-4 shrink-0 text-white" />
                 Entrega segura y validada
               </div>
               <Button
@@ -352,7 +352,7 @@ export function CheckoutDialog({
                 className="mt-1 h-12 w-full gap-2 rounded-md bg-white font-bold text-emerald-950 shadow-[0_18px_40px_-28px_rgba(0,0,0,.95)] hover:bg-white/90"
                 disabled={checkoutLoading || !isCheckoutReady}
               >
-                {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {checkoutLoading ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                 Enviar orden
               </Button>
               <Button
@@ -372,7 +372,7 @@ export function CheckoutDialog({
                 eyebrow="Paso 1"
                 title="Datos de contacto"
                 description="Usaremos estos datos para coordinar el envio de la orden."
-                icon={<UserRound className="h-4 w-4" />}
+                icon={<UserRound className="size-4" />}
               >
               <div className="grid gap-2.5 sm:grid-cols-2">
                   <CheckoutInput
@@ -380,7 +380,7 @@ export function CheckoutDialog({
                     label="Nombre contacto"
                     value={form.contact_name}
                     onChange={(value) => onChange("contact_name", value)}
-                    icon={<UserRound className="h-4 w-4" />}
+                    icon={<UserRound className="size-4" />}
                     required
                   />
                   <CheckoutInput
@@ -388,7 +388,7 @@ export function CheckoutDialog({
                     label="Celular"
                     value={form.contact_phone}
                     onChange={(value) => onChange("contact_phone", value)}
-                    icon={<PhoneCall className="h-4 w-4" />}
+                    icon={<PhoneCall className="size-4" />}
                     required
                   />
                 </div>
@@ -398,7 +398,7 @@ export function CheckoutDialog({
                   type="email"
                   value={form.contact_email}
                   onChange={(value) => onChange("contact_email", value)}
-                  icon={<Mail className="h-4 w-4" />}
+                  icon={<Mail className="size-4" />}
                 />
               </CheckoutSection>
 
@@ -406,14 +406,14 @@ export function CheckoutDialog({
                 eyebrow="Paso 2"
                 title="Entrega"
                 description="Incluye la direccion exacta para evitar reprocesos con logistica."
-                icon={<MapPin className="h-4 w-4" />}
+                icon={<MapPin className="size-4" />}
               >
                 <CheckoutInput
                   id="checkout-delivery-address"
                   label="Direccion entrega"
                   value={form.delivery_address}
                   onChange={(value) => onChange("delivery_address", value)}
-                  icon={<MapPin className="h-4 w-4" />}
+                  icon={<MapPin className="size-4" />}
                   required
                 />
                 <div className="rounded-md border border-dashed bg-muted/28 p-2.5 dark:border-white/12 dark:bg-black/16">
@@ -423,7 +423,7 @@ export function CheckoutDialog({
                     className="h-10 w-full justify-start gap-2 rounded-md bg-background text-left font-semibold dark:bg-[#111217]"
                     onClick={() => setMapOpen((value) => !value)}
                   >
-                    <MapPinned className="h-4 w-4 text-primary" />
+                    <MapPinned className="size-4 text-primary" />
                     {mapOpen ? "Cerrar mapa" : "Marcar direccion en el mapa"}
                   </Button>
                   {mapOpen && (
@@ -445,7 +445,7 @@ export function CheckoutDialog({
                             : "Haz clic en el mapa para marcar el punto de entrega"}
                         </span>
                         <Button type="button" size="sm" className="h-8 gap-2 rounded-md" onClick={useCurrentLocation}>
-                          <LocateFixed className="h-3.5 w-3.5" />
+                          <LocateFixed className="size-3.5" />
                           Usar mi ubicacion actual
                         </Button>
                       </div>
@@ -458,7 +458,7 @@ export function CheckoutDialog({
                 eyebrow="Paso 3"
                 title="Pago y observaciones"
                 description="Selecciona la condicion esperada y deja notas para el asesor."
-                icon={<CreditCard className="h-4 w-4" />}
+                icon={<CreditCard className="size-4" />}
               >
                 <div className="space-y-1.5">
                   <Label htmlFor="checkout-payment-method">Metodo de pago</Label>
@@ -476,7 +476,7 @@ export function CheckoutDialog({
                 <div className="space-y-1.5">
                   <Label htmlFor="checkout-observations">Observaciones</Label>
                   <div className="relative">
-                    <MessageSquareText className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <MessageSquareText className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
                     <Textarea
                       id="checkout-observations"
                       className="min-h-[72px] resize-none pl-9"
@@ -491,7 +491,7 @@ export function CheckoutDialog({
               {(checkoutError || hasQuoteErrors) && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                   <div className="flex gap-2">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <AlertCircle className="mt-0.5 size-4 shrink-0" />
                     <div>
                       {checkoutError && <p>{checkoutError}</p>}
                       {quote?.errors?.map((error) => <p key={`${error.sku}-${error.message}`}>{error.sku}: {error.message}</p>)}
@@ -524,7 +524,7 @@ function CheckoutSection({
   return (
     <section className="rounded-md border bg-card p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,.7)] dark:border-white/12 dark:bg-[#202126] dark:shadow-[0_18px_44px_-34px_rgba(0,0,0,.95)]">
       <div className="mb-3 flex items-start gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
           {icon}
         </div>
         <div>
@@ -1036,21 +1036,21 @@ export default function ECommerce() {
                   backgroundSize: "34px 34px",
                 }}
               />
-              <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-emerald-300/24 blur-3xl motion-safe:animate-[ecommerce-float-slow_9s_ease-in-out_infinite]" />
-              <div className="absolute -right-24 top-1/4 h-80 w-80 rounded-full bg-green-200/20 blur-3xl motion-safe:animate-[ecommerce-float-slow_7s_ease-in-out_infinite,ecommerce-drift_11s_ease-in-out_infinite]" />
-              <div className="absolute left-1/4 top-1/2 h-56 w-56 rounded-full bg-lime-200/14 blur-3xl motion-safe:animate-[ecommerce-float-slow_8s_ease-in-out_infinite]" />
-              <div className="absolute bottom-2 right-1/3 h-64 w-64 rounded-full bg-emerald-100/12 blur-3xl motion-safe:animate-[ecommerce-drift_12s_ease-in-out_infinite]" />
-              <div className="absolute bottom-10 right-14 h-28 w-28 rounded-full border border-white/20 motion-safe:animate-[ecommerce-spin_20s_linear_infinite]" />
-              <div className="absolute bottom-16 left-8 h-3 w-3 rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,.8)] motion-safe:animate-[ecommerce-pulse_5s_ease-in-out_infinite]" />
-              <div className="absolute left-[56%] top-20 h-2 w-2 rounded-full bg-white/60 shadow-[0_0_14px_rgba(255,255,255,.7)] motion-safe:animate-[ecommerce-float-slow_6s_ease-in-out_infinite]" />
-              <div className="absolute left-[82%] top-[58%] h-2.5 w-2.5 rounded-full bg-emerald-100/80 shadow-[0_0_22px_rgba(209,250,229,.9)] motion-safe:animate-[ecommerce-pulse_4s_ease-in-out_infinite]" />
-              <div className="absolute left-[43%] top-[34%] h-2 w-2 rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,.8)] motion-safe:animate-[ecommerce-float-slow_7s_ease-in-out_infinite]" />
+              <div className="absolute -left-20 -top-20 size-72 rounded-full bg-emerald-300/24 blur-3xl motion-safe:animate-[ecommerce-float-slow_9s_ease-in-out_infinite]" />
+              <div className="absolute -right-24 top-1/4 size-80 rounded-full bg-green-200/20 blur-3xl motion-safe:animate-[ecommerce-float-slow_7s_ease-in-out_infinite,ecommerce-drift_11s_ease-in-out_infinite]" />
+              <div className="absolute left-1/4 top-1/2 size-56 rounded-full bg-lime-200/14 blur-3xl motion-safe:animate-[ecommerce-float-slow_8s_ease-in-out_infinite]" />
+              <div className="absolute bottom-2 right-1/3 size-64 rounded-full bg-emerald-100/12 blur-3xl motion-safe:animate-[ecommerce-drift_12s_ease-in-out_infinite]" />
+              <div className="absolute bottom-10 right-14 size-28 rounded-full border border-white/20 motion-safe:animate-[ecommerce-spin_20s_linear_infinite]" />
+              <div className="absolute bottom-16 left-8 size-3 rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,.8)] motion-safe:animate-[ecommerce-pulse_5s_ease-in-out_infinite]" />
+              <div className="absolute left-[56%] top-20 size-2 rounded-full bg-white/60 shadow-[0_0_14px_rgba(255,255,255,.7)] motion-safe:animate-[ecommerce-float-slow_6s_ease-in-out_infinite]" />
+              <div className="absolute left-[82%] top-[58%] size-2.5 rounded-full bg-emerald-100/80 shadow-[0_0_22px_rgba(209,250,229,.9)] motion-safe:animate-[ecommerce-pulse_4s_ease-in-out_infinite]" />
+              <div className="absolute left-[43%] top-[34%] size-2 rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,.8)] motion-safe:animate-[ecommerce-float-slow_7s_ease-in-out_infinite]" />
               <div className="relative flex flex-col gap-7">
                 <div className="flex items-center justify-between gap-4">
-                  <img src={logoFull} alt="Ivanagro" className="h-11 w-auto object-contain brightness-0 invert drop-shadow-[0_10px_24px_rgba(0,0,0,.22)] sm:h-12" />
+                  <img src={logoIcon} alt="Ivanagro" className="h-24 w-auto object-contain brightness-0 invert drop-shadow-[0_10px_24px_rgba(0,0,0,.22)]" />
                   <Badge className="gap-1 border-white/15 bg-white/14 text-white hover:bg-white/14">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Portal comercial
+                    <Sparkles className="size-3.5" />
+                    Portal <span className="hidden sm:inline">comercial</span>
                   </Badge>
                 </div>
 
@@ -1084,8 +1084,8 @@ export default function ECommerce() {
                 {!otpStep ? (
                   <>
                     <div className="mb-6 space-y-5">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.08))] text-primary shadow-[0_16px_36px_-24px_hsl(var(--primary))] ring-1 ring-primary/15">
-                        <UserRound className="h-7 w-7" strokeWidth={2.2} />
+                      <div className="flex size-14 items-center justify-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.08))] text-primary shadow-[0_16px_36px_-24px_hsl(var(--primary))] ring-1 ring-primary/15">
+                        <UserRound className="size-7" strokeWidth={2.2} />
                       </div>
                       <div>
                         <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Acceso de cliente</h2>
@@ -1098,15 +1098,15 @@ export default function ECommerce() {
                     <form className="space-y-4" onSubmit={startSession}>
                       {sessionError && (
                         <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                          <AlertCircle className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
+                          <AlertCircle className="size-4 shrink-0 text-red-500 dark:text-red-400" />
                           <span className="font-medium">{sessionError}</span>
                         </div>
                       )}
                       <div className="space-y-2">
                         <Label htmlFor="nit">NIT / documento</Label>
                         <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary/10 text-primary">
-                            <ScanLine className="h-4.5 w-4.5" />
+                          <span className="pointer-events-none absolute left-3 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <ScanLine className="size-4.5" />
                           </span>
                           <Input
                             id="nit"
@@ -1124,7 +1124,7 @@ export default function ECommerce() {
                         className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-2"
                         style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
                       >
-                        {sessionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {sessionLoading ? <Loader2 className="size-4 animate-spin" /> : null}
                         Entrar al e-commerce
                       </button>
                     </form>
@@ -1135,11 +1135,11 @@ export default function ECommerce() {
                     </div>
                     <div className="mt-5 rounded-md border bg-background/75 p-3">
                       <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
-                        <AlertCircle className="h-10 w-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a travez de nuestros canales de comunicación.
+                        <AlertCircle className="size-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a través de nuestros canales de comunicación.
                       </p>
                       <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
-                        <a href="mailto:comercial@ivanagro.com">
-                          <Mail className="h-4 w-4" />
+                        <a href="mailto:marketing@ivanagro.com">
+                          <Mail className="size-4" />
                           Contactanos
                         </a>
                       </Button>
@@ -1157,7 +1157,7 @@ export default function ECommerce() {
 
                     {otpError && (
                       <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                        <AlertCircle className="size-4 shrink-0 text-red-500" />
                         <span className="font-medium">{otpError}</span>
                       </div>
                     )}
@@ -1173,7 +1173,7 @@ export default function ECommerce() {
                       className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md disabled:opacity-60 flex items-center justify-center gap-2 mb-3"
                       style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
                     >
-                      {otpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {otpLoading ? <Loader2 className="size-4 animate-spin" /> : null}
                       Verificar código
                     </button>
 
@@ -1188,7 +1188,7 @@ export default function ECommerce() {
                       }`}
                     >
                       {resendLoading
-                        ? "Reenviando..."
+                        ? "Reenviando…"
                         : resendCooldown > 0
                           ? `Reenviar código (${resendCooldown}s)`
                           : "Reenviar código"}
@@ -1226,7 +1226,7 @@ export default function ECommerce() {
           >
             <Sun
               className={cn(
-                "h-3.5 w-3.5 transition-colors",
+                "size-3.5 transition-colors",
                 !isDarkTheme && "text-primary",
               )}
             />
@@ -1238,22 +1238,22 @@ export default function ECommerce() {
                 localStorage.setItem(ECOMMERCE_THEME_KEY, next);
               }}
               aria-label="Cambiar tema"
-              className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
+              className="h-5 w-9 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=checked]:bg-emerald-500 [&>span]:size-4 [&>span]:data-[state=checked]:translate-x-4"
             />
             <Moon
               className={cn(
-                "h-3.5 w-3.5 transition-colors",
+                "size-3.5 transition-colors",
                 isDarkTheme && "text-primary",
               )}
             />
           </div>
 
           <button
-            className="relative flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="relative flex size-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
             title="Abrir carrito"
             onClick={() => setCartOpen(true)}
           >
-            <ShoppingCart className="h-4 w-4" />
+            <ShoppingCart className="size-4" />
             {cartCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold leading-none text-primary-foreground ring-1 ring-background">
                 {cartCount > 99 ? "99+" : cartCount}
@@ -1264,7 +1264,7 @@ export default function ECommerce() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Cuenta de cliente">
-                <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/40 shadow-sm">
+                <Avatar className="size-9 cursor-pointer ring-2 ring-border/40 shadow-sm">
                   <AvatarFallback className="bg-primary/10 text-base font-bold text-primary">
                     {initials(session.customer.name)}
                   </AvatarFallback>
@@ -1280,12 +1280,12 @@ export default function ECommerce() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 hover:bg-muted focus:bg-muted dark:hover:bg-white/10 dark:focus:bg-white/10 dark:hover:text-foreground dark:focus:text-foreground" onClick={openOrders}>
-                <ShoppingBag className="h-4 w-4" />
+                <ShoppingBag className="size-4" />
                 Mis pedidos
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive dark:hover:bg-red-500/15 dark:focus:bg-red-500/15" onClick={resetSession}>
-                <LogOut className="h-4 w-4" />
+                <LogOut className="size-4" />
                 Cerrar sesion
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1354,13 +1354,13 @@ export default function ECommerce() {
               <EcommerceSkeletonGrid viewMode={viewMode} />
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-20 text-center">
-                <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                <Package className="size-12 text-muted-foreground/40 mb-4" />
                 <p className="mt-1 max-w-sm text-md text-muted-foreground">
                   {activeFilters.length > 0 ? "No encontramos productos con los filtros aplicados." : "No hay productos disponibles en este momento."}
                 </p>
                 {activeFilters.length > 0 && (
                   <Button variant="outline" className="mt-6" onClick={clearAllFilters}>
-                    <X className="mr-2 h-4 w-4" />Limpiar filtros
+                    <X className="mr-2 size-4" />Limpiar filtros
                   </Button>
                 )}
               </div>
@@ -1412,10 +1412,13 @@ export default function ECommerce() {
           </div>
           <div className="space-y-4 px-4 py-4 sm:px-6">
             {cart.length === 0 ? (
-              <div className="rounded-md border bg-muted/35 p-6 text-center text-sm text-muted-foreground">Tu carrito esta vacio.</div>
+              <div className="rounded-md border bg-muted/35 p-8 text-center text-sm text-muted-foreground flex flex-col items-center gap-3">
+                <ShoppingCart className="size-10 opacity-30" />
+                <span>Tu carrito esta vacio.</span>
+              </div>
             ) : (
               <>
-                {quoteLoading && <div className="text-sm text-muted-foreground">Recalculando precios...</div>}
+                {quoteLoading && <div className="text-sm text-muted-foreground">Recalculando precios…</div>}
                 {quote?.errors && quote.errors.length > 0 && (
                   <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
                     {quote.errors.map((error) => <p key={`${error.sku}-${error.message}`}>{error.sku}: {error.message}</p>)}
@@ -1429,16 +1432,16 @@ export default function ECommerce() {
                       <div key={item.sku} className="rounded-md border bg-card p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 flex-1 gap-3">
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                            <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
                               {productImageUrl ? (
                                 <img
                                   src={productImageUrl}
                                   alt={quoted?.product_name ?? item.sku}
-                                  className="h-full w-full object-contain p-1"
+                                  className="size-full object-contain p-1"
                                   onError={(event) => { event.currentTarget.src = "/placeholder.svg"; }}
                                 />
                               ) : (
-                                <img src="/placeholder.svg" alt="" className="h-8 w-8 opacity-55 dark:invert" />
+                                <img src="/placeholder.svg" alt="" className="size-8 opacity-55 dark:invert" />
                               )}
                             </div>
                             <div className="min-w-0">
@@ -1448,13 +1451,13 @@ export default function ECommerce() {
                             </div>
                           </div>
                           <Button variant="ghost" size="icon" disabled={quoteLoading} onClick={() => setQuantity(item.sku, 0)}>
-                            {quoteLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                            {quoteLoading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Trash2 className="size-4 text-destructive" />}
                           </Button>
                         </div>
                         <div className="mt-3 flex items-center gap-2">
-                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity - 1)}><Minus className="h-3.5 w-3.5" /></Button>
+                          <Button variant="outline" size="icon" className="size-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity - 1)}><Minus className="size-3.5" /></Button>
                           <span className="w-10 text-center font-semibold">{item.quantity}</span>
-                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity + 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                          <Button variant="outline" size="icon" className="size-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity + 1)}><Plus className="size-3.5" /></Button>
                         </div>
                       </div>
                     );
@@ -1466,7 +1469,7 @@ export default function ECommerce() {
                     <span className="text-2xl font-bold">{money(quote?.total ?? 0)}</span>
                   </div>
                   <Button className="mt-4 h-11 w-full gap-2" disabled={quoteLoading || !quote || quote.errors.length > 0 || cart.length === 0} onClick={openCheckout}>
-                    {quoteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {quoteLoading && <Loader2 className="size-4 animate-spin" />}
                     {quoteLoading ? "Actualizando pedido" : "Finalizar pedido"}
                   </Button>
                 </div>
@@ -1499,17 +1502,17 @@ export default function ECommerce() {
               {/* Body: image left + info right */}
               <div className="flex gap-0 border-t border-border/40">
                 {/* Image — fixed width, zoom on hover */}
-                <div className="relative flex w-36 shrink-0 items-center justify-center overflow-hidden bg-white p-2">
+                <div className="relative flex w-36 shrink-0 items-center justify-center overflow-hidden p-2">
                   {selectedProduct.product_image_url ? (
                     <img
                       src={selectedProduct.product_image_url}
                       alt={selectedProduct.product_commercial_name ?? ""}
-                      className="h-32 w-32 cursor-default object-contain transition-transform duration-300 ease-out hover:scale-125"
+                      className="size-32 cursor-default object-contain transition-transform duration-300 ease-out hover:scale-125"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                   ) : (
-                    <div className="flex h-32 w-32 flex-col items-center justify-center gap-2 text-muted-foreground/50">
-                      <Package className="h-8 w-8" />
+                    <div className="flex size-32 flex-col items-center justify-center gap-2 text-muted-foreground/50">
+                      <Package className="size-8" />
                       <span className="text-[11px]">Sin imagen</span>
                     </div>
                   )}
@@ -1542,7 +1545,7 @@ export default function ECommerce() {
                   disabled={!selectedProduct.can_add_to_cart}
                   onClick={() => addToCart(selectedProduct)}
                 >
-                  <ShoppingCart className="h-4 w-4" />Añadir al carrito
+                  <ShoppingCart className="size-4" />Añadir al carrito
                 </Button>
               </div>
             </div>
@@ -1565,7 +1568,7 @@ export default function ECommerce() {
       <Dialog open={!!orderReference} onOpenChange={(open) => !open && setOrderReference(null)}>
         <DialogContent>
           <div className="space-y-4 text-center">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-primary" />
+            <CheckCircle2 className="mx-auto size-12 text-primary" />
             <DialogTitle>Orden recibida</DialogTitle>
             <DialogDescription>Tu pedido quedo como borrador para validacion comercial.</DialogDescription>
             <div className="rounded-md border bg-muted/30 p-4">
@@ -1583,7 +1586,7 @@ export default function ECommerce() {
           <div className="border-b px-4 pb-4 pt-5 sm:px-6">
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5" />
+                <ShoppingBag className="size-5" />
                 Mis pedidos
               </SheetTitle>
               <SheetDescription>Historial de órdenes realizadas</SheetDescription>
@@ -1592,7 +1595,7 @@ export default function ECommerce() {
           <div className="px-4 py-4 sm:px-6 space-y-3">
             {ordersLoading && (
               <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
               </div>
             )}
             {!ordersLoading && orders.length > 0 && (
@@ -1650,7 +1653,7 @@ export default function ECommerce() {
             )}
             {!ordersLoading && orders.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
-                <ShoppingBag className="h-12 w-12 opacity-25" />
+                <ShoppingBag className="size-12 opacity-25" />
                 <div>
                   <p className="text-sm font-medium">Sin pedidos todavía</p>
                   <p className="mt-1 text-xs">Tus órdenes aparecerán aquí una vez las realices.</p>
@@ -1690,7 +1693,7 @@ export default function ECommerce() {
                         <span className="font-medium text-foreground">{money(order.total)}</span>
                       </div>
                     </div>
-                    <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform", isExpanded && "rotate-90")} />
+                    <ChevronRight className={cn("size-4 text-muted-foreground shrink-0 transition-transform", isExpanded && "rotate-90")} />
                   </button>
                   {isExpanded && (
                     <div className="border-t px-4 py-3 space-y-2 bg-muted/20">
@@ -1723,8 +1726,8 @@ export default function ECommerce() {
 function AccessMetric({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
     <div className="group min-h-[6.25rem] overflow-hidden rounded-md border border-white/18 bg-white/12 p-4 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/18">
-      <div className="mb-3 flex h-10 w-10 items-center justify-center border border-white/16 rounded-md bg-white/16 text-emerald-100 shadow-sm transition group-hover:scale-105">
-        <Icon className="h-5 w-5" />
+      <div className="mb-3 flex size-10 items-center justify-center border border-white/16 rounded-md bg-white/16 text-emerald-100 shadow-sm transition group-hover:scale-105">
+        <Icon className="size-5" />
       </div>
       <p className="text-[11px] font-medium text-white/68">{label}</p>
       <p className="mt-1 text-base font-bold text-white sm:text-lg">{value}</p>
@@ -1735,7 +1738,7 @@ function AccessMetric({ icon: Icon, label, value }: { icon: React.ElementType; l
 function AccessSignal({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
     <div className="flex items-center gap-2 rounded-md bg-white/12 px-3 py-2 text-sm font-medium text-white">
-      <Icon className="h-4 w-4 text-emerald-100" />
+      <Icon className="size-4 text-emerald-100" />
       <span>{label}</span>
     </div>
   );
@@ -1745,8 +1748,8 @@ function AccessNote({ icon: Icon, title, text }: { icon: React.ElementType; titl
   return (
     <div className="rounded-md border bg-background/75 p-3 shadow-sm">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
-          <Icon className="h-4.5 w-4.5" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
+          <Icon className="size-4.5" />
         </span>
         {title}
       </div>
@@ -1791,16 +1794,16 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
       {/* Marcas */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
-          <span className="flex items-center gap-2"><Tags className="h-3.5 w-3.5 text-muted-foreground" />Marcas</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          <span className="flex items-center gap-2"><Tags className="size-3.5 text-muted-foreground" />Marcas</span>
+          <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="relative mb-1.5 mt-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <input
               value={brandSearch}
               onChange={(e) => setBrandSearch(e.target.value)}
-              placeholder="Buscar marca..."
+              placeholder="Buscar marca…"
               className="h-9 w-full rounded-md border border-input bg-background pl-7 pr-6 text-sm placeholder:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {brandSearch && (
@@ -1808,7 +1811,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
                 onClick={() => setBrandSearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="size-3.5" />
               </button>
             )}
           </div>
@@ -1837,12 +1840,12 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
       {/* Categorías */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
-          <span className="flex items-center gap-2"><Store className="h-3.5 w-3.5 text-muted-foreground" />Categorías</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          <span className="flex items-center gap-2"><Store className="size-3.5 text-muted-foreground" />Categorías</span>
+          <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="relative mb-1.5 mt-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <input
               value={categorySearch}
               onChange={(e) => setCategorySearch(e.target.value)}
@@ -1854,7 +1857,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
                 onClick={() => setCategorySearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="size-3.5" />
               </button>
             )}
           </div>
@@ -1883,8 +1886,8 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
       {/* Disponibilidad */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
-          <span className="flex items-center gap-2"><Package className="h-3.5 w-3.5 text-muted-foreground" />Disponibilidad</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          <span className="flex items-center gap-2"><Package className="size-3.5 text-muted-foreground" />Disponibilidad</span>
+          <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="flex items-center gap-2 pt-2 px-1 cursor-pointer" onClick={() => onInStockChange(!inStockOnly)}>
@@ -1899,8 +1902,8 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
       {/* Precio */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
-          <span className="flex items-center gap-2"><Sparkles className="h-3.5 w-3.5 text-muted-foreground" />Precio</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          <span className="flex items-center gap-2"><Sparkles className="size-3.5 text-muted-foreground" />Precio</span>
+          <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="flex items-center gap-2 pt-2 px-1 cursor-pointer" onClick={() => onWithPriceChange(!withPriceOnly)}>
@@ -1912,7 +1915,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
 
       {hasActiveFilters && (
         <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground hover:text-foreground" onClick={onClear}>
-          <X className="h-3.5 w-3.5" />Limpiar filtros
+          <X className="size-3.5" />Limpiar filtros
         </Button>
       )}
     </div>
@@ -1958,14 +1961,14 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
           {hasError
             ? <>Mostrando <span className="text-foreground">0</span> de <span className="text-foreground">0</span> productos</>
             : totalProducts === null
-              ? <Skeleton className="inline-block h-4 w-40 align-middle" />
+              ? <Skeleton className="inline-block size-40 align-middle" />
               : <>Mostrando <span className="text-foreground">{from}–{to}</span> de <span className="text-foreground">{totalProducts.toLocaleString("es-CO")}</span> productos</>}
         </div>
         <div className="flex items-center gap-2">
           <Select value={sort} onValueChange={onSortChange} disabled={disabled}>
             <SelectTrigger className="h-9 w-44 bg-background text-sm">
               <div className="flex items-center gap-2">
-                <ArrowDownAZ className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <ArrowDownAZ className="size-3.5 text-muted-foreground shrink-0" />
                 <SelectValue />
               </div>
             </SelectTrigger>
@@ -1978,11 +1981,11 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
             </SelectContent>
           </Select>
           <div className={cn("hidden sm:flex rounded-md border bg-background overflow-hidden", disabled && "pointer-events-none opacity-50")}>
-            <button onClick={() => onViewModeChange("grid")} className={cn("flex h-9 w-9 items-center justify-center transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista cuadrícula" disabled={disabled}>
-              <LayoutGrid className="h-4 w-4" />
+            <button onClick={() => onViewModeChange("grid")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista cuadrícula" disabled={disabled}>
+              <LayoutGrid className="size-4" />
             </button>
-            <button onClick={() => onViewModeChange("list")} className={cn("flex h-9 w-9 items-center justify-center transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista lista" disabled={disabled}>
-              <List className="h-4 w-4" />
+            <button onClick={() => onViewModeChange("list")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista lista" disabled={disabled}>
+              <List className="size-4" />
             </button>
           </div>
         </div>
@@ -1991,7 +1994,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
       {/* Row 2: search */}
       <div className="relative">
         <button onClick={onSearchCommit} disabled={disabled} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed">
-          <Search className="h-4 w-4" />
+          <Search className="size-4" />
         </button>
         <input
           value={searchInput}
@@ -2003,7 +2006,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
         />
         {search && (
           <button onClick={onSearchClear} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive">
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         )}
       </div>
@@ -2011,7 +2014,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
       {/* Row 3: quick toggles */}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" className="lg:hidden gap-2 h-8 bg-background" onClick={onOpenMobileFilters} disabled={disabled}>
-          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <SlidersHorizontal className="size-3.5" />
           Filtros
           {activeFilters.length > 0 && <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{activeFilters.length}</span>}
         </Button>
@@ -2019,7 +2022,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
         <Button variant={withPriceOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !withPriceOnly && "bg-background")} onClick={onWithPriceToggle}>Con precio</Button>
         {activeFilters.length > 0 && (
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={onClear} disabled={disabled}>
-            <X className="h-3.5 w-3.5" />Limpiar filtros
+            <X className="size-3.5" />Limpiar filtros
           </Button>
         )}
       </div>
@@ -2030,7 +2033,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
           {activeFilters.map((chip) => (
             <button key={chip.key} onClick={chip.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
               <span className="truncate max-w-[12rem]">{chip.label}</span>
-              <X className="h-3 w-3 shrink-0" />
+              <X className="size-3 shrink-0" />
             </button>
           ))}
         </div>
@@ -2060,11 +2063,11 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
           <img
             src={product.product_image_url}
             alt={product.product_commercial_name ?? ""}
-            className="h-full w-full object-contain p-2"
+            className="size-full object-contain p-2"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <Package className="h-10 w-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:h-12 sm:w-12" />
+          <Package className="size-10 text-muted-foreground/50 transition group-hover:text-muted-foreground sm:size-12" />
         )}
         <span className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-0.5 text-[11px] font-mono font-medium text-muted-foreground shadow-sm">
           {product.product_sku}
@@ -2081,13 +2084,13 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
         {product.product_brand_name && (
           <div className="flex items-center gap-1">
             <p className="truncate text-xs text-muted-foreground">{product.product_brand_name}</p>
-            <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <BadgeCheck className="size-3.5 shrink-0 text-primary" />
           </div>
         )}
 
         <div className="flex items-center gap-0.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+            <Star key={i} className="size-3 fill-amber-400 text-amber-400" />
           ))}
         </div>
 
@@ -2135,11 +2138,11 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
         </div>
 
         <div className="grid grid-cols-[2.25rem_1fr] gap-1.5 pt-1">
-          <Button variant="outline" size="icon" className="h-9 w-9 bg-background" onClick={onOpen} title="Ver detalle">
-            <Search className="h-4 w-4" />
+          <Button variant="outline" size="icon" className="size-9 bg-background" onClick={onOpen} title="Ver detalle">
+            <Search className="size-4" />
           </Button>
           <Button className="h-9 font-semibold text-xs sm:text-sm" onClick={onAdd} disabled={!canAdd}>
-            <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
+            <ShoppingCart className="mr-1.5 size-3.5" />
             {canAdd ? "Añadir" : hasPrice ? "Sin stock" : "Añadir"}
           </Button>
         </div>
@@ -2160,18 +2163,18 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md bg-muted/40 transition-opacity hover:opacity-75 dark:bg-muted"
+        className="flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md bg-muted/40 transition-opacity hover:opacity-75 dark:bg-muted"
         title="Ver detalle"
       >
         {product.product_image_url ? (
           <img
             src={product.product_image_url}
             alt={product.product_commercial_name ?? ""}
-            className="h-full w-full object-contain p-1"
+            className="size-full object-contain p-1"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <Package className="h-6 w-6 text-muted-foreground/60" />
+          <Package className="size-6 text-muted-foreground/60" />
         )}
       </button>
       <div className="min-w-0 flex-1">
@@ -2186,7 +2189,7 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
             {product.product_brand_name && (
               <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
                 {product.product_brand_name}
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <BadgeCheck className="size-3.5 shrink-0 text-primary" />
               </span>
             )}
             {product.product_category && (
@@ -2213,7 +2216,7 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
         </TooltipProvider>
         <div className="flex items-center gap-0.5 mt-0.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
+            <Star key={i} className="size-3 fill-amber-400 text-amber-400" />
           ))}
         </div>
       </div>
@@ -2226,11 +2229,11 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onOpen}>
-          <Search className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="size-9" onClick={onOpen}>
+          <Search className="size-4" />
         </Button>
         <Button size="sm" className="shrink-0 h-9" onClick={onAdd} disabled={!canAdd}>
-          <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />Añadir
+          <ShoppingCart className="mr-1.5 size-3.5" />Añadir
         </Button>
       </div>
     </article>
@@ -2290,7 +2293,7 @@ function EcommerceSkeletonGrid({ viewMode }: { viewMode: "grid" | "list" }) {
       <div className="space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3">
-            <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+            <Skeleton className="size-12 shrink-0 rounded-md" />
             <div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
             <Skeleton className="hidden sm:block h-4 w-24" />
             <Skeleton className="hidden md:block h-6 w-20 rounded-full" />
@@ -2310,7 +2313,7 @@ function EcommerceSkeletonGrid({ viewMode }: { viewMode: "grid" | "list" }) {
             <Skeleton className="h-4 w-full dark:bg-muted/60" /><Skeleton className="h-4 w-3/4 dark:bg-muted/60" />
             <Skeleton className="h-6 w-28 mt-1 dark:bg-muted/60" />
             <div className="flex items-center justify-between mt-1"><Skeleton className="h-3 w-10 dark:bg-muted/60" /><Skeleton className="h-5 w-20 rounded-full dark:bg-muted/60" /></div>
-            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="h-10 w-10 rounded-md dark:bg-muted/60" /><Skeleton className="h-10 rounded-md dark:bg-muted/60" /></div>
+            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="size-10 rounded-md dark:bg-muted/60" /><Skeleton className="h-10 rounded-md dark:bg-muted/60" /></div>
           </div>
         </div>
       ))}
@@ -2326,7 +2329,7 @@ function MobileFiltersDrawer({ open, onOpenChange, ...filterProps }: { open: boo
       <SheetContent side="left" className="flex flex-col p-0 w-80">
         <div className="border-b px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            <SlidersHorizontal className="size-4 text-primary" />
             Filtros
           </div>
         </div>

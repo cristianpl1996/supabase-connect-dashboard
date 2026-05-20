@@ -55,7 +55,7 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
 
         {/* Rep — compacto dentro del header */}
         <div className="flex items-center gap-1.5 mt-1.5 bg-black/10 rounded px-2 py-1">
-          <div className="h-5 w-5 shrink-0 rounded-full bg-white/30 flex items-center justify-center text-[9px] font-bold">
+          <div className="size-5 shrink-0 rounded-full bg-white/30 flex items-center justify-center text-[9px] font-bold">
             {initials}
           </div>
           <div className="min-w-0 flex items-baseline gap-1.5">
@@ -71,19 +71,19 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
         <div className="space-y-0.5 text-[10px] text-gray-600">
           {c.customer_business_address && (
             <div className="flex gap-1.5 items-start">
-              <MapPin className="h-3 w-3 mt-px shrink-0 text-gray-400" />
+              <MapPin className="size-3 mt-px shrink-0 text-gray-400" />
               <span className="leading-tight">{c.customer_business_address}</span>
             </div>
           )}
           {c.customer_cellphone && (
             <div className="flex gap-1.5 items-center">
-              <Phone className="h-3 w-3 shrink-0 text-gray-400" />
+              <Phone className="size-3 shrink-0 text-gray-400" />
               <span>{c.customer_cellphone}</span>
             </div>
           )}
           {c.customer_emails[0] && (
             <div className="flex gap-1.5 items-center">
-              <Mail className="h-3 w-3 shrink-0 text-gray-400" />
+              <Mail className="size-3 shrink-0 text-gray-400" />
               <span className="truncate max-w-[220px]">{c.customer_emails[0]}</span>
             </div>
           )}
@@ -108,7 +108,7 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
         <div className="flex items-center justify-between">
           <RFMPills code={c.customer_rfm_segment} />
           <span className={`flex items-center gap-1 text-[10px] ${c.customer_has_confirmed_digital_wallet ? "text-emerald-600" : "text-gray-400"}`}>
-            <Wallet className="h-3 w-3" />
+            <Wallet className="size-3" />
             {c.customer_has_confirmed_digital_wallet ? "Billetera activa" : "Sin billetera"}
           </span>
         </div>
@@ -117,7 +117,7 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
         {c.customer_top_purchased_products_snapshot.length > 0 && (
           <div className="border-t border-gray-100 pt-1">
             <p className="flex items-center gap-1 text-[9px] text-gray-400 uppercase tracking-wider font-semibold mb-0.5">
-              <ShoppingBag className="h-3 w-3" /> Top productos
+              <ShoppingBag className="size-3" /> Top productos
             </p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
               {c.customer_top_purchased_products_snapshot.slice(0, 6).map((p, i) => (

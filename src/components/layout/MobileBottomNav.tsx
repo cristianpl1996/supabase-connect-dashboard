@@ -47,7 +47,7 @@ export function MobileBottomNav() {
               )}
             >
               <Link to={item.url} aria-current={active ? "page" : undefined}>
-                <item.icon className="h-5 w-5 shrink-0" />
+                <item.icon className="size-5 shrink-0" />
                 <span className="w-full truncate leading-none">{item.shortTitle}</span>
               </Link>
             </Button>
@@ -63,7 +63,7 @@ export function MobileBottomNav() {
                 moreActive || open ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
               )}
             >
-              <MoreHorizontal className="h-5 w-5 shrink-0" />
+              <MoreHorizontal className="size-5 shrink-0" />
               <span className="w-full truncate leading-none">Mas</span>
             </Button>
           </DrawerTrigger>
@@ -82,7 +82,7 @@ export function MobileBottomNav() {
                     )}
                   >
                     <Link to={item.url} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined}>
-                      <item.icon className="h-5 w-5 shrink-0" />
+                      <item.icon className="size-5 shrink-0" />
                       <span className="w-full truncate">{item.shortTitle}</span>
                     </Link>
                   </Button>

@@ -364,13 +364,16 @@ export default function Orders() {
   }, [selectedSummary]);
 
   const loadedLabel = orders.length.toLocaleString("es-CO");
-  const totalLabel = totalOrders === null ? "..." : totalOrders.toLocaleString("es-CO");
+  const totalLabel = totalOrders === null ? "…" : totalOrders.toLocaleString("es-CO");
   const totalValue = orders.reduce((sum, item) => sum + numberValue(item.doc_total), 0);
   const totalItems = orders.reduce((sum, item) => sum + numberValue(item.line_items_count), 0);
   const averageTicket = orders.length > 0 ? totalValue / orders.length : 0;
-  const visibleStatuses = useMemo(() => new Set(orders.map((item) => orderStatusKey(item.order_status_code)).filter(Boolean)).size, [orders]);
+  const visibleStatuses = useMemo(
+    () => new Set(orders.map((item) => orderStatusKey(item.order_status_code)).filter(Boolean)).size,
+    [orders],
+  );
   const statusFilterOptions = useMemo(() => {
-    const keys: Set<string> = new Set(filterOptions.statuses.map(orderStatusKey).filter((item) => item === "open" || item === "closed"));
+    const keys: Set<string> = new Set(filterOptions.statuses.map((status) => orderStatusKey(status)).filter((key) => key === "open" || key === "closed"));
     const options = [
       { key: "open", label: "Abierto" },
       { key: "closed", label: "Cerrado" },
@@ -459,12 +462,12 @@ export default function Orders() {
             <div className="grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_14rem_15rem_auto]">
               <div className="relative">
                 <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
-                  <Search className="h-4 w-4" />
+                  <Search className="size-4" />
                 </button>
                 <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} placeholder="Buscar por orden, cliente, factura o producto" disabled={loadingInitial} className="pl-9 pr-9" />
                 {search && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>
@@ -479,7 +482,7 @@ export default function Orders() {
               </Select>
               <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
                 <SelectTrigger className="gap-2">
-                  <ArrowUpAZ className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <ArrowUpAZ className="size-4 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
@@ -494,7 +497,7 @@ export default function Orders() {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant={advancedFilterCount > 0 ? "default" : "outline"} className="justify-center gap-2 xl:min-w-24" disabled={loadingInitial}>
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="size-4" />
                     Filtros
                     {advancedFilterCount > 0 && <span className="rounded bg-background/20 px-1.5 text-xs">{advancedFilterCount}</span>}
                   </Button>
@@ -508,7 +511,7 @@ export default function Orders() {
                       </div>
                       {advancedFilterCount > 0 ? (
                         <Button variant="ghost" size="sm" onClick={clearFilters} disabled={loadingInitial} className="w-full gap-2 sm:w-auto">
-                          <X className="h-4 w-4" /> Limpiar todo
+                          <X className="size-4" /> Limpiar todo
                         </Button>
                       ) : null}
                     </div>
@@ -550,7 +553,7 @@ export default function Orders() {
                         </Select>
                       </FilterField>
                       <FilterField label="Plataforma">
-                        <Input value={originPlatform} onChange={(event) => setOriginPlatform(event.target.value)} disabled={loadingInitial} placeholder="SAP-B1, web..." />
+                        <Input value={originPlatform} onChange={(event) => setOriginPlatform(event.target.value)} disabled={loadingInitial} placeholder="SAP-B1, web…" />
                       </FilterField>
                       <FilterField label="Metodo de pago">
                         <Select value={paymentMethod} onValueChange={setPaymentMethod} disabled={loadingInitial}>
@@ -589,11 +592,11 @@ export default function Orders() {
                 {activeFilters.map((filter) => (
                   <button key={filter.key} type="button" onClick={filter.clear} disabled={loadingInitial} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
                     <span className="truncate">{filter.label}</span>
-                    <X className="h-3 w-3 shrink-0" />
+                    <X className="size-3 shrink-0" />
                   </button>
                 ))}
                 <button type="button" onClick={clearFilters} disabled={loadingInitial} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" /> Limpiar
+                  <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
@@ -606,12 +609,12 @@ export default function Orders() {
               </div>
             ) : orders.length === 0 ? (
               <div className="text-center py-12">
-                <ClipboardList className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                <ClipboardList className="size-12 text-muted-foreground/40 mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {activeFilters.length > 0 ? "No se encontraron ordenes con los filtros aplicados" : "No hay ordenes registradas"}
                 </p>
                 {activeFilters.length > 0 && (
-                  <Button className="mt-4" variant="outline" onClick={clearFilters}><X className="h-4 w-4 mr-2" />Limpiar filtros</Button>
+                  <Button className="mt-4" variant="outline" onClick={clearFilters}><X className="size-4 mr-2" />Limpiar filtros</Button>
                 )}
               </div>
             ) : (
@@ -635,7 +638,7 @@ export default function Orders() {
                           <Metric label="Canal" value={text(order.order_origin_channel)} />
                         </div>
                         <Button variant="outline" className="mt-3 w-full gap-2" onClick={() => setSelectedSummary(order)}>
-                          <Eye className="h-4 w-4" /> Ver detalle
+                          <Eye className="size-4" /> Ver detalle
                         </Button>
                       </div>
                     );
@@ -676,8 +679,8 @@ export default function Orders() {
                             <TableCell className="text-right font-semibold">{money(order.doc_total)}</TableCell>
                             <TableCell><Badge variant={statusInfo.variant}>{statusInfo.label}</Badge></TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedSummary(order)} title="Ver detalle">
-                                <Eye className="h-4 w-4" />
+                              <Button variant="ghost" size="icon" className="size-8" onClick={() => setSelectedSummary(order)} title="Ver detalle">
+                                <Eye className="size-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -692,8 +695,8 @@ export default function Orders() {
             <div ref={sentinelRef} className="h-px" aria-hidden="true" />
             {loadingMore && (
               <div className="flex items-center justify-center gap-2 py-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-medium text-foreground">Cargando siguiente lote...</span>
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="font-medium text-foreground">Cargando siguiente lote…</span>
               </div>
             )}
           </CardContent>
@@ -746,7 +749,7 @@ export default function Orders() {
                       <div className="grid items-stretch gap-3 lg:grid-cols-2">
                         <section className="rounded-md border bg-card p-4 shadow-sm">
                           <div className="mb-3 flex items-center gap-2">
-                            <ReceiptText className="h-4 w-4 text-primary" />
+                            <ReceiptText className="size-4 text-primary" />
                             <h3 className="font-semibold">Resumen operativo</h3>
                           </div>
                           <div className="grid gap-3 sm:grid-cols-2">
@@ -761,7 +764,7 @@ export default function Orders() {
 
                         <section className="rounded-md border bg-card p-4 shadow-sm">
                           <div className="mb-3 flex items-center gap-2">
-                            <Truck className="h-4 w-4 text-primary" />
+                            <Truck className="size-4 text-primary" />
                             <h3 className="font-semibold">Entrega</h3>
                           </div>
                           <div className="grid gap-3">
@@ -805,7 +808,7 @@ export default function Orders() {
                           </div>
                           {lineItems.map((item, index) => (
                             <div key={`${item.id ?? index}`} className="grid gap-3 border-t px-3 py-3 text-sm lg:grid-cols-[4rem_minmax(0,1fr)_6rem_7rem_7rem_6rem] lg:items-center lg:gap-0">
-                              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 font-mono text-xs font-bold text-primary">{text(item.line_num ?? index + 1)}</span>
+                              <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 font-mono text-xs font-bold text-primary">{text(item.line_num ?? index + 1)}</span>
                               <div className="min-w-0">
                                 <p className="truncate font-medium">{text(item.sold_product_name_at_order ?? item.sold_service_name, "Producto sin nombre")}</p>
                                 <div className="mt-1 flex flex-wrap gap-1.5">
@@ -866,7 +869,7 @@ function KpiCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-primary" />
+        <Icon className="size-4 text-primary" />
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -903,8 +906,8 @@ function FilterSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
         <p className="text-sm font-semibold">{title}</p>
       </div>
@@ -970,8 +973,8 @@ function OrderMetric({
           <p className="text-[11px] font-medium uppercase text-muted-foreground">{label}</p>
           <p className="mt-2 break-words text-xl font-bold leading-tight text-foreground">{value}</p>
         </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-4" />
         </span>
       </div>
       <p className="mt-3 break-words text-xs text-muted-foreground">{note}</p>
@@ -1001,7 +1004,7 @@ function InfoPanel({
   return (
     <div className="rounded-md border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-primary" />
+        <Icon className="size-4 text-primary" />
         <p className="font-semibold">{title}</p>
       </div>
       {visibleRows.length === 0 ? (

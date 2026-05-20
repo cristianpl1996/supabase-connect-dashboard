@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OtpBoxes } from "@/components/ui/otp-boxes";
-import { Eye, EyeOff, Loader2, AlertCircle, User, Lock } from "lucide-react";
+import { Eye, EyeOff, Loader2, AlertCircle, User, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import logoIco from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
@@ -69,7 +69,7 @@ export default function LoginPage() {
     setServerError(null);
     try {
       const result = await login({ username: values.username, password: values.password });
-      if (result?.otp_required) {
+      if (result?.otp_required && "otp_token" in result) {
         setOtpToken(result.otp_token);
         setOtpStep(true);
         setOtpAttempts(0);
@@ -138,7 +138,7 @@ export default function LoginPage() {
     setOtpError(null);
     try {
       const result = await login(pendingCredentials);
-      if (result?.otp_required) {
+      if (result?.otp_required && "otp_token" in result) {
         setOtpToken(result.otp_token);
         setOtpCode("");
         setResendCooldown(60);
@@ -316,15 +316,17 @@ export default function LoginPage() {
 
                 {serverError && (
                   <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                    <AlertCircle className="size-4 shrink-0 text-red-500" />
                     <span className="font-medium">{serverError}</span>
                   </div>
                 )}
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
                   <div className="space-y-1.5">
-                    <Label htmlFor="username" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                      <User className="h-3.5 w-3.5 text-gray-400" />
+                    <Label htmlFor="username" className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
+                        <User className="size-5" />
+                      </span>
                       Usuario
                     </Label>
                     <Input
@@ -337,14 +339,16 @@ export default function LoginPage() {
                     />
                     {errors.username && (
                       <p className="text-xs text-red-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />{errors.username.message}
+                        <AlertCircle className="size-3" />{errors.username.message}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                      <Lock className="h-3.5 w-3.5 text-gray-400" />
+                    <Label htmlFor="password" className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
+                        <Lock className="size-5" />
+                      </span>
                       Contraseña
                     </Label>
                     <div className="relative">
@@ -363,12 +367,12 @@ export default function LoginPage() {
                         tabIndex={-1}
                         aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
                     </div>
                     {errors.password && (
                       <p className="text-xs text-red-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />{errors.password.message}
+                        <AlertCircle className="size-3" />{errors.password.message}
                       </p>
                     )}
                   </div>
@@ -379,10 +383,23 @@ export default function LoginPage() {
                     style={{ background: isSubmitting ? undefined : "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : ""}
+                    {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : ""}
                     Iniciar sesión
                   </Button>
                 </form>
+                <div className="mt-6 grid gap-3 border-t pt-5 ">
+                  <div className="mt-2 rounded-md border bg-background/75 p-3">
+                    <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
+                      <AlertCircle className="size-10 text-primary" /> Si tus credenciales no funcionan, contacta a través de nuestros canales de comunicación.
+                    </p>
+                    <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
+                      <a href="mailto:marketing@ivanagro.com">
+                        <Mail className="size-4" />
+                        Contactanos
+                      </a>
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
@@ -397,7 +414,7 @@ export default function LoginPage() {
 
                 {otpError && (
                   <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                    <AlertCircle className="size-4 shrink-0 text-red-500" />
                     <span className="font-medium">{otpError}</span>
                   </div>
                 )}
@@ -409,12 +426,12 @@ export default function LoginPage() {
                   </div>
 
                   <Button
-                    onClick={onVerifyOtp}
+                    onClick={() => onVerifyOtp()}
                     disabled={otpCode.length !== 6 || otpLoading}
                     className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
                     style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
                   >
-                    {otpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {otpLoading ? <Loader2 className="size-4 animate-spin" /> : null}
                     Verificar código
                   </Button>
 
@@ -422,14 +439,13 @@ export default function LoginPage() {
                     type="button"
                     onClick={handleResendOtp}
                     disabled={resendCooldown > 0 || resendLoading}
-                    className={`w-full text-center text-sm font-semibold rounded-xl py-2.5 transition-colors border disabled:cursor-not-allowed ${
-                      resendCooldown > 0 || resendLoading
-                        ? "border-gray-300 text-gray-400 opacity-50"
-                        : "border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/5"
-                    }`}
+                    className={`w-full text-center text-sm font-semibold rounded-xl py-2.5 transition-colors border disabled:cursor-not-allowed ${resendCooldown > 0 || resendLoading
+                      ? "border-gray-300 text-gray-400 opacity-50"
+                      : "border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/5"
+                      }`}
                   >
                     {resendLoading
-                      ? "Reenviando..."
+                      ? "Reenviando…"
                       : resendCooldown > 0
                         ? `Reenviar código (${resendCooldown}s)`
                         : "Reenviar código"}
@@ -447,19 +463,7 @@ export default function LoginPage() {
             )}
           </div>
 
-          {/* Footer links */}
-          <div className="login-card-animate-delay flex items-center justify-center gap-1 mt-5 text-xs text-gray-400">
-            <span>¿Problemas para ingresar?</span>
-            <span className="text-gray-300">·</span>
-            <a
-              href="mailto:soporte@ivanagro.com"
-              className="font-medium text-[#0a963f] hover:text-[#087f35] transition-colors underline underline-offset-2"
-            >
-              Contáctanos
-            </a>
-          </div>
-
-          <p className="text-center text-[11px] text-gray-400 mt-3">
+          <p className="text-center text-[12px] text-gray-400 mt-5">
             © {new Date().getFullYear()} Ivanagro · Hubu
           </p>
 

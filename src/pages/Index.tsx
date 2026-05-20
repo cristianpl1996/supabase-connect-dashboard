@@ -40,13 +40,12 @@ const Index = () => {
     refetchOnWindowFocus: false,
   });
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+  const formatCurrency = (value: number) => new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 
   const dashboardDate = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
@@ -68,8 +67,8 @@ const Index = () => {
           {[1, 2, 3].map((i) => (
             <div key={i} className="rounded-lg border border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-start justify-between">
-                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                <div className="h-5 w-5 animate-pulse rounded bg-muted" />
+                <div className="size-40 animate-pulse rounded bg-muted" />
+                <div className="size-5 animate-pulse rounded bg-muted" />
               </div>
               <div className="mt-5 h-9 w-36 animate-pulse rounded bg-muted" />
               <div className="mt-3 h-3 w-28 animate-pulse rounded bg-muted/80" />
@@ -81,7 +80,7 @@ const Index = () => {
           {[1, 2].map((panel) => (
             <div key={panel} className="rounded-lg border border-border/50 bg-card p-6 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="h-5 w-5 animate-pulse rounded bg-muted" />
+                <div className="size-5 animate-pulse rounded bg-muted" />
                 <div className="h-6 w-56 animate-pulse rounded bg-muted" />
               </div>
               <div className="mt-2 h-4 w-72 max-w-full animate-pulse rounded bg-muted/80" />
@@ -106,7 +105,7 @@ const Index = () => {
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {[1, 2, 3].map((item) => (
               <div key={item} className="flex h-24 flex-col items-center justify-center gap-3 rounded-md border bg-background shadow-sm">
-                <div className="h-8 w-8 animate-pulse rounded bg-muted" />
+                <div className="size-8 animate-pulse rounded bg-muted" />
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
               </div>
             ))}
@@ -162,7 +161,7 @@ const Index = () => {
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Presupuesto Total Gestionado</CardTitle>
-              <TrendingUp className="h-5 w-5 text-primary" />
+              <TrendingUp className="size-5 text-primary" />
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{formatCurrency(kpis.total_budget_managed)}</p>
@@ -175,7 +174,7 @@ const Index = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Promociones Activas</CardTitle>
-              <Tag className="h-5 w-5 text-primary" />
+              <Tag className="size-5 text-primary" />
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{kpis.active_promotions_count}</p>
@@ -186,7 +185,7 @@ const Index = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Ejecucion Presupuestal</CardTitle>
-              <Percent className="h-5 w-5 text-primary" />
+              <Percent className="size-5 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="flex items-end gap-2">
@@ -205,7 +204,7 @@ const Index = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
+                <Clock className="size-5 text-primary" />
                 <CardTitle>Promociones por Vencer</CardTitle>
               </div>
               <CardDescription>Promociones que terminan en los proximos 7 dias</CardDescription>
@@ -213,15 +212,16 @@ const Index = () => {
             <CardContent>
               {expiringPromos.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <Clock className="size-10 mx-auto mb-2 opacity-30" />
                   <p>No hay promociones por vencer esta semana</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {expiringPromos.slice(0, 5).map((promo) => (
-                    <div
+                    <button
+                      type="button"
                       key={promo.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      className="flex w-full appearance-none items-center justify-between rounded-lg border-0 bg-muted/50 p-3 text-left font-[inherit] transition-colors cursor-pointer hover:bg-muted"
                       onClick={() => navigate("/promotions")}
                     >
                       <div className="flex-1 min-w-0">
@@ -231,11 +231,11 @@ const Index = () => {
                       <Badge variant={promo.days_left <= 2 ? "destructive" : "secondary"} className="ml-2 shrink-0">
                         {promo.days_left === 0 ? "Hoy" : promo.days_left === 1 ? "Manana" : `${promo.days_left} dias`}
                       </Badge>
-                    </div>
+                    </button>
                   ))}
                   {expiringPromos.length > 5 && (
                     <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => navigate("/promotions")}>
-                      Ver {expiringPromos.length - 5} mas <ArrowRight className="ml-2 h-4 w-4" />
+                      Ver {expiringPromos.length - 5} mas <ArrowRight className="ml-2 size-4" />
                     </Button>
                   )}
                 </div>
@@ -246,7 +246,7 @@ const Index = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <AlertTriangle className="size-5 text-destructive" />
                 <CardTitle>Semaforo de Presupuesto</CardTitle>
               </div>
               <CardDescription>Laboratorios con menos del 10% de saldo disponible</CardDescription>
@@ -254,15 +254,16 @@ const Index = () => {
             <CardContent>
               {criticalLabs.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <AlertTriangle className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <AlertTriangle className="size-10 mx-auto mb-2 opacity-30" />
                   <p>Todos los laboratorios tienen saldo suficiente</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {criticalLabs.slice(0, 5).map((lab) => (
-                    <div
+                    <button
+                      type="button"
                       key={lab.lab_id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-destructive/5 border border-destructive/20 hover:bg-destructive/10 transition-colors cursor-pointer"
+                      className="flex w-full appearance-none items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left font-[inherit] transition-colors cursor-pointer hover:bg-destructive/10"
                       onClick={() => navigate("/wallet")}
                     >
                       <div className="flex-1 min-w-0">
@@ -272,11 +273,11 @@ const Index = () => {
                       <Badge variant="destructive" className="ml-2 shrink-0">
                         {Math.max(0, Math.round(lab.percentage))}%
                       </Badge>
-                    </div>
+                    </button>
                   ))}
                   {criticalLabs.length > 5 && (
                     <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => navigate("/wallet")}>
-                      Ver {criticalLabs.length - 5} mas <ArrowRight className="ml-2 h-4 w-4" />
+                      Ver {criticalLabs.length - 5} mas <ArrowRight className="ml-2 size-4" />
                     </Button>
                   )}
                 </div>
@@ -297,7 +298,7 @@ const Index = () => {
                 className={quickActionButtonClass}
                 onClick={() => navigate("/promotions")}
               >
-                <Rocket className="h-8 w-8" />
+                <Rocket className="size-8" />
                 <span className="font-semibold">Nueva Promo</span>
               </Button>
 
@@ -306,7 +307,7 @@ const Index = () => {
                 className={quickActionButtonClass}
                 onClick={() => navigate("/plans")}
               >
-                <FileText className="h-8 w-8" />
+                <FileText className="size-8" />
                 <span className="font-semibold">Cargar Contrato</span>
               </Button>
 
@@ -315,7 +316,7 @@ const Index = () => {
                 className={quickActionButtonClass}
                 onClick={() => navigate("/marketing")}
               >
-                <Megaphone className="h-8 w-8" />
+                <Megaphone className="size-8" />
                 <span className="font-semibold">Crear Arte</span>
               </Button>
             </div>

@@ -25,8 +25,8 @@ export function ModuleErrorCard({
         <div className="border-l-4 border-destructive bg-destructive/5 p-4 dark:border-red-500 dark:bg-red-500/10 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive dark:bg-red-500/10 dark:text-red-300">
-                <AlertCircle className="h-5 w-5" />
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive dark:bg-red-500/10 dark:text-red-300">
+                <AlertCircle className="size-5" />
               </span>
               <div className="min-w-0 space-y-1">
                 <p className="text-base font-bold text-foreground">{title}</p>

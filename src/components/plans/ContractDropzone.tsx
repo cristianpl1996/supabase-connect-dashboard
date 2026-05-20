@@ -99,14 +99,14 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
         type="file"
         accept="application/pdf"
         onChange={handleInputChange}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        className="absolute inset-0 size-full cursor-pointer opacity-0"
         disabled={disabled || state === 'analyzing'}
       />
 
       <div className="pointer-events-none flex flex-col items-center gap-2 text-center">
         {state === 'idle' && (
           <>
-            <Upload className="h-8 w-8 text-muted-foreground" />
+            <Upload className="size-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">Arrastra tu contrato PDF aqui</p>
             <p className="text-xs text-muted-foreground">o haz clic para seleccionar un archivo</p>
           </>
@@ -114,22 +114,22 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
 
         {state === 'dragover' && (
           <>
-            <Upload className="h-8 w-8 animate-bounce text-primary" />
+            <Upload className="size-8 animate-bounce text-primary" />
             <p className="text-sm font-medium text-primary">Suelta el archivo aqui</p>
           </>
         )}
 
         {state === 'analyzing' && (
           <>
-            <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
-            <p className="text-sm font-medium text-amber-700">Analizando el archivo PDF...</p>
+            <Loader2 className="size-8 animate-spin text-amber-600" />
+            <p className="text-sm font-medium text-amber-700">Analizando el archivo PDF…</p>
             <p className="text-xs text-amber-600">{fileName}</p>
           </>
         )}
 
         {state === 'success' && (
           <>
-            <CheckCircle2 className="h-8 w-8 text-green-600" />
+            <CheckCircle2 className="size-8 text-green-600" />
             <p className="text-sm font-medium text-green-700">Contrato analizado</p>
             <p className="text-xs text-green-600">{fileName} - Revisa los datos abajo</p>
             <button
@@ -147,7 +147,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
 
         {state === 'error' && (
           <>
-            <AlertCircle className="h-8 w-8 text-destructive" />
+            <AlertCircle className="size-8 text-destructive" />
             <p className="text-sm font-medium text-destructive">Error al analizar</p>
             <p className="text-xs text-destructive/80">{errorMessage}</p>
             <button
