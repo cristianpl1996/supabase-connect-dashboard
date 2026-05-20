@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Laboratory, LaboratoryWalletView, createWalletAdjustment, getLaboratoryWallet, listLaboratories } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +29,7 @@ export default function WalletPage() {
   const { user } = useAuth();
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
   const [selectedLabId, setSelectedLabId] = useState<string>('');
-  const [selectedLabName, setSelectedLabName] = useState<string>('');
+  const selectedLabNameRef = useRef<string>('');
   const [walletView, setWalletView] = useState<LaboratoryWalletView | null>(null);
   const [isLoadingLabs, setIsLoadingLabs] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,12 +50,12 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (!selectedLabId) {
-      setSelectedLabName('');
+      selectedLabNameRef.current = '';
       setWalletView(null);
       return;
     }
     const laboratory = laboratories.find((lab) => lab.id === selectedLabId);
-    setSelectedLabName(laboratory?.name || '');
+    selectedLabNameRef.current = laboratory?.name || '';
     void fetchWalletData(selectedLabId);
   }, [selectedLabId, laboratories]);
 
@@ -84,7 +84,7 @@ export default function WalletPage() {
     try {
       const data = await getLaboratoryWallet(labId);
       setWalletView(data);
-      setSelectedLabName(data.laboratory.name);
+      selectedLabNameRef.current = data.laboratory.name;
     } catch (error) {
       console.error('Error fetching wallet data:', error);
       setLoadError(formatApiErrorMessage(error));
@@ -151,7 +151,7 @@ export default function WalletPage() {
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Laboratorio: ${selectedLabName}`, 14, 35);
+      doc.text(`Laboratorio: ${selectedLabNameRef.current}`, 14, 35);
       doc.text(`Fecha de emision: ${format(new Date(), "dd 'de' MMMM, yyyy", { locale: es })}`, 14, 42);
       doc.setDrawColor(200);
       doc.line(14, 48, pageWidth - 14, 48);
@@ -217,7 +217,7 @@ export default function WalletPage() {
         styles: { fontSize: 9 },
       });
 
-      doc.save(`estado-cuenta-${selectedLabName.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      doc.save(`estado-cuenta-${selectedLabNameRef.current.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
 
       toast({
         title: 'PDF generado',

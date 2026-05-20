@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -586,11 +586,11 @@ export default function ECommerce() {
 
   // OTP step
   const [otpStep, setOtpStep] = useState(false);
-  const [otpToken, setOtpToken] = useState("");
+  const otpTokenRef = useRef("");
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const [otpAttempts, setOtpAttempts] = useState(0);
+  const otpAttemptsRef = useRef(0);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [phoneHint, setPhoneHint] = useState<string | null>(null);
@@ -806,7 +806,7 @@ export default function ECommerce() {
     setOtpError(null);
     setOtpLoading(true);
     try {
-      const sessionResult = await verifyEcommerceOtp({ otp_token: otpToken, code });
+      const sessionResult = await verifyEcommerceOtp({ otp_token: otpTokenRef.current, code });
       setOtpStep(false);
       setOtpCode("");
       setSession(sessionResult);
@@ -817,8 +817,8 @@ export default function ECommerce() {
         duration: 3000,
       });
     } catch {
-      const newAttempts = otpAttempts + 1;
-      setOtpAttempts(newAttempts);
+      const newAttempts = otpAttemptsRef.current + 1;
+      otpAttemptsRef.current = newAttempts;
       if (newAttempts >= 3) {
         toast.error("Demasiados intentos fallidos", {
           description: "Por seguridad, debes ingresar tu NIT nuevamente.",
@@ -827,7 +827,7 @@ export default function ECommerce() {
         setOtpStep(false);
         setOtpCode("");
         setOtpError(null);
-        setOtpAttempts(0);
+        otpAttemptsRef.current = 0;
         setResendCooldown(0);
       } else {
         setOtpError("Código incorrecto. Intenta de nuevo.");
@@ -844,7 +844,7 @@ export default function ECommerce() {
     try {
       const next = await createEcommerceSession(nit.trim());
       if ("otp_required" in next && next.otp_required) {
-        setOtpToken(next.otp_token);
+        otpTokenRef.current = next.otp_token;
         setOtpCode("");
         setResendCooldown(60);
         setPhoneHint(next.phone_hint ?? null);
@@ -867,9 +867,9 @@ export default function ECommerce() {
     try {
       const next = await createEcommerceSession(nit.trim());
       if ("otp_required" in next && next.otp_required) {
-        setOtpToken(next.otp_token);
+        otpTokenRef.current = next.otp_token;
         setOtpStep(true);
-        setOtpAttempts(0);
+        otpAttemptsRef.current = 0;
         setResendCooldown(60);
         setPhoneHint(next.phone_hint ?? null);
         setSessionLoading(false);
@@ -1196,7 +1196,7 @@ export default function ECommerce() {
 
                     <button
                       type="button"
-                      onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); setOtpAttempts(0); setResendCooldown(0); }}
+                      onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); otpAttemptsRef.current = 0; setResendCooldown(0); }}
                       className="w-full text-center text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-muted-foreground rounded-xl py-2.5 transition-colors"
                     >
                       Volver al inicio de sesión
@@ -2267,7 +2267,7 @@ function EcommercePagination({ currentPage, totalPages, totalProducts, onPageCha
           </PaginationItem>
           {pages.map((page, idx) =>
             page === "ellipsis" ? (
-              <PaginationItem key={`el-${idx}`}><PaginationEllipsis /></PaginationItem>
+              <PaginationItem key={`ellipsis-${idx > 0 ? pages[idx - 1] : "start"}-${idx < pages.length - 1 ? pages[idx + 1] : "end"}`}><PaginationEllipsis /></PaginationItem>
             ) : (
               <PaginationItem key={page}>
                 <PaginationLink href="#" onClick={(e) => { e.preventDefault(); onPageChange(page); }} isActive={page === currentPage}>{page}</PaginationLink>

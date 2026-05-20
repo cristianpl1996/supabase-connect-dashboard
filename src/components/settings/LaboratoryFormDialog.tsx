@@ -16,6 +16,8 @@ import type { Laboratory, LaboratoryFormData } from '@/hooks/useLaboratories';
 import { listSupabaseBrands, type SupabaseBrand } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
+const EMPTY_USED_EXTERNAL_BRAND_IDS: number[] = [];
+
 interface LaboratoryFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,7 +30,7 @@ export function LaboratoryFormDialog({
   open,
   onOpenChange,
   laboratory,
-  usedExternalBrandIds = [],
+  usedExternalBrandIds = EMPTY_USED_EXTERNAL_BRAND_IDS,
   onSubmit,
 }: LaboratoryFormDialogProps) {
   const [externalBrandId, setExternalBrandId] = useState<number | null>(null);

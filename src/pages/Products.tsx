@@ -271,7 +271,7 @@ export default function Products() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+  const hasMoreRef = useRef(false);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState({ brands: [] as string[], categories: [] as string[] });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -334,7 +334,7 @@ export default function Products() {
         });
         return next;
       });
-      setHasMore(total === null ? batch.length === PAGE_SIZE : offset + batch.length < total);
+      hasMoreRef.current = total === null ? batch.length === PAGE_SIZE : offset + batch.length < total;
     } catch (err) {
       setError(formatApiErrorMessage(err));
       if (mode === "reset") {
@@ -376,14 +376,14 @@ export default function Products() {
     if (!target) return;
 
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && hasMore && !loadingInitial && !loadingMore) {
+      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
         void fetchPage(products.length, "append");
       }
     }, { rootMargin: "240px" });
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [fetchPage, hasMore, loadingInitial, loadingMore, products.length]);
+  }, [fetchPage, loadingInitial, loadingMore, products.length]);
 
   const brands = filterOptions.brands;
   const categories = filterOptions.categories;
@@ -945,7 +945,7 @@ export default function Products() {
                               {selectedPriceLists.map((row, index) => {
                                 const price = numberValue(row.sap_price);
                                 return (
-                                  <TableRow key={index}>
+                                  <TableRow key={`${row.sap_price_list || "price-list"}-${price}`}>
                                     <TableCell className="py-2.5">
                                       <Badge variant="outline" className="font-mono text-xs font-normal">
                                         Lista {formatField(row.sap_price_list)}

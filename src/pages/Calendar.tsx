@@ -283,8 +283,8 @@ const Calendar = () => {
         <CardContent className="px-4 pb-6">
           {loading ? (
             <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-10 bg-muted animate-pulse rounded" />
+              {["week-1", "week-2", "week-3", "week-4", "week-5"].map((slot) => (
+                <div key={slot} className="h-10 bg-muted animate-pulse rounded" />
               ))}
             </div>
           ) : (

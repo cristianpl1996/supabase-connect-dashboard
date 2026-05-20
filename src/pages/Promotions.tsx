@@ -58,7 +58,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secon
 
 const MECHANIC_LABELS: Record<string, string> = {
   descuento_linea: 'Descuento en Linea',
-  bonificacion_cantidad: 'Bonificacion X+N',
+  bonificacion_cantidad: 'Bonificacion (Precio Cero)',
   precio_especial: 'Precio Especial',
   descuento_volumen: 'Descuento por Volumen',
   bonificacion_volumen: 'Bonificacion por Volumen',
@@ -492,7 +492,7 @@ const Promotions = () => {
           </CardHeader>
           <CardContent className="px-4 pb-5 pt-0 sm:px-5">
             {loading ? (
-              <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}</div>
+                <div className="space-y-3">{["promotion-1", "promotion-2", "promotion-3"].map((slot) => <div key={slot} className="h-12 bg-muted animate-pulse rounded" />)}</div>
             ) : filteredPromotions.length === 0 ? (
               <div className="text-center py-12">
                 <Tag className="size-12 text-muted-foreground/40 mx-auto mb-4" />

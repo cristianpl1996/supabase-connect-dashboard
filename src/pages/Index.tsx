@@ -64,8 +64,8 @@ const Index = () => {
         />
 
         <div className="grid gap-4 md:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-lg border border-border/50 bg-card p-5 shadow-sm">
+          {["summary", "activity", "execution"].map((slot) => (
+            <div key={slot} className="rounded-lg border border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="size-40 animate-pulse rounded bg-muted" />
                 <div className="size-5 animate-pulse rounded bg-muted" />

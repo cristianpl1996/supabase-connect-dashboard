@@ -114,6 +114,18 @@ const formFocusClasses = [
   '[&_[role=combobox]:focus]:!ring-offset-0',
 ].join(' ');
 
+const requiredProductKeys = new WeakMap<RequiredPromotionProduct, string>();
+let requiredProductKeyCounter = 0;
+
+function requiredProductKey(item: RequiredPromotionProduct) {
+  const existing = requiredProductKeys.get(item);
+  if (existing) return existing;
+  requiredProductKeyCounter += 1;
+  const key = `required-product-${requiredProductKeyCounter}`;
+  requiredProductKeys.set(item, key);
+  return key;
+}
+
 function buildSegmentPresetConfig(segment: string): Record<string, unknown> {
   switch (segment) {
     case 'with_purchases':
@@ -194,8 +206,6 @@ export function PromotionFormSheet({
   const [catalogProducts, setCatalogProducts] = useState<ProductCatalogItem[]>([]);
   const [loadingProductOptions, setLoadingProductOptions] = useState(false);
   const [loadingCustomerOptions, setLoadingCustomerOptions] = useState(false);
-  const [productOptionsHasMore, setProductOptionsHasMore] = useState(false);
-  const [customerOptionsHasMore, setCustomerOptionsHasMore] = useState(false);
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
   const productListRef = useRef<HTMLDivElement>(null);
@@ -203,7 +213,9 @@ export function PromotionFormSheet({
   const customerOffsetRef = useRef(0);
   const productSearchRef = useRef('');
   const customerSearchRef = useRef('');
-  const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(resetMechanicForPromotionType(''));
+  const productOptionsHasMoreRef = useRef(false);
+  const customerOptionsHasMoreRef = useRef(false);
+  const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(() => resetMechanicForPromotionType(''));
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
   const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
@@ -447,7 +459,7 @@ export function PromotionFormSheet({
   const PAGE = 10;
 
   useEffect(() => {
-    if (!open) { setProductOptions([]); setProductOptionsHasMore(false); return; }
+    if (!open) { setProductOptions([]); productOptionsHasMoreRef.current = false; return; }
     const term = productSearch.trim();
     if (term.length === 1) return;
     productSearchRef.current = term;
@@ -464,10 +476,10 @@ export function PromotionFormSheet({
           is_discontinued: false,
         });
         setProductOptions(res);
-        setProductOptionsHasMore(res.length === PAGE);
+        productOptionsHasMoreRef.current = res.length === PAGE;
       } catch {
         setProductOptions([]);
-        setProductOptionsHasMore(false);
+        productOptionsHasMoreRef.current = false;
       } finally {
         setLoadingProductOptions(false);
       }
@@ -476,7 +488,7 @@ export function PromotionFormSheet({
   }, [open, productSearch]);
 
   const loadMoreProducts = useCallback(async () => {
-    if (loadingMoreProducts || !productOptionsHasMore) return;
+    if (loadingMoreProducts || !productOptionsHasMoreRef.current) return;
     const nextOffset = productOffsetRef.current + PAGE;
     productOffsetRef.current = nextOffset;
     setLoadingMoreProducts(true);
@@ -489,16 +501,16 @@ export function PromotionFormSheet({
         is_discontinued: false,
       });
       setProductOptions((prev) => [...prev, ...res]);
-      setProductOptionsHasMore(res.length === PAGE);
+      productOptionsHasMoreRef.current = res.length === PAGE;
     } catch {
-      setProductOptionsHasMore(false);
+      productOptionsHasMoreRef.current = false;
     } finally {
       setLoadingMoreProducts(false);
     }
-  }, [loadingMoreProducts, productOptionsHasMore]);
+  }, [loadingMoreProducts]);
 
   useEffect(() => {
-    if (!open || scope !== 'customers') { setCustomerOptions([]); setCustomerOptionsHasMore(false); return; }
+    if (!open || scope !== 'customers') { setCustomerOptions([]); customerOptionsHasMoreRef.current = false; return; }
     const term = customerSearch.trim();
     if (term.length === 1) return;
     customerSearchRef.current = term;
@@ -517,10 +529,10 @@ export function PromotionFormSheet({
         const data = res.data ?? [];
         const total = listTotal(res);
         setCustomerOptions(data);
-        setCustomerOptionsHasMore(total === null ? data.length === PAGE : data.length < total);
+        customerOptionsHasMoreRef.current = total === null ? data.length === PAGE : data.length < total;
       } catch {
         setCustomerOptions([]);
-        setCustomerOptionsHasMore(false);
+        customerOptionsHasMoreRef.current = false;
       } finally {
         setLoadingCustomerOptions(false);
       }
@@ -529,7 +541,7 @@ export function PromotionFormSheet({
   }, [customerSearch, open, scope]);
 
   const loadMoreCustomers = useCallback(async () => {
-    if (loadingMoreCustomers || !customerOptionsHasMore) return;
+    if (loadingMoreCustomers || !customerOptionsHasMoreRef.current) return;
     const nextOffset = customerOffsetRef.current + PAGE;
     customerOffsetRef.current = nextOffset;
     setLoadingMoreCustomers(true);
@@ -544,13 +556,13 @@ export function PromotionFormSheet({
       const data = res.data ?? [];
       const total = listTotal(res);
       setCustomerOptions((prev) => [...prev, ...data]);
-      setCustomerOptionsHasMore(total === null ? data.length === PAGE : customerOffsetRef.current + data.length < total);
+      customerOptionsHasMoreRef.current = total === null ? data.length === PAGE : customerOffsetRef.current + data.length < total;
     } catch {
-      setCustomerOptionsHasMore(false);
+      customerOptionsHasMoreRef.current = false;
     } finally {
       setLoadingMoreCustomers(false);
     }
-  }, [loadingMoreCustomers, customerOptionsHasMore]);
+  }, [loadingMoreCustomers]);
 
   const resetForm = () => {
     setLabId('');
@@ -586,8 +598,8 @@ export function PromotionFormSheet({
     setCustomerSearch('');
     setProductOptions([]);
     setCustomerOptions([]);
-    setProductOptionsHasMore(false);
-    setCustomerOptionsHasMore(false);
+    productOptionsHasMoreRef.current = false;
+    customerOptionsHasMoreRef.current = false;
     setProductNameMap({});
     setCustomerNameMap({});
     setMechanicState(resetMechanicForPromotionType(''));
@@ -1305,7 +1317,7 @@ export function PromotionFormSheet({
                             <Label>Producto bonificado</Label>
                             <Select value={mechanicState.mechanic.bonus_product_type || 'same_product'} onValueChange={(v) => updateMechanic({ bonus_product_type: v as 'same_product' | 'different_product', bonus_product_id: null, bonus_product_name: null })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>{BONUS_PRODUCT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                              <SelectContent>{BONUS_PRODUCT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           {mechanicState.mechanic.bonus_product_type === 'different_product' && (
@@ -1432,7 +1444,7 @@ export function PromotionFormSheet({
                             </div>
                             <div className="space-y-3">
                               {(mechanicState.mechanic.required_products || []).map((item, index) => (
-                                <div key={`${item.product_id}-${index}`} className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
+                                <div key={requiredProductKey(item)} className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
                                   <SearchableSelect value={item.product_id || 'all'} onValueChange={(v) => updateRequiredProduct(index, { product_id: v === 'all' ? '' : v, product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" />
                                   <Input type="number" min={1} step={1} placeholder="Cant. min." value={item.minimum_quantity || ''} onChange={(e) => updateRequiredProduct(index, { minimum_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                                   <Button type="button" variant="ghost" size="sm" onClick={() => removeRequiredProduct(index)}>Eliminar</Button>

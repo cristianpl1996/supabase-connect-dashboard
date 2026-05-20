@@ -285,7 +285,7 @@ export default function Customers() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+  const hasMoreRef = useRef(false);
   const [totalCustomers, setTotalCustomers] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState({
     businessTypes: [] as string[],
@@ -393,7 +393,7 @@ export default function Customers() {
         });
         return next;
       });
-      setHasMore(offset + batch.length < total);
+      hasMoreRef.current = offset + batch.length < total;
     } catch (err) {
       setError(formatApiErrorMessage(err));
       if (mode === "reset") setCustomers([]);
@@ -444,13 +444,13 @@ export default function Customers() {
     if (!target) return;
     const observer = new IntersectionObserver((entries) => {
       const [entry] = entries;
-      if (entry.isIntersecting && hasMore && !loadingInitial && !loadingMore) {
+      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
         fetchPage(customers.length, "append");
       }
     }, { rootMargin: "500px" });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [customers.length, fetchPage, hasMore, loadingInitial, loadingMore]);
+  }, [customers.length, fetchPage, loadingInitial, loadingMore]);
 
   const businessTypes = filterOptions.businessTypes;
   const clvSegments = filterOptions.clvSegments;
@@ -1039,7 +1039,7 @@ export default function Customers() {
                             <span className="text-right">Revenue</span>
                           </div>
                           {topProducts.map((product, index) => (
-                            <div key={`${product.product_commercial_name}-${index}`} className="grid grid-cols-[2.5rem_1fr_5rem_7rem] items-center border-t px-3 py-2.5">
+                            <div key={`${product.product_commercial_name || "product"}-${product.product_brand_name || "brand"}-${numeric(product.total_units)}-${numeric(product.total_revenue)}`} className="grid grid-cols-[2.5rem_1fr_5rem_7rem] items-center border-t px-3 py-2.5">
                               <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{product.product_commercial_name || "Producto"}</p>

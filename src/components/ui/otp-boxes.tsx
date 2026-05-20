@@ -40,7 +40,7 @@ export function OtpBoxes({ value, onChange, onComplete }: {
 
   const box = (i: number) => (
     <input
-      key={i}
+      key={`otp-box-${i}`}
       ref={el => { refs.current[i] = el; }}
       type="text"
       inputMode="numeric"

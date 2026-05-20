@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -32,13 +32,13 @@ export default function LoginPage() {
 
   // OTP state
   const [otpStep, setOtpStep] = useState(false);
-  const [otpToken, setOtpToken] = useState("");
+  const otpTokenRef = useRef("");
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const [otpAttempts, setOtpAttempts] = useState(0);
+  const otpAttemptsRef = useRef(0);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [pendingCredentials, setPendingCredentials] = useState<{ username: string; password: string } | null>(null);
+  const pendingCredentialsRef = useRef<{ username: string; password: string } | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
   const [phoneHint, setPhoneHint] = useState<string | null>(null);
 
@@ -70,12 +70,12 @@ export default function LoginPage() {
     try {
       const result = await login({ username: values.username, password: values.password });
       if (result?.otp_required && "otp_token" in result) {
-        setOtpToken(result.otp_token);
+        otpTokenRef.current = result.otp_token;
         setOtpStep(true);
-        setOtpAttempts(0);
+        otpAttemptsRef.current = 0;
         setResendCooldown(60);
         setPhoneHint(result.phone_hint ?? null);
-        setPendingCredentials({ username: values.username, password: values.password });
+        pendingCredentialsRef.current = { username: values.username, password: values.password };
         toast.success("Código enviado", {
           description: "Se envió un código de 6 dígitos a tu teléfono registrado.",
           duration: 4000,
@@ -102,7 +102,7 @@ export default function LoginPage() {
     setOtpError(null);
     setOtpLoading(true);
     try {
-      const res = await verifyOtp({ otp_token: otpToken, code });
+      const res = await verifyOtp({ otp_token: otpTokenRef.current, code });
       finalizeOtpLogin(res.access_token, res.user);
       toast.success("Código verificado", {
         description: "Bienvenido al backoffice de Ivanagro.",
@@ -110,8 +110,8 @@ export default function LoginPage() {
       });
       navigate(from, { replace: true });
     } catch (err) {
-      const newAttempts = otpAttempts + 1;
-      setOtpAttempts(newAttempts);
+      const newAttempts = otpAttemptsRef.current + 1;
+      otpAttemptsRef.current = newAttempts;
       if (newAttempts >= 3) {
         toast.error("Demasiados intentos fallidos", {
           description: "Por seguridad, debes iniciar sesión nuevamente.",
@@ -120,7 +120,7 @@ export default function LoginPage() {
         setOtpStep(false);
         setOtpCode("");
         setOtpError(null);
-        setOtpAttempts(0);
+        otpAttemptsRef.current = 0;
         setResendCooldown(0);
       } else {
         setOtpError(
@@ -133,13 +133,13 @@ export default function LoginPage() {
   };
 
   const handleResendOtp = async () => {
-    if (!pendingCredentials || resendCooldown > 0 || resendLoading) return;
+    if (!pendingCredentialsRef.current || resendCooldown > 0 || resendLoading) return;
     setResendLoading(true);
     setOtpError(null);
     try {
-      const result = await login(pendingCredentials);
+      const result = await login(pendingCredentialsRef.current);
       if (result?.otp_required && "otp_token" in result) {
-        setOtpToken(result.otp_token);
+        otpTokenRef.current = result.otp_token;
         setOtpCode("");
         setResendCooldown(60);
         toast.success("Código reenviado", {
@@ -280,8 +280,8 @@ export default function LoginPage() {
           { top: "68%", left: "72%", size: 5, delay: "3s", dur: "7s" },
           { top: "80%", left: "40%", size: 3, delay: "0.8s", dur: "5.5s" },
           { top: "30%", left: "80%", size: 4, delay: "2s", dur: "8s" },
-        ].map((p, i) => (
-          <div key={i} style={{
+        ].map((p) => (
+          <div key={`${p.top}-${p.left}-${p.delay}`} style={{
             position: "absolute", top: p.top, left: p.left,
             width: `${p.size}px`, height: `${p.size}px`, borderRadius: "50%",
             background: "rgba(255,255,255,0.55)",
@@ -453,7 +453,7 @@ export default function LoginPage() {
 
                   <button
                     type="button"
-                    onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); setOtpAttempts(0); setResendCooldown(0); }}
+                    onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); otpAttemptsRef.current = 0; setResendCooldown(0); }}
                     className="w-full text-center text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 hover:border-gray-400 rounded-xl py-2.5 transition-colors"
                   >
                     Volver al inicio de sesión

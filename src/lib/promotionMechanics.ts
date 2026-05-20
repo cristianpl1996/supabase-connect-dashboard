@@ -12,7 +12,7 @@ import type {
 
 export const PROMOTION_TYPE_OPTIONS: Array<{ value: PromotionType; label: string; helpText?: string }> = [
   { value: "descuento_linea", label: "Descuento en Linea", helpText: "Descuento directo sobre todos los productos seleccionados, sin condiciones adicionales." },
-  { value: "bonificacion_cantidad", label: "Bonificacion X+N (Precio Cero)", helpText: "Compra X unidades y lleva N gratis al precio cero. Ideal para 10+1, 20+2, etc." },
+  { value: "bonificacion_cantidad", label: "Bonificacion (Precio Cero)", helpText: "Compra X unidades y lleva N gratis al precio cero. Ideal para 10+1, 20+2, etc." },
   { value: "precio_especial", label: "Precio Especial", helpText: "Precio pactado para un producto de la seleccion." },
   { value: "descuento_volumen", label: "Descuento por Volumen", helpText: "Descuento al alcanzar un monto o cantidad minima de compra." },
   { value: "bonificacion_volumen", label: "Bonificacion por Volumen", helpText: "Producto gratis al alcanzar un minimo de compra." },
@@ -40,9 +40,9 @@ export const BUNDLE_RULE_OPTIONS: Array<{ value: BundleRule; label: string }> = 
   { value: "any_required", label: "Puede comprar cualquiera de los productos" },
 ];
 
-export const BONUS_PRODUCT_TYPE_OPTIONS: Array<{ value: BonusProductType; label: string }> = [
+export const BONUS_PRODUCT_TYPE_OPTIONS: Array<{ value: BonusProductType; label: string; disabled?: boolean }> = [
   { value: "same_product", label: "Mismo producto" },
-  { value: "different_product", label: "Otro producto" },
+  { value: "different_product", label: "Otro producto", disabled: true },
 ];
 
 export interface PromotionMechanicFormState {

@@ -120,8 +120,8 @@ export function LocationPopup({ customer: c, repColor }: LocationPopupProps) {
               <ShoppingBag className="size-3" /> Top productos
             </p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-              {c.customer_top_purchased_products_snapshot.slice(0, 6).map((p, i) => (
-                <div key={i} className="flex justify-between gap-1 text-[10px]">
+              {c.customer_top_purchased_products_snapshot.slice(0, 6).map((p) => (
+                <div key={`${p.product}-${p.quantity}`} className="flex justify-between gap-1 text-[10px]">
                   <span className="text-gray-600 truncate">{p.product}</span>
                   <span className="shrink-0 font-semibold text-gray-700">×{p.quantity}</span>
                 </div>

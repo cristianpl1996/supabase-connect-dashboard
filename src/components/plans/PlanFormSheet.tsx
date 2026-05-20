@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPlan, getPlan, updatePlan } from '@/lib/api';
 import { Laboratory, AnnualPlan, PlanFund } from '@/types/database';
 import {
@@ -67,7 +67,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   const [year, setYear] = useState(currentYear + 1);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
-  const [aiExtractedData, setAiExtractedData] = useState<Record<string, unknown> | null>(null);
+  const aiExtractedDataRef = useRef<Record<string, unknown> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFunds, setIsLoadingFunds] = useState(false);
 
@@ -77,7 +77,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
       setLabNameFromAI('');
       setYear(editingPlan.year);
       setPurchaseGoal(editingPlan.total_purchase_goal || 0);
-      setAiExtractedData(editingPlan.ai_extracted_data ?? null);
+      aiExtractedDataRef.current = editingPlan.ai_extracted_data ?? null;
 
       const fetchPlan = async () => {
         setIsLoadingFunds(true);
@@ -130,7 +130,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
     setYear(result.year || currentYear + 1);
     setPurchaseGoal(result.annual_goal || 0);
-    setAiExtractedData(result as unknown as Record<string, unknown>);
+    aiExtractedDataRef.current = result as unknown as Record<string, unknown>;
 
     const mappedFunds: PlanFundInput[] = [];
     const addAIFund = (concept: string, amount_type: 'fijo' | 'porcentaje', amount_value: number) => {
@@ -166,8 +166,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   }, [laboratories, currentYear]);
 
   const addFund = () => {
-    setFunds([
-      ...funds,
+    setFunds((prev) => [
+      ...prev,
       {
         id: crypto.randomUUID(),
         concept: FUND_CONCEPTS[0].value,
@@ -208,7 +208,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
-    setAiExtractedData(null);
+    aiExtractedDataRef.current = null;
   };
 
   const handleSubmit = async () => {
@@ -238,7 +238,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
         year,
         name: `Plan Comercial ${lab?.name || 'Lab'} ${year}`,
         total_purchase_goal: purchaseGoal,
-        ai_extracted_data: aiExtractedData,
+        ai_extracted_data: aiExtractedDataRef.current,
         funds: funds.map((fund) => ({
           id: fund.dbId,
           concept: fund.concept,

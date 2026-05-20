@@ -371,8 +371,8 @@ const Plans = () => {
           <CardContent>
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+                {["plan-1", "plan-2", "plan-3"].map((slot) => (
+                  <div key={slot} className="h-12 bg-muted animate-pulse rounded" />
                 ))}
               </div>
             ) : filteredPlans.length === 0 ? (

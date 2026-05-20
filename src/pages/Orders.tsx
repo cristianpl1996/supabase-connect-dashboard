@@ -211,7 +211,7 @@ export default function Orders() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+  const hasMoreRef = useRef(false);
   const [totalOrders, setTotalOrders] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState({
     statuses: [] as string[],
@@ -286,7 +286,7 @@ export default function Orders() {
         });
         return next;
       });
-      setHasMore(total === null ? batch.length === PAGE_SIZE : offset + batch.length < total);
+      hasMoreRef.current = total === null ? batch.length === PAGE_SIZE : offset + batch.length < total;
     } catch (err) {
       setError(formatApiErrorMessage(err));
       if (mode === "reset") {
@@ -328,13 +328,13 @@ export default function Orders() {
     const target = sentinelRef.current;
     if (!target) return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && hasMore && !loadingInitial && !loadingMore) {
+      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
         void fetchPage(orders.length, "append");
       }
     }, { rootMargin: "260px" });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [fetchPage, hasMore, loadingInitial, loadingMore, orders.length]);
+  }, [fetchPage, loadingInitial, loadingMore, orders.length]);
 
   useEffect(() => {
     if (!selectedSummary) {
