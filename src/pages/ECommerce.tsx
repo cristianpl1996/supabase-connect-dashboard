@@ -1961,7 +1961,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
           {hasError
             ? <>Mostrando <span className="text-foreground">0</span> de <span className="text-foreground">0</span> productos</>
             : totalProducts === null
-              ? <Skeleton className="inline-block size-40 align-middle" />
+              ? <Skeleton className="inline-block h-4 w-48 align-middle" />
               : <>Mostrando <span className="text-foreground">{from}–{to}</span> de <span className="text-foreground">{totalProducts.toLocaleString("es-CO")}</span> productos</>}
         </div>
         <div className="flex items-center gap-2">
@@ -2307,13 +2307,36 @@ function EcommerceSkeletonGrid({ viewMode }: { viewMode: "grid" | "list" }) {
     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex flex-col overflow-hidden rounded-lg border bg-card dark:bg-muted/20">
-          <Skeleton className="h-40 w-full rounded-none dark:bg-muted/60" />
-          <div className="flex flex-col gap-3 p-4">
-            <div className="flex gap-1"><Skeleton className="h-5 w-20 rounded-full dark:bg-muted/60" /><Skeleton className="h-5 w-16 rounded-full dark:bg-muted/60" /></div>
-            <Skeleton className="h-4 w-full dark:bg-muted/60" /><Skeleton className="h-4 w-3/4 dark:bg-muted/60" />
-            <Skeleton className="h-6 w-28 mt-1 dark:bg-muted/60" />
-            <div className="flex items-center justify-between mt-1"><Skeleton className="h-3 w-10 dark:bg-muted/60" /><Skeleton className="h-5 w-20 rounded-full dark:bg-muted/60" /></div>
-            <div className="grid grid-cols-[2.5rem_1fr] gap-2 pt-1"><Skeleton className="size-10 rounded-md dark:bg-muted/60" /><Skeleton className="h-10 rounded-md dark:bg-muted/60" /></div>
+          <div className="relative">
+            <Skeleton className="h-44 w-full rounded-none" />
+            <Skeleton className="absolute right-2 top-2 h-4 w-20 rounded" />
+          </div>
+          <div className="p-3 space-y-3">
+            {/* nombre */}
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            {/* marca + badge */}
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            {/* precio */}
+            <div className="space-y-1">
+              <Skeleton className="h-7 w-24" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            {/* inventario */}
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-14" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            {/* botones */}
+            <div className="grid grid-cols-[2rem_1fr] gap-2">
+              <Skeleton className="h-9 rounded-md" />
+              <Skeleton className="h-9 rounded-md" />
+            </div>
           </div>
         </div>
       ))}

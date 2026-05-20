@@ -213,9 +213,6 @@ const Settings = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <Users className="size-12 mx-auto mb-4 opacity-30" />
                   <p>No hay usuarios registrados</p>
-                  <p className="text-sm mt-1">
-                    Invita a tu equipo para colaborar en la plataforma
-                  </p>
                 </div>
               ) : (
                 <>

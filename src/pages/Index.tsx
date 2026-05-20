@@ -63,56 +63,49 @@ const Index = () => {
           description={<>Panorama general de todos los laboratorios {"\u2022"} {dashboardDate}</>}
         />
 
+        {/* KPI cards \u2014 label arriba, n\u00famero grande, nota abajo, icono arriba-derecha */}
         <div className="grid gap-4 md:grid-cols-3">
-          {["summary", "activity", "execution"].map((slot) => (
+          {["a", "b", "c"].map((slot) => (
             <div key={slot} className="rounded-lg border border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-start justify-between">
-                <div className="size-40 animate-pulse rounded bg-muted" />
-                <div className="size-5 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-40 animate-pulse rounded bg-muted/80" />
+                <div className="size-4 animate-pulse rounded bg-muted" />
               </div>
-              <div className="mt-5 h-9 w-36 animate-pulse rounded bg-muted" />
-              <div className="mt-3 h-3 w-28 animate-pulse rounded bg-muted/80" />
+              <div className="mt-4 h-9 w-48 animate-pulse rounded bg-muted" />
+              <div className="mt-2 h-3 w-28 animate-pulse rounded bg-muted/60" />
             </div>
           ))}
         </div>
 
+        {/* Paneles \u2014 t\u00edtulo + subt\u00edtulo + \u00e1rea de contenido vac\u00eda */}
         <div className="grid gap-6 lg:grid-cols-2">
           {[1, 2].map((panel) => (
             <div key={panel} className="rounded-lg border border-border/50 bg-card p-6 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="size-5 animate-pulse rounded bg-muted" />
-                <div className="h-6 w-56 animate-pulse rounded bg-muted" />
+                <div className="size-4 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-48 animate-pulse rounded bg-muted" />
               </div>
-              <div className="mt-2 h-4 w-72 max-w-full animate-pulse rounded bg-muted/80" />
-              <div className="mt-6 space-y-3">
-                {[1, 2, 3, 4].map((row) => (
-                  <div key={row} className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                      <div className="h-3 w-1/3 animate-pulse rounded bg-muted/80" />
-                    </div>
-                    <div className="ml-4 h-6 w-14 animate-pulse rounded-full bg-muted" />
-                  </div>
-                ))}
+              <div className="mt-1 h-3 w-64 max-w-full animate-pulse rounded bg-muted/60" />
+              <div className="mt-8 flex h-24 items-center justify-center rounded-md bg-muted/20">
+                <div className="h-3 w-40 animate-pulse rounded bg-muted/60" />
               </div>
             </div>
           ))}
         </div>
 
+        {/* Accesos Rapidos */}
         <div className="rounded-lg border border-border/50 bg-card p-6 shadow-sm">
-          <div className="h-6 w-40 animate-pulse rounded bg-muted" />
-          <div className="mt-2 h-4 w-56 animate-pulse rounded bg-muted/80" />
+          <div className="h-5 w-36 animate-pulse rounded bg-muted" />
+          <div className="mt-1 h-3 w-28 animate-pulse rounded bg-muted/60" />
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {[1, 2, 3].map((item) => (
-              <div key={item} className="flex h-24 flex-col items-center justify-center gap-3 rounded-md border bg-background shadow-sm">
-                <div className="size-8 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              <div key={item} className="flex h-20 flex-col items-center justify-center gap-2 rounded-md border bg-background shadow-sm">
+                <div className="size-5 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-20 animate-pulse rounded bg-muted/80" />
               </div>
             ))}
           </div>
         </div>
-
-        <div className="mx-auto h-3 w-64 animate-pulse rounded bg-muted/80" />
       </div>
     );
   }
