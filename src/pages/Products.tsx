@@ -1134,7 +1134,7 @@ function ProductExternalMedia({
       <div className="grid gap-0 lg:grid-cols-[12.5rem_1fr]">
         <div
           className={cn(
-            "flex min-h-[11.5rem] w-full items-center justify-center overflow-hidden border-b lg:border-b-0 lg:border-r",
+            "flex h-52 w-full items-center justify-center overflow-hidden border-b lg:h-auto lg:min-h-[13rem] lg:border-b-0 lg:border-r",
             showImage ? "bg-white" : "bg-muted/30",
           )}
         >
@@ -1142,7 +1142,7 @@ function ProductExternalMedia({
             <img
               src={imageUrl!}
               alt={text(catalogProduct.product_commercial_name, "Producto")}
-              className="h-full w-full object-contain p-3"
+              className="h-44 w-44 cursor-default object-contain p-2 transition-transform duration-300 ease-out hover:scale-125"
               onError={() => setImageLoadFailed(true)}
             />
           ) : (

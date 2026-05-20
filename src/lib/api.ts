@@ -61,6 +61,9 @@ async function publicApiFetch<T>(path: string, options: RequestInit = {}, ecomme
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message = body?.detail ?? body?.message ?? `Error ${res.status}`;
+    if (res.status === 401) {
+      window.dispatchEvent(new Event("ivanagro:ecommerce_unauthorized"));
+    }
     throw new ApiError(res.status, typeof message === "string" ? message : JSON.stringify(message));
   }
 
@@ -90,12 +93,34 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
   user: AuthUser;
+  otp_required?: boolean;
 }
 
-export function login(credentials: LoginRequest): Promise<TokenResponse> {
-  return apiFetch<TokenResponse>("/api/v1/auth/login", {
+export interface OtpChallengeResponse {
+  otp_required: true;
+  otp_token: string;
+  expires_at: string;
+  phone_hint?: string;
+}
+
+export type LoginResponse = TokenResponse | OtpChallengeResponse;
+
+export function login(credentials: LoginRequest): Promise<LoginResponse> {
+  return apiFetch<LoginResponse>("/api/v1/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
+  });
+}
+
+export interface OtpVerifyRequest {
+  otp_token: string;
+  code: string;
+}
+
+export function verifyOtp(payload: OtpVerifyRequest): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>("/api/v1/auth/login/verify-otp", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -117,6 +142,15 @@ export interface EcommerceSession {
   expires_at: string;
   customer: EcommerceCustomer;
 }
+
+export interface EcommerceOtpChallenge {
+  otp_required: true;
+  otp_token: string;
+  expires_at: string;
+  phone_hint?: string;
+}
+
+export type EcommerceSessionOrChallenge = EcommerceSession | EcommerceOtpChallenge;
 
 export interface EcommerceProduct {
   product_sku: string;
@@ -187,6 +221,8 @@ export interface EcommerceCheckoutPayload {
   contact_phone: string;
   contact_email?: string;
   delivery_address: string;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
   payment_method?: string;
   observations?: string;
 }
@@ -199,12 +235,21 @@ export interface EcommerceOrderDraft {
   items: EcommerceCartQuoteItem[];
   subtotal: number;
   total: number;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
 }
 
-export function createEcommerceSession(customer_government_id: string): Promise<EcommerceSession> {
-  return publicApiFetch<ApiDetailResponse<EcommerceSession>>("/api/v1/e-commerce/session", {
+export function createEcommerceSession(customer_government_id: string): Promise<EcommerceSessionOrChallenge> {
+  return publicApiFetch<ApiDetailResponse<EcommerceSessionOrChallenge>>("/api/v1/e-commerce/session", {
     method: "POST",
     body: JSON.stringify({ customer_government_id }),
+  }).then((res) => res.data);
+}
+
+export function verifyEcommerceOtp(payload: { otp_token: string; code: string }): Promise<EcommerceSession> {
+  return publicApiFetch<ApiDetailResponse<EcommerceSession>>("/api/v1/e-commerce/session/verify-otp", {
+    method: "POST",
+    body: JSON.stringify(payload),
   }).then((res) => res.data);
 }
 
@@ -244,6 +289,38 @@ export function checkoutEcommerce(token: string, payload: EcommerceCheckoutPaylo
     method: "POST",
     body: JSON.stringify(payload),
   }, token).then((res) => res.data);
+}
+
+export interface EcommerceOrderItem {
+  line_number: number;
+  product_sku: string;
+  product_name?: string | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+}
+
+export interface EcommerceMyOrder {
+  id: string;
+  reference: string;
+  status: string;
+  subtotal: number;
+  total: number;
+  contact_name?: string | null;
+  delivery_address?: string | null;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
+  items_count: number;
+  items: EcommerceOrderItem[];
+  created_at: string;
+}
+
+export function listMyEcommerceOrders(token: string, limit = 20, offset = 0): Promise<ApiListResponse<EcommerceMyOrder>> {
+  return publicApiFetch<ApiListResponse<EcommerceMyOrder>>(
+    withQuery("/api/v1/e-commerce/my-orders", { limit, offset }),
+    {},
+    token,
+  );
 }
 
 // ─── Generic paginated response ───────────────────────────────────────────────

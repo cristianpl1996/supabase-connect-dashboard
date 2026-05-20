@@ -7,18 +7,28 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  CreditCard,
+  LocateFixed,
   LayoutGrid,
   List,
   LogOut,
   Loader2,
   LockKeyhole,
   Mail,
+  MapPinned,
+  MapPin,
+  MessageSquareText,
   Moon,
   Minus,
   Package,
+  PhoneCall,
   Plus,
   ScanLine,
   Search,
+  ShieldCheck,
+  ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
@@ -39,18 +49,25 @@ import logoIcon from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
 import bgImage2 from "@/assets/background2.png";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
+import { OtpBoxes } from "@/components/ui/otp-boxes";
 import {
   checkoutEcommerce,
   createEcommerceSession,
   EcommerceCartItemInput,
   EcommerceCartQuote,
+  EcommerceMyOrder,
   EcommerceProduct,
   EcommerceSession,
   getEcommerceFilterOptions,
   getEcommerceProductsPage,
+  listMyEcommerceOrders,
   listTotal,
   quoteEcommerceCart,
+  verifyEcommerceOtp,
 } from "@/lib/api";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { formatApiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -85,10 +102,79 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  filterEcommerceOrders,
+  getEcommerceOrderStateLabel,
+  getItemCountLabel,
+  type OrderStateFilter,
+} from "./ecommerceOrderUtils";
+
+// Fix Leaflet default icon paths broken by Vite bundler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: new URL("leaflet/dist/images/marker-icon-2x.png", import.meta.url).href,
+  iconUrl: new URL("leaflet/dist/images/marker-icon.png", import.meta.url).href,
+  shadowUrl: new URL("leaflet/dist/images/marker-shadow.png", import.meta.url).href,
+});
+
+const ivanagreenIcon = L.divIcon({
+  className: "",
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    <path d="M14 0C6.27 0 0 6.27 0 14c0 9.75 14 22 14 22S28 23.75 28 14C28 6.27 21.73 0 14 0z" fill="#16a34a"/>
+    <circle cx="14" cy="14" r="6" fill="#fff"/>
+  </svg>`,
+  iconSize: [28, 36],
+  iconAnchor: [14, 36],
+  popupAnchor: [0, -36],
+});
+
+function MapClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
+  return null;
+}
+
+function DeliveryMapPicker({
+  lat,
+  lng,
+  onSelect,
+}: {
+  lat: number | null;
+  lng: number | null;
+  onSelect: (lat: number, lng: number) => void;
+}) {
+  const center: [number, number] = lat != null && lng != null ? [lat, lng] : [4.5709, -74.2973];
+  const markerPos: [number, number] | null = lat != null && lng != null ? [lat, lng] : null;
+  return (
+    <MapContainer
+      key={`${lat}-${lng}`}
+      center={center}
+      zoom={lat != null ? 15 : 6}
+      style={{ height: "100%", width: "100%" }}
+      scrollWheelZoom
+      zoomControl
+    >
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <MapClickHandler onPick={onSelect} />
+      {markerPos && <Marker position={markerPos} icon={ivanagreenIcon} />}
+    </MapContainer>
+  );
+}
 
 const PAGE_SIZE = 48;
 const SESSION_KEY = "ivanagro_ecommerce_session";
 const CART_KEY = "ivanagro_ecommerce_cart";
+
+export type CheckoutFormState = {
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  delivery_address: string;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  payment_method: string;
+  observations: string;
+};
 
 function money(value: unknown) {
   return new Intl.NumberFormat("es-CO", {
@@ -139,6 +225,356 @@ function loadStoredCart(): EcommerceCartItemInput[] {
   }
 }
 
+type CheckoutDialogProps = {
+  open: boolean;
+  form: CheckoutFormState;
+  quote: EcommerceCartQuote | null;
+  cartCount: number;
+  checkoutLoading: boolean;
+  checkoutError: string | null;
+  onOpenChange: (open: boolean) => void;
+  onChange: (field: keyof CheckoutFormState, value: string | number | null) => void;
+  onSubmit: (event: React.FormEvent) => void;
+};
+
+const paymentOptions = [
+  "PSE",
+  "Transferencia bancaria",
+  "Tarjeta de credito",
+  "Tarjeta debito",
+  "Nequi",
+  "Daviplata",
+  "Contra entrega",
+  "Efectivo",
+  "Credito autorizado",
+  "Por definir",
+];
+
+export function CheckoutDialog({
+  open,
+  form,
+  quote,
+  cartCount,
+  checkoutLoading,
+  checkoutError,
+  onOpenChange,
+  onChange,
+  onSubmit,
+}: CheckoutDialogProps) {
+  const [mapOpen, setMapOpen] = useState(false);
+  const total = quote?.total ?? 0;
+  const productLabel = cartCount === 1 ? "1 producto listo para validar" : `${cartCount} productos listos para validar`;
+  const hasQuoteErrors = Boolean(quote?.errors?.length);
+  const isCheckoutReady = Boolean(
+    form.contact_name.trim()
+    && form.contact_phone.trim()
+    && form.contact_email.trim()
+    && form.delivery_address.trim()
+    && form.payment_method.trim(),
+  );
+  const hasDeliveryCoordinates = form.delivery_latitude !== null && form.delivery_longitude !== null;
+  const useCurrentLocation = () => {
+    navigator.geolocation?.getCurrentPosition((position) => {
+      onChange("delivery_latitude", position.coords.latitude);
+      onChange("delivery_longitude", position.coords.longitude);
+    });
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[92vh] max-h-[92vh] overflow-hidden rounded-lg border-white/40 p-0 shadow-[0_28px_90px_-38px_rgba(0,0,0,.85)] [&>button.absolute]:hidden sm:max-w-5xl">
+        <div className="grid h-full grid-rows-[auto_1fr] overflow-hidden rounded-lg bg-[#f8faf8] md:grid-cols-[1.12fr_0.88fr] md:grid-rows-none dark:bg-background">
+          <aside
+            className="relative min-h-[13rem] overflow-hidden border-b p-5 text-white md:order-2 md:min-h-0 md:rounded-r-lg md:border-b-0 md:border-l md:p-6"
+            style={{
+              backgroundImage: `linear-gradient(152deg, rgba(5, 46, 32, 0.9) 0%, rgba(10, 91, 55, 0.82) 52%, rgba(22, 101, 52, 0.62) 100%), url(${bgImage2 || bgImage})`,
+              backgroundPosition: "center",
+              backgroundSize: "cover",
+            }}
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,.14),transparent_28%),linear-gradient(180deg,transparent,rgba(0,0,0,.12))]" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">Checkout</p>
+                <DialogTitle className="mt-2 text-2xl font-bold leading-tight text-white">Finalizar pedido</DialogTitle>
+                <DialogDescription className="mt-2 max-w-sm text-sm leading-relaxed text-white/82">
+                  Validaremos precio, inventario y condiciones comerciales antes de enviar la orden.
+                </DialogDescription>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/25 bg-white/12 backdrop-blur">
+                <ClipboardCheck className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="relative mt-5 rounded-md border border-white/20 bg-white/14 p-4 shadow-[0_22px_70px_-42px_rgba(0,0,0,.9)] backdrop-blur-md">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-white/72">{productLabel}</p>
+                  <p className="mt-1 text-[2rem] font-bold leading-none tracking-tight">{money(total)}</p>
+                </div>
+                <Badge className="border-white/20 bg-white/14 text-white hover:bg-white/14">Borrador</Badge>
+              </div>
+              <Separator className="my-3.5 bg-white/18" />
+              <div className="space-y-2.5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Resumen del pedido</p>
+                {quote?.items?.length ? (
+                  <div className="space-y-2.5">
+                    {quote.items.slice(0, 4).map((item) => (
+                      <div key={`${item.sku}-${item.line_number}`} className="grid grid-cols-[1fr_auto] gap-3 text-sm">
+                        <div>
+                          <p className="line-clamp-2 font-medium text-white">{text(item.product_name, item.sku)}</p>
+                          <p className="mt-0.5 text-xs text-white/58">SKU {item.sku} · Cant. {item.quantity}</p>
+                        </div>
+                        <p className="font-semibold">{money(item.line_total)}</p>
+                      </div>
+                    ))}
+                    {quote.items.length > 4 && (
+                      <p className="text-xs text-white/60">+ {quote.items.length - 4} productos adicionales</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/68">El total se recalculara con el inventario vigente.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="relative mt-4 grid gap-2.5 text-sm font-medium text-white/82">
+              <div className="flex items-center gap-2.5 rounded-md bg-black/10 px-3 py-2 ring-1 ring-white/10 backdrop-blur">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-white" />
+                Stock y precios confirmados
+              </div>
+              <div className="flex items-center gap-2.5 rounded-md bg-black/10 px-3 py-2 ring-1 ring-white/10 backdrop-blur">
+                <Truck className="h-4 w-4 shrink-0 text-white" />
+                Entrega segura y validada
+              </div>
+              <Button
+                type="submit"
+                form="checkout-order-form"
+                className="mt-1 h-12 w-full gap-2 rounded-md bg-white font-bold text-emerald-950 shadow-[0_18px_40px_-28px_rgba(0,0,0,.95)] hover:bg-white/90"
+                disabled={checkoutLoading || !isCheckoutReady}
+              >
+                {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Enviar orden
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-md border-white/55 bg-emerald-950/35 font-bold text-white shadow-[0_14px_32px_-28px_rgba(0,0,0,.95)] hover:bg-emerald-950/50 hover:text-white"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </aside>
+
+          <form id="checkout-order-form" className="flex min-h-0 flex-col bg-[#f8faf8] md:order-1 dark:bg-[#15161b]" onSubmit={onSubmit}>
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3.5 pr-5 md:p-4 md:pr-6">
+              <CheckoutSection
+                eyebrow="Paso 1"
+                title="Datos de contacto"
+                description="Usaremos estos datos para coordinar el envio de la orden."
+                icon={<UserRound className="h-4 w-4" />}
+              >
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                  <CheckoutInput
+                    id="checkout-contact-name"
+                    label="Nombre contacto"
+                    value={form.contact_name}
+                    onChange={(value) => onChange("contact_name", value)}
+                    icon={<UserRound className="h-4 w-4" />}
+                    required
+                  />
+                  <CheckoutInput
+                    id="checkout-contact-phone"
+                    label="Celular"
+                    value={form.contact_phone}
+                    onChange={(value) => onChange("contact_phone", value)}
+                    icon={<PhoneCall className="h-4 w-4" />}
+                    required
+                  />
+                </div>
+                <CheckoutInput
+                  id="checkout-contact-email"
+                  label="Email"
+                  type="email"
+                  value={form.contact_email}
+                  onChange={(value) => onChange("contact_email", value)}
+                  icon={<Mail className="h-4 w-4" />}
+                />
+              </CheckoutSection>
+
+              <CheckoutSection
+                eyebrow="Paso 2"
+                title="Entrega"
+                description="Incluye la direccion exacta para evitar reprocesos con logistica."
+                icon={<MapPin className="h-4 w-4" />}
+              >
+                <CheckoutInput
+                  id="checkout-delivery-address"
+                  label="Direccion entrega"
+                  value={form.delivery_address}
+                  onChange={(value) => onChange("delivery_address", value)}
+                  icon={<MapPin className="h-4 w-4" />}
+                  required
+                />
+                <div className="rounded-md border border-dashed bg-muted/28 p-2.5 dark:border-white/12 dark:bg-black/16">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 w-full justify-start gap-2 rounded-md bg-background text-left font-semibold dark:bg-[#111217]"
+                    onClick={() => setMapOpen((value) => !value)}
+                  >
+                    <MapPinned className="h-4 w-4 text-primary" />
+                    {mapOpen ? "Cerrar mapa" : "Marcar direccion en el mapa"}
+                  </Button>
+                  {mapOpen && (
+                    <div className="mt-2.5 overflow-hidden rounded-md border bg-background shadow-[0_14px_30px_-26px_rgba(15,23,42,.7)] dark:border-white/12 dark:bg-[#111217]">
+                      <div className="h-56 w-full" style={{ cursor: "crosshair" }}>
+                        <DeliveryMapPicker
+                          lat={form.delivery_latitude}
+                          lng={form.delivery_longitude}
+                          onSelect={(lat, lng) => {
+                            onChange("delivery_latitude", lat);
+                            onChange("delivery_longitude", lng);
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2 border-t p-2.5 text-xs text-muted-foreground dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          {hasDeliveryCoordinates
+                            ? `Lat ${form.delivery_latitude?.toFixed(6)} | Long ${form.delivery_longitude?.toFixed(6)}`
+                            : "Haz clic en el mapa para marcar el punto de entrega"}
+                        </span>
+                        <Button type="button" size="sm" className="h-8 gap-2 rounded-md" onClick={useCurrentLocation}>
+                          <LocateFixed className="h-3.5 w-3.5" />
+                          Usar mi ubicacion actual
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CheckoutSection>
+
+              <CheckoutSection
+                eyebrow="Paso 3"
+                title="Pago y observaciones"
+                description="Selecciona la condicion esperada y deja notas para el asesor."
+                icon={<CreditCard className="h-4 w-4" />}
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="checkout-payment-method">Metodo de pago</Label>
+                  <Select value={form.payment_method} onValueChange={(value) => onChange("payment_method", value)}>
+                    <SelectTrigger id="checkout-payment-method" aria-label="Metodo de pago" className="h-11">
+                      <SelectValue placeholder="Seleccionar metodo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentOptions.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="checkout-observations">Observaciones</Label>
+                  <div className="relative">
+                    <MessageSquareText className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <Textarea
+                      id="checkout-observations"
+                      className="min-h-[72px] resize-none pl-9"
+                      value={form.observations}
+                      onChange={(event) => onChange("observations", event.target.value)}
+                      placeholder="Notas adicionales"
+                    />
+                  </div>
+                </div>
+              </CheckoutSection>
+
+              {(checkoutError || hasQuoteErrors) && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  <div className="flex gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      {checkoutError && <p>{checkoutError}</p>}
+                      {quote?.errors?.map((error) => <p key={`${error.sku}-${error.message}`}>{error.sku}: {error.message}</p>)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CheckoutSection({
+  eyebrow,
+  title,
+  description,
+  icon,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-md border bg-card p-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,.7)] dark:border-white/12 dark:bg-[#202126] dark:shadow-[0_18px_44px_-34px_rgba(0,0,0,.95)]">
+      <div className="mb-3 flex items-start gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10">
+          {icon}
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
+          <h3 className="mt-0.5 text-base font-semibold leading-tight">{title}</h3>
+          <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{description}</p>
+      </div>
+      </div>
+      <div className="space-y-2.5">{children}</div>
+    </section>
+  );
+}
+
+function CheckoutInput({
+  id,
+  label,
+  value,
+  onChange,
+  icon,
+  type = "text",
+  required = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  icon: React.ReactNode;
+  type?: React.HTMLInputTypeAttribute;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          {icon}
+        </div>
+        <Input
+          id={id}
+          type={type}
+          className="h-11 pl-9"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+        />
+      </div>
+    </div>
+  );
+}
+
 const ECOMMERCE_THEME_KEY = "ecommerce-theme";
 
 export default function ECommerce() {
@@ -147,6 +583,29 @@ export default function ECommerce() {
   const [nit, setNit] = useState("");
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
+
+  // OTP step
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpToken, setOtpToken] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpAttempts, setOtpAttempts] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [phoneHint, setPhoneHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    const prev = document.title;
+    document.title = "Ivanagro - E-Commerce";
+    return () => { document.title = prev; };
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   const [products, setProducts] = useState<EcommerceProduct[]>([]);
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
@@ -175,11 +634,21 @@ export default function ECommerce() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [orderReference, setOrderReference] = useState<string | null>(null);
-  const [checkoutForm, setCheckoutForm] = useState({
+
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [orders, setOrders] = useState<EcommerceMyOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [orderStateFilter, setOrderStateFilter] = useState<OrderStateFilter>("all");
+  const [orderDateFrom, setOrderDateFrom] = useState("");
+  const [orderDateTo, setOrderDateTo] = useState("");
+  const [checkoutForm, setCheckoutForm] = useState<CheckoutFormState>({
     contact_name: "",
     contact_phone: "",
     contact_email: "",
     delivery_address: "",
+    delivery_latitude: null,
+    delivery_longitude: null,
     payment_method: "",
     observations: "",
   });
@@ -187,6 +656,17 @@ export default function ECommerce() {
   const token = session?.ecommerce_token ?? "";
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const isDarkTheme = resolvedTheme === "dark";
+
+  const hydrateCheckoutForm = useCallback((currentSession = session) => {
+    if (!currentSession) return;
+    setCheckoutForm((prev) => ({
+      ...prev,
+      contact_name: prev.contact_name || text(currentSession.customer.name, ""),
+      contact_phone: prev.contact_phone || text(currentSession.customer.phone, ""),
+      contact_email: prev.contact_email || text(currentSession.customer.email, ""),
+      delivery_address: prev.delivery_address || text(currentSession.customer.address, ""),
+    }));
+  }, [session]);
 
   // Login screen always light; restore user preference when session is active
   useEffect(() => {
@@ -198,6 +678,10 @@ export default function ECommerce() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  useEffect(() => {
+    hydrateCheckoutForm();
+  }, [hydrateCheckoutForm]);
   const brandOptions = useMemo(
     () => filters.brands.map((item) => String(item ?? "").trim()).filter(Boolean),
     [filters.brands],
@@ -205,6 +689,10 @@ export default function ECommerce() {
   const categoryOptions = useMemo(
     () => filters.categories.map((item) => String(item ?? "").trim()).filter(Boolean),
     [filters.categories],
+  );
+  const productsBySku = useMemo(
+    () => new Map(products.map((product) => [product.product_sku, product])),
+    [products],
   );
 
   const sortParams = useMemo(() => {
@@ -228,6 +716,11 @@ export default function ECommerce() {
     if (withPriceOnly) chips.push({ key: "price", label: "Solo con precio", clear: () => setWithPriceOnly(false) });
     return chips;
   }, [search, brand, category, inStockOnly, withPriceOnly]);
+
+  const filteredOrders = useMemo(
+    () => filterEcommerceOrders(orders, { state: orderStateFilter, dateFrom: orderDateFrom, dateTo: orderDateTo }),
+    [orders, orderStateFilter, orderDateFrom, orderDateTo],
+  );
 
   const fetchProducts = useCallback(async (page: number) => {
     if (!token) return;
@@ -307,23 +800,87 @@ export default function ECommerce() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleVerifyEcommerceOtp = async (codeOverride?: string) => {
+    const code = codeOverride ?? otpCode;
+    if (code.length !== 6) return;
+    setOtpError(null);
+    setOtpLoading(true);
+    try {
+      const sessionResult = await verifyEcommerceOtp({ otp_token: otpToken, code });
+      setOtpStep(false);
+      setOtpCode("");
+      setSession(sessionResult);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionResult));
+      hydrateCheckoutForm(sessionResult);
+      toast.success("Cliente validado correctamente", {
+        description: `Bienvenido al e-commerce, ${text(sessionResult.customer.name, "cliente")}.`,
+        duration: 3000,
+      });
+    } catch {
+      const newAttempts = otpAttempts + 1;
+      setOtpAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        toast.error("Demasiados intentos fallidos", {
+          description: "Por seguridad, debes ingresar tu NIT nuevamente.",
+          duration: 4000,
+        });
+        setOtpStep(false);
+        setOtpCode("");
+        setOtpError(null);
+        setOtpAttempts(0);
+        setResendCooldown(0);
+      } else {
+        setOtpError("Código incorrecto. Intenta de nuevo.");
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendEcommerceOtp = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setOtpError(null);
+    try {
+      const next = await createEcommerceSession(nit.trim());
+      if ("otp_required" in next && next.otp_required) {
+        setOtpToken(next.otp_token);
+        setOtpCode("");
+        setResendCooldown(60);
+        setPhoneHint(next.phone_hint ?? null);
+        toast.success("Código reenviado", {
+          description: "Se envió un nuevo código a tu teléfono.",
+          duration: 3000,
+        });
+      }
+    } catch {
+      toast.error("No se pudo reenviar el código. Intenta de nuevo.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const startSession = async (event: React.FormEvent) => {
     event.preventDefault();
     setSessionLoading(true);
     setSessionError(null);
     try {
       const next = await createEcommerceSession(nit.trim());
-      setSession(next);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-      setCheckoutForm((prev) => ({
-        ...prev,
-        contact_name: text(next.customer.name, ""),
-        contact_phone: text(next.customer.phone, ""),
-        contact_email: text(next.customer.email, ""),
-        delivery_address: text(next.customer.address, ""),
-      }));
+      if ("otp_required" in next && next.otp_required) {
+        setOtpToken(next.otp_token);
+        setOtpStep(true);
+        setOtpAttempts(0);
+        setResendCooldown(60);
+        setPhoneHint(next.phone_hint ?? null);
+        setSessionLoading(false);
+        return;
+      }
+      const session = next as EcommerceSession;
+      setSession(session);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      hydrateCheckoutForm(session);
       toast.success("Cliente validado correctamente", {
-        description: `Bienvenido al e-commerce, ${text(next.customer.name, "cliente")}.`,
+        description: `Bienvenido al e-commerce, ${text(session.customer.name, "cliente")}.`,
         duration: 3000,
       });
     } catch (error) {
@@ -342,6 +899,54 @@ export default function ECommerce() {
     setQuote(null);
     setOrderReference(null);
   };
+
+  const openOrders = async () => {
+    setOrdersOpen(true);
+    setOrdersLoading(true);
+    try {
+      const res = await listMyEcommerceOrders(token);
+      const nextOrders = res.data ?? [];
+      setOrders(nextOrders);
+      setExpandedOrderId(nextOrders[0]?.id ?? null);
+    } catch {
+      setOrders([]);
+      setExpandedOrderId(null);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      toast.error("Sesión expirada", {
+        description: "Tu sesión ha expirado. Por favor ingresa nuevamente.",
+        duration: 4000,
+      });
+      resetSession();
+    };
+    window.addEventListener("ivanagro:ecommerce_unauthorized", handleSessionExpired);
+    return () => window.removeEventListener("ivanagro:ecommerce_unauthorized", handleSessionExpired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Proactive session expiry timer — reacts to session changes
+  useEffect(() => {
+    if (!session?.expires_at) return;
+    const msUntilExpiry = new Date(session.expires_at).getTime() - Date.now();
+    if (msUntilExpiry <= 0) {
+      resetSession();
+      return;
+    }
+    const timer = setTimeout(() => {
+      toast.error("Sesión expirada", {
+        description: "Tu sesión ha expirado. Por favor ingresa nuevamente.",
+        duration: 4000,
+      });
+      resetSession();
+    }, msUntilExpiry);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.expires_at]);
 
   const addToCart = (product: EcommerceProduct) => {
     if (!product.can_add_to_cart) return;
@@ -368,6 +973,11 @@ export default function ECommerce() {
     setProductDetailOpen(true);
   };
 
+  const openCheckout = () => {
+    hydrateCheckoutForm();
+    setCheckoutOpen(true);
+  };
+
   const submitCheckout = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!token) return;
@@ -380,6 +990,8 @@ export default function ECommerce() {
         contact_phone: checkoutForm.contact_phone,
         contact_email: checkoutForm.contact_email || undefined,
         delivery_address: checkoutForm.delivery_address,
+        delivery_latitude: checkoutForm.delivery_latitude,
+        delivery_longitude: checkoutForm.delivery_longitude,
         payment_method: checkoutForm.payment_method || undefined,
         observations: checkoutForm.observations || undefined,
       });
@@ -468,62 +1080,129 @@ export default function ECommerce() {
 
             <section className="flex flex-col overflow-hidden rounded-lg border bg-card shadow-[0_24px_70px_-48px_rgba(0,0,0,.6)]">
               <div className="flex flex-1 flex-col justify-center bg-[linear-gradient(135deg,hsl(var(--primary)/0.10),transparent_55%)] p-5 sm:p-7">
-                <div className="mb-6 space-y-5">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.08))] text-primary shadow-[0_16px_36px_-24px_hsl(var(--primary))] ring-1 ring-primary/15">
-                    <UserRound className="h-7 w-7" strokeWidth={2.2} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Acceso de cliente</h2>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Valida tu cuenta comercial y entra al catalogo con precios personalizados.
-                    </p>
-                  </div>
-                </div>
 
-                <form className="space-y-4" onSubmit={startSession}>
-                  {sessionError && (
-                    <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                      <AlertCircle className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
-                      <span className="font-medium">{sessionError}</span>
+                {!otpStep ? (
+                  <>
+                    <div className="mb-6 space-y-5">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.08))] text-primary shadow-[0_16px_36px_-24px_hsl(var(--primary))] ring-1 ring-primary/15">
+                        <UserRound className="h-7 w-7" strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Acceso de cliente</h2>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          Valida tu cuenta comercial y entra al catálogo con precios personalizados.
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor="nit">NIT / documento</Label>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <ScanLine className="h-4.5 w-4.5" />
-                      </span>
-                      <Input
-                        id="nit"
-                        value={nit}
-                        onChange={(event) => setNit(event.target.value)}
-                        placeholder="Ej: CN901235357"
-                        className="h-12 bg-background pl-12 text-base shadow-sm"
-                        autoComplete="off"
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="h-12 w-full gap-2 text-sm font-bold shadow-[0_18px_42px_-28px_hsl(var(--primary))]" disabled={sessionLoading || nit.trim().length < 3}>
-                    {sessionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : ''}
-                    Entrar al e-commerce
-                  </Button>
-                </form>
 
-                <div className="mt-6 grid gap-3 border-t pt-5 sm:grid-cols-2">
-                  <AccessNote icon={Building2} title="Cuenta comercial" text="El acceso se asocia al cliente registrado en la plataforma." />
-                  <AccessNote icon={Tags} title="Precios vigentes" text="Consulte siempre los mejores precios de los productos." />
-                </div>
-                <div className="mt-5 rounded-md border bg-background/75 p-3">
-                  <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
-                    <AlertCircle className="h-10 w-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a travez de nuestros canales de comunicación.
-                  </p>
-                  <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
-                    <a href="mailto:comercial@ivanagro.com">
-                      <Mail className="h-4 w-4" />
-                      Contactanos
-                    </a>
-                  </Button>
-                </div>
+                    <form className="space-y-4" onSubmit={startSession}>
+                      {sessionError && (
+                        <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
+                          <span className="font-medium">{sessionError}</span>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor="nit">NIT / documento</Label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <ScanLine className="h-4.5 w-4.5" />
+                          </span>
+                          <Input
+                            id="nit"
+                            value={nit}
+                            onChange={(event) => setNit(event.target.value)}
+                            placeholder="Ej: CN901235357"
+                            className="h-12 bg-background pl-12 text-base shadow-sm"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={sessionLoading || nit.trim().length < 3}
+                        className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-2"
+                        style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
+                      >
+                        {sessionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        Entrar al e-commerce
+                      </button>
+                    </form>
+
+                    <div className="mt-6 grid gap-3 border-t pt-5 sm:grid-cols-2">
+                      <AccessNote icon={Building2} title="Cuenta comercial" text="El acceso se asocia al cliente registrado en la plataforma." />
+                      <AccessNote icon={Tags} title="Precios vigentes" text="Consulte siempre los mejores precios de los productos." />
+                    </div>
+                    <div className="mt-5 rounded-md border bg-background/75 p-3">
+                      <p className="text-xs leading-5 text-muted-foreground flex items-center gap-2">
+                        <AlertCircle className="h-10 w-10 text-primary" /> Si tu documento no abre el catalogo o necesitas activar precios, contacta a tu asesor comercial o a travez de nuestros canales de comunicación.
+                      </p>
+                      <Button asChild variant="outline" size="sm" className="mt-3 h-9 w-full gap-2 bg-background">
+                        <a href="mailto:comercial@ivanagro.com">
+                          <Mail className="h-4 w-4" />
+                          Contactanos
+                        </a>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-6 text-center space-y-1.5">
+                      <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Verificación OTP</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Ingresa el código de 6 dígitos enviado al número
+                        {phoneHint && <span className="font-semibold text-foreground"> *****{phoneHint.slice(-4)}</span>}
+                      </p>
+                    </div>
+
+                    {otpError && (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                        <span className="font-medium">{otpError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col items-center gap-4 mb-6">
+                      <OtpBoxes value={otpCode} onChange={setOtpCode} onComplete={(code) => handleVerifyEcommerceOtp(code)} />
+                      <p className="text-xs text-muted-foreground">El código expira en unos minutos</p>
+                    </div>
+
+                    <button
+                      onClick={() => handleVerifyEcommerceOtp()}
+                      disabled={otpCode.length !== 6 || otpLoading}
+                      className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md disabled:opacity-60 flex items-center justify-center gap-2 mb-3"
+                      style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
+                    >
+                      {otpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Verificar código
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResendEcommerceOtp}
+                      disabled={resendCooldown > 0 || resendLoading}
+                      className={`w-full text-center text-sm font-semibold rounded-xl py-2.5 mb-3 transition-colors border disabled:cursor-not-allowed ${
+                        resendCooldown > 0 || resendLoading
+                          ? "border-border text-muted-foreground opacity-50"
+                          : "border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/5"
+                      }`}
+                    >
+                      {resendLoading
+                        ? "Reenviando..."
+                        : resendCooldown > 0
+                          ? `Reenviar código (${resendCooldown}s)`
+                          : "Reenviar código"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); setOtpAttempts(0); setResendCooldown(0); }}
+                      className="w-full text-center text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-muted-foreground rounded-xl py-2.5 transition-colors"
+                    >
+                      Volver al inicio de sesión
+                    </button>
+                  </>
+                )}
               </div>
             </section>
           </div>
@@ -600,7 +1279,12 @@ export default function ECommerce() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" onClick={resetSession}>
+              <DropdownMenuItem className="gap-2 hover:bg-muted focus:bg-muted dark:hover:bg-white/10 dark:focus:bg-white/10 dark:hover:text-foreground dark:focus:text-foreground" onClick={openOrders}>
+                <ShoppingBag className="h-4 w-4" />
+                Mis pedidos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive dark:hover:bg-red-500/15 dark:focus:bg-red-500/15" onClick={resetSession}>
                 <LogOut className="h-4 w-4" />
                 Cerrar sesion
               </DropdownMenuItem>
@@ -740,34 +1424,50 @@ export default function ECommerce() {
                 <div className="space-y-3">
                   {cart.map((item) => {
                     const quoted = quote?.items.find((entry) => entry.sku === item.sku);
+                    const productImageUrl = productsBySku.get(item.sku)?.product_image_url;
                     return (
                       <div key={item.sku} className="rounded-md border bg-card p-3">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{quoted?.product_name ?? item.sku}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">SKU: {item.sku}</p>
-                            <p className="mt-2 font-bold">{quoted ? money(quoted.line_total) : "Pendiente"}</p>
+                          <div className="flex min-w-0 flex-1 gap-3">
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                              {productImageUrl ? (
+                                <img
+                                  src={productImageUrl}
+                                  alt={quoted?.product_name ?? item.sku}
+                                  className="h-full w-full object-contain p-1"
+                                  onError={(event) => { event.currentTarget.src = "/placeholder.svg"; }}
+                                />
+                              ) : (
+                                <img src="/placeholder.svg" alt="" className="h-8 w-8 opacity-55 dark:invert" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold">{quoted?.product_name ?? item.sku}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">SKU: {item.sku}</p>
+                              <p className="mt-2 font-bold">{quoted ? money(quoted.line_total) : "Pendiente"}</p>
+                            </div>
                           </div>
-                          <Button variant="ghost" size="icon" onClick={() => setQuantity(item.sku, 0)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                          <Button variant="ghost" size="icon" disabled={quoteLoading} onClick={() => setQuantity(item.sku, 0)}>
+                            {quoteLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                           </Button>
                         </div>
                         <div className="mt-3 flex items-center gap-2">
-                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setQuantity(item.sku, item.quantity - 1)}><Minus className="h-3.5 w-3.5" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity - 1)}><Minus className="h-3.5 w-3.5" /></Button>
                           <span className="w-10 text-center font-semibold">{item.quantity}</span>
-                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setQuantity(item.sku, item.quantity + 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8" disabled={quoteLoading} onClick={() => setQuantity(item.sku, item.quantity + 1)}><Plus className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-                <div className="rounded-md border bg-muted/25 p-4">
+                <div className="rounded-md border bg-card p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Total</span>
                     <span className="text-2xl font-bold">{money(quote?.total ?? 0)}</span>
                   </div>
-                  <Button className="mt-4 h-11 w-full" disabled={!quote || quote.errors.length > 0 || cart.length === 0} onClick={() => setCheckoutOpen(true)}>
-                    Finalizar pedido
+                  <Button className="mt-4 h-11 w-full gap-2" disabled={quoteLoading || !quote || quote.errors.length > 0 || cart.length === 0} onClick={openCheckout}>
+                    {quoteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {quoteLoading ? "Actualizando pedido" : "Finalizar pedido"}
                   </Button>
                 </div>
               </>
@@ -797,14 +1497,14 @@ export default function ECommerce() {
               </div>
 
               {/* Body: image left + info right */}
-              <div className="flex gap-0">
+              <div className="flex gap-0 border-t border-border/40">
                 {/* Image — fixed width, zoom on hover */}
                 <div className="relative flex w-36 shrink-0 items-center justify-center overflow-hidden bg-white p-2">
                   {selectedProduct.product_image_url ? (
                     <img
                       src={selectedProduct.product_image_url}
                       alt={selectedProduct.product_commercial_name ?? ""}
-                      className="h-32 w-32 cursor-zoom-in object-contain transition-transform duration-300 ease-out hover:scale-110"
+                      className="h-32 w-32 cursor-default object-contain transition-transform duration-300 ease-out hover:scale-125"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                   ) : (
@@ -850,30 +1550,17 @@ export default function ECommerce() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Finalizar pedido</DialogTitle>
-            <DialogDescription>Validaremos precios y stock antes de crear la orden borrador.</DialogDescription>
-          </DialogHeader>
-          <form className="space-y-3" onSubmit={submitCheckout}>
-            <Field label="Nombre contacto" value={checkoutForm.contact_name} onChange={(value) => setCheckoutForm((prev) => ({ ...prev, contact_name: value }))} required />
-            <Field label="Celular" value={checkoutForm.contact_phone} onChange={(value) => setCheckoutForm((prev) => ({ ...prev, contact_phone: value }))} required />
-            <Field label="Email" value={checkoutForm.contact_email} onChange={(value) => setCheckoutForm((prev) => ({ ...prev, contact_email: value }))} />
-            <Field label="Direccion entrega" value={checkoutForm.delivery_address} onChange={(value) => setCheckoutForm((prev) => ({ ...prev, delivery_address: value }))} required />
-            <Field label="Metodo de pago" value={checkoutForm.payment_method} onChange={(value) => setCheckoutForm((prev) => ({ ...prev, payment_method: value }))} />
-            <div className="space-y-1.5">
-              <Label>Observaciones</Label>
-              <Textarea value={checkoutForm.observations} onChange={(event) => setCheckoutForm((prev) => ({ ...prev, observations: event.target.value }))} />
-            </div>
-            {checkoutError && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{checkoutError}</div>}
-            <Button type="submit" className="h-11 w-full gap-2" disabled={checkoutLoading}>
-              {checkoutLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Crear orden borrador
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CheckoutDialog
+        open={checkoutOpen}
+        form={checkoutForm}
+        quote={quote}
+        cartCount={cartCount}
+        checkoutLoading={checkoutLoading}
+        checkoutError={checkoutError}
+        onOpenChange={setCheckoutOpen}
+        onChange={(field, value) => setCheckoutForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmit={submitCheckout}
+      />
 
       <Dialog open={!!orderReference} onOpenChange={(open) => !open && setOrderReference(null)}>
         <DialogContent>
@@ -889,6 +1576,146 @@ export default function ECommerce() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Mis pedidos drawer */}
+      <Sheet open={ordersOpen} onOpenChange={setOrdersOpen}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-lg">
+          <div className="border-b px-4 pb-4 pt-5 sm:px-6">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5" />
+                Mis pedidos
+              </SheetTitle>
+              <SheetDescription>Historial de órdenes realizadas</SheetDescription>
+            </SheetHeader>
+          </div>
+          <div className="px-4 py-4 sm:px-6 space-y-3">
+            {ordersLoading && (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!ordersLoading && orders.length > 0 && (
+              <div className="grid gap-2 rounded-md border bg-card p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="order-state-filter">Estado</Label>
+                  <Select value={orderStateFilter} onValueChange={(value) => setOrderStateFilter(value as OrderStateFilter)}>
+                    <SelectTrigger id="order-state-filter" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="open">Abierto</SelectItem>
+                      <SelectItem value="closed">Cerrado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="order-date-from">De</Label>
+                    <Input
+                      id="order-date-from"
+                      type="date"
+                      className="h-10"
+                      value={orderDateFrom}
+                      onChange={(event) => setOrderDateFrom(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="order-date-to">Hasta</Label>
+                    <Input
+                      id="order-date-to"
+                      type="date"
+                      className="h-10"
+                      value={orderDateTo}
+                      onChange={(event) => setOrderDateTo(event.target.value)}
+                    />
+                  </div>
+                </div>
+                {(orderStateFilter !== "all" || orderDateFrom || orderDateTo) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 justify-start px-2 text-xs text-muted-foreground"
+                    onClick={() => {
+                      setOrderStateFilter("all");
+                      setOrderDateFrom("");
+                      setOrderDateTo("");
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                )}
+              </div>
+            )}
+            {!ordersLoading && orders.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+                <ShoppingBag className="h-12 w-12 opacity-25" />
+                <div>
+                  <p className="text-sm font-medium">Sin pedidos todavía</p>
+                  <p className="mt-1 text-xs">Tus órdenes aparecerán aquí una vez las realices.</p>
+                </div>
+              </div>
+            )}
+            {!ordersLoading && orders.length > 0 && filteredOrders.length === 0 && (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                No hay pedidos con esos filtros.
+              </div>
+            )}
+            {!ordersLoading && filteredOrders.map((order) => {
+              const isExpanded = expandedOrderId === order.id;
+              const stateLabel = getEcommerceOrderStateLabel(order.status);
+              return (
+                <div key={order.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                  >
+                    <div className="flex-1 text-left space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{order.reference}</span>
+                        <span className={cn(
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                          stateLabel === "Cerrado"
+                            ? "border-border bg-muted/60 text-muted-foreground"
+                            : "border-primary/25 bg-primary/10 text-primary dark:border-emerald-400/25 dark:bg-emerald-400/12 dark:text-emerald-200",
+                        )}>
+                          {stateLabel}
+                        </span>
+                      </div>
+                      <div className="flex gap-3 text-xs text-muted-foreground">
+                        <span>{new Date(order.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                        <span>{getItemCountLabel(order.items_count)}</span>
+                        <span className="font-medium text-foreground">{money(order.total)}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform", isExpanded && "rotate-90")} />
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t px-4 py-3 space-y-2 bg-muted/20">
+                      {order.items.map((item) => (
+                        <div key={item.line_number} className="flex justify-between items-start gap-2 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{item.product_name ?? item.product_sku}</p>
+                            <p className="text-xs text-muted-foreground">SKU: {item.product_sku} · Cant: {item.quantity} · {money(item.unit_price)} c/u</p>
+                          </div>
+                          <span className="font-semibold shrink-0">{money(item.line_total)}</span>
+                        </div>
+                      ))}
+                      <Separator />
+                      <div className="flex justify-between text-sm font-semibold">
+                        <span>Total</span>
+                        <span>{money(order.total)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -974,7 +1801,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
               value={brandSearch}
               onChange={(e) => setBrandSearch(e.target.value)}
               placeholder="Buscar marca..."
-              className="h-8 w-full rounded-md border border-input bg-background pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-9 w-full rounded-md border border-input bg-background pl-7 pr-6 text-sm placeholder:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {brandSearch && (
               <button
@@ -1020,7 +1847,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
               value={categorySearch}
               onChange={(e) => setCategorySearch(e.target.value)}
               placeholder="Buscar categoría..."
-              className="h-8 w-full rounded-md border border-input bg-background pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="h-9 w-full rounded-md border border-input bg-background pl-7 pr-6 text-sm placeholder:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {categorySearch && (
               <button
@@ -1188,8 +2015,8 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
           Filtros
           {activeFilters.length > 0 && <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{activeFilters.length}</span>}
         </Button>
-        <Button variant={inStockOnly ? "default" : "outline"} size="sm" className={cn("h-8", !inStockOnly && "bg-background")} onClick={onInStockToggle} disabled={disabled}>Con stock</Button>
-        <Button variant={withPriceOnly ? "default" : "outline"} size="sm" className={cn("h-8", !withPriceOnly && "bg-background")} onClick={onWithPriceToggle} disabled={disabled}>Con precio</Button>
+        <Button variant={inStockOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !inStockOnly && "bg-background")} onClick={onInStockToggle}>Con stock</Button>
+        <Button variant={withPriceOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !withPriceOnly && "bg-background")} onClick={onWithPriceToggle}>Con precio</Button>
         {activeFilters.length > 0 && (
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={onClear} disabled={disabled}>
             <X className="h-3.5 w-3.5" />Limpiar filtros
@@ -1330,7 +2157,12 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
 
   return (
     <article className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted/40 dark:bg-muted overflow-hidden">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md bg-muted/40 transition-opacity hover:opacity-75 dark:bg-muted"
+        title="Ver detalle"
+      >
         {product.product_image_url ? (
           <img
             src={product.product_image_url}
@@ -1341,7 +2173,7 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
         ) : (
           <Package className="h-6 w-6 text-muted-foreground/60" />
         )}
-      </div>
+      </button>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={onOpen} className="truncate text-sm font-semibold hover:text-primary transition-colors text-left">

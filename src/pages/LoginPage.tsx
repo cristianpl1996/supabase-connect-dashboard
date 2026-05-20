@@ -4,11 +4,12 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
-import { ApiError } from "@/lib/api";
+import { ApiError, verifyOtp } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, AlertCircle, User, Lock, ArrowRight, ShieldCheck } from "lucide-react";
+import { OtpBoxes } from "@/components/ui/otp-boxes";
+import { Eye, EyeOff, Loader2, AlertCircle, User, Lock } from "lucide-react";
 import { toast } from "sonner";
 import logoIco from "@/assets/logoico.png";
 import bgImage from "@/assets/background.png";
@@ -21,13 +22,32 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, finalizeOtpLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/home";
 
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // OTP state
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpToken, setOtpToken] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpAttempts, setOtpAttempts] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [pendingCredentials, setPendingCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [phoneHint, setPhoneHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
 
   useEffect(() => {
     const root = document.documentElement;
@@ -48,18 +68,89 @@ export default function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      await login({ username: values.username, password: values.password });
-      toast.success("Inicio de sesión exitoso", {
-        description: "Bienvenido al backoffice de Ivanagro.",
-        duration: 3000,
-      });
-      navigate(from, { replace: true });
+      const result = await login({ username: values.username, password: values.password });
+      if (result?.otp_required) {
+        setOtpToken(result.otp_token);
+        setOtpStep(true);
+        setOtpAttempts(0);
+        setResendCooldown(60);
+        setPhoneHint(result.phone_hint ?? null);
+        setPendingCredentials({ username: values.username, password: values.password });
+        toast.success("Código enviado", {
+          description: "Se envió un código de 6 dígitos a tu teléfono registrado.",
+          duration: 4000,
+        });
+      } else {
+        toast.success("Inicio de sesión exitoso", {
+          description: "Bienvenido al backoffice de Ivanagro.",
+          duration: 3000,
+        });
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       setServerError(
         err instanceof ApiError
           ? "Credenciales no válidas"
           : "Error de conexión. Verifica tu internet e intenta de nuevo."
       );
+    }
+  };
+
+  const onVerifyOtp = async (codeOverride?: string) => {
+    const code = codeOverride ?? otpCode;
+    if (code.length !== 6) return;
+    setOtpError(null);
+    setOtpLoading(true);
+    try {
+      const res = await verifyOtp({ otp_token: otpToken, code });
+      finalizeOtpLogin(res.access_token, res.user);
+      toast.success("Código verificado", {
+        description: "Bienvenido al backoffice de Ivanagro.",
+        duration: 3000,
+      });
+      navigate(from, { replace: true });
+    } catch (err) {
+      const newAttempts = otpAttempts + 1;
+      setOtpAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        toast.error("Demasiados intentos fallidos", {
+          description: "Por seguridad, debes iniciar sesión nuevamente.",
+          duration: 4000,
+        });
+        setOtpStep(false);
+        setOtpCode("");
+        setOtpError(null);
+        setOtpAttempts(0);
+        setResendCooldown(0);
+      } else {
+        setOtpError(
+          err instanceof ApiError ? err.message : "Código incorrecto. Intenta de nuevo."
+        );
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingCredentials || resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setOtpError(null);
+    try {
+      const result = await login(pendingCredentials);
+      if (result?.otp_required) {
+        setOtpToken(result.otp_token);
+        setOtpCode("");
+        setResendCooldown(60);
+        toast.success("Código reenviado", {
+          description: "Se envió un nuevo código a tu teléfono.",
+          duration: 3000,
+        });
+      }
+    } catch {
+      toast.error("No se pudo reenviar el código. Intenta de nuevo.");
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -141,7 +232,7 @@ export default function LoginPage() {
           backgroundSize: "36px 36px",
         }} />
 
-        {/* Orb 1 — large top-left, slow float */}
+        {/* Orb 1 */}
         <div style={{
           position: "absolute", top: "-80px", left: "-80px",
           width: "420px", height: "420px", borderRadius: "50%",
@@ -149,8 +240,6 @@ export default function LoginPage() {
           filter: "blur(48px)",
           animation: "float-slow 9s ease-in-out infinite",
         }} />
-
-        {/* Orb 2 — medium right, medium float + drift */}
         <div style={{
           position: "absolute", top: "30%", right: "-100px",
           width: "360px", height: "360px", borderRadius: "50%",
@@ -158,8 +247,6 @@ export default function LoginPage() {
           filter: "blur(56px)",
           animation: "float-medium 7s ease-in-out infinite, drift-x 11s ease-in-out infinite",
         }} />
-
-        {/* Orb 3 — small bottom center */}
         <div style={{
           position: "absolute", bottom: "-60px", left: "35%",
           width: "280px", height: "280px", borderRadius: "50%",
@@ -167,17 +254,6 @@ export default function LoginPage() {
           filter: "blur(40px)",
           animation: "float-fast 6s ease-in-out infinite",
         }} />
-
-        {/* Orb 4 — accent mid-left */}
-        <div style={{
-          position: "absolute", top: "55%", left: "5%",
-          width: "180px", height: "180px", borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(110,231,183,0.18), transparent 70%)",
-          filter: "blur(32px)",
-          animation: "float-slow 10s ease-in-out infinite 2s",
-        }} />
-
-        {/* Morphing shape — center */}
         <div style={{
           position: "absolute", top: "22%", left: "18%",
           width: "220px", height: "220px",
@@ -186,31 +262,18 @@ export default function LoginPage() {
           backdropFilter: "blur(2px)",
           animation: "morph 14s ease-in-out infinite, pulse-soft 8s ease-in-out infinite",
         }} />
-
-        {/* Spinning ring — top right */}
         <div style={{
           position: "absolute", top: "8%", right: "12%",
           width: "140px", height: "140px", borderRadius: "50%",
           border: "1.5px solid rgba(255,255,255,0.12)",
           animation: "spin-slow 20s linear infinite",
         }}>
-          {/* inner dot */}
           <div style={{
             position: "absolute", top: "10px", left: "50%", transform: "translateX(-50%)",
             width: "6px", height: "6px", borderRadius: "50%",
             background: "rgba(255,255,255,0.5)",
           }} />
         </div>
-
-        {/* Small ring — bottom left */}
-        <div style={{
-          position: "absolute", bottom: "15%", left: "10%",
-          width: "80px", height: "80px", borderRadius: "50%",
-          border: "1px solid rgba(255,255,255,0.15)",
-          animation: "spin-slow 14s linear infinite reverse",
-        }} />
-
-        {/* Floating particles */}
         {[
           { top: "15%", left: "60%", size: 6, delay: "0s", dur: "5s" },
           { top: "42%", left: "25%", size: 4, delay: "1.5s", dur: "6s" },
@@ -238,91 +301,150 @@ export default function LoginPage() {
           </div>
 
           {/* Card */}
-          <div className="login-light-scope login-card-animate bg-white rounded-2xl border border-gray-200 shadow-xl px-9 py-9 space-y-6"
+          <div className="login-card-animate bg-white rounded-2xl border border-gray-200 shadow-xl px-9 py-9 space-y-6"
             style={{ boxShadow: "0 4px 32px 0 rgba(10,150,63,0.08), 0 1.5px 8px 0 rgba(0,0,0,0.06)" }}>
 
-            {/* Header with icon badge */}
-            <div className="flex flex-col items-center gap-3">
+            {!otpStep ? (
+              <div className="login-light-scope space-y-6">
+                {/* ── Step 1: credentials ─────────────────────────────── */}
+                <div className="flex flex-col items-center gap-3">
+                  <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
+                    <p className="text-sm text-gray-500">Accede a tu plataforma de gestión comercial</p>
+                  </div>
+                </div>
 
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
-                <p className="text-sm text-gray-500">Accede a tu plataforma de gestión comercial</p>
-              </div>
-            </div>
-
-            {serverError && (
-              <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-                <span className="font-medium">{serverError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
-
-              {/* Username */}
-              <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-gray-400" />
-                  Usuario
-                </Label>
-                <Input
-                  id="username"
-                  autoComplete="username"
-                  autoFocus
-                  placeholder="Ej: carlos.martinez"
-                  className="h-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  {...register("username")}
-                />
-                {errors.username && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />{errors.username.message}
-                  </p>
+                {serverError && (
+                  <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                    <span className="font-medium">{serverError}</span>
+                  </div>
                 )}
-              </div>
 
-              {/* Password */}
-              <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-gray-400" />
-                  Contraseña
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="Ingresa tu contraseña"
-                    className="h-11 pr-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0"
-                    {...register("password")}
-                  />
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="username" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-gray-400" />
+                      Usuario
+                    </Label>
+                    <Input
+                      id="username"
+                      autoComplete="username"
+                      autoFocus
+                      placeholder="Ej: carlos.martinez"
+                      className="h-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-[#16a34a] focus:shadow-[0_0_0_3px_rgba(22,163,74,0.16)] focus-visible:border-[#16a34a]"
+                      {...register("username")}
+                    />
+                    {errors.username && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />{errors.username.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <Lock className="h-3.5 w-3.5 text-gray-400" />
+                      Contraseña
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        placeholder="Ingresa tu contraseña"
+                        className="h-11 pr-11 text-sm rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-[#16a34a] focus:shadow-[0_0_0_3px_rgba(22,163,74,0.16)] focus-visible:border-[#16a34a]"
+                        {...register("password")}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        tabIndex={-1}
+                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />{errors.password.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#0a963f]/30 focus-visible:ring-offset-2 disabled:opacity-60 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-2"
+                    style={{ background: isSubmitting ? undefined : "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : ""}
+                    Iniciar sesión
+                  </Button>
+                </form>
+              </div>
+            ) : (
+              <>
+                {/* ── Step 2: OTP verification ─────────────────────────── */}
+                <div className="text-center space-y-1.5">
+                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Verificación OTP</h2>
+                  <p className="text-sm text-gray-500">
+                    Ingresa el código de 6 dígitos enviado al número
+                    {phoneHint && <span className="font-semibold text-gray-700"> *****{phoneHint.slice(-4)}</span>}
+                  </p>
+                </div>
+
+                {otpError && (
+                  <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                    <span className="font-medium">{otpError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="flex flex-col items-center gap-3">
+                    <OtpBoxes value={otpCode} onChange={setOtpCode} onComplete={(code) => onVerifyOtp(code)} />
+                    <p className="text-xs text-gray-400">El código expira en unos minutos</p>
+                  </div>
+
+                  <Button
+                    onClick={onVerifyOtp}
+                    disabled={otpCode.length !== 6 || otpLoading}
+                    className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
+                  >
+                    {otpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Verificar código
+                  </Button>
+
                   <button
                     type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    tabIndex={-1}
-                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    onClick={handleResendOtp}
+                    disabled={resendCooldown > 0 || resendLoading}
+                    className={`w-full text-center text-sm font-semibold rounded-xl py-2.5 transition-colors border disabled:cursor-not-allowed ${
+                      resendCooldown > 0 || resendLoading
+                        ? "border-gray-300 text-gray-400 opacity-50"
+                        : "border-[#16a34a] text-[#16a34a] hover:bg-[#16a34a]/5"
+                    }`}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {resendLoading
+                      ? "Reenviando..."
+                      : resendCooldown > 0
+                        ? `Reenviar código (${resendCooldown}s)`
+                        : "Reenviar código"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setOtpStep(false); setOtpCode(""); setOtpError(null); setOtpAttempts(0); setResendCooldown(0); }}
+                    className="w-full text-center text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 hover:border-gray-400 rounded-xl py-2.5 transition-colors"
+                  >
+                    Volver al inicio de sesión
                   </button>
                 </div>
-                {errors.password && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />{errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              <Button
-                type="submit"
-                className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#0a963f]/30 focus-visible:ring-offset-2 disabled:opacity-60 disabled:scale-100 disabled:shadow-none flex items-center justify-center gap-2"
-                style={{ background: isSubmitting ? undefined : "linear-gradient(135deg, #0a963f 0%, #16a34a 100%)" }}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : ''}
-                Iniciar sesión
-              </Button>
-
-            </form>
+              </>
+            )}
           </div>
 
           {/* Footer links */}
@@ -337,7 +459,7 @@ export default function LoginPage() {
             </a>
           </div>
 
-          <p className="text-center text-[11px] text-gray-300 mt-3">
+          <p className="text-center text-[11px] text-gray-400 mt-3">
             © {new Date().getFullYear()} Ivanagro · Hubu
           </p>
 
