@@ -294,7 +294,7 @@ const Plans = () => {
                   <Search className="size-4" />
                 </button>
                 <Input
-                  placeholder="Buscar plan, laboratorio, año..."
+                  placeholder="Buscar por plan, laboratorio o año"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitSearch()}
@@ -444,6 +444,7 @@ const Plans = () => {
                       <TableRow>
                         <TableHead className="w-12">Activo</TableHead>
                         <TableHead>Nombre del Plan</TableHead>
+                        <TableHead>Laboratorio</TableHead>
                         <TableHead>Año</TableHead>
                         <TableHead>Estado</TableHead>
                         {showGoalColumn && (
@@ -516,6 +517,7 @@ const Plans = () => {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{plan.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{labMap[plan.lab_id] || "—"}</TableCell>
                             <TableCell>{plan.year}</TableCell>
                             <TableCell>
                               <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>

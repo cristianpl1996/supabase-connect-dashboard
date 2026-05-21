@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
+  getAllRepresentatives,
   getOrder,
   getOrderFilterOptions,
   getOrdersPage,
@@ -8,10 +9,12 @@ import {
   Order,
   OrderLineItem,
   OrderListParams,
+  Representative,
 } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
+import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -163,6 +166,12 @@ function orderSortParams(value: string): Pick<OrderListParams, "sort_by" | "sort
   return { sort_by: "date", sort_dir: "desc" };
 }
 
+function representativeOption(rep: Representative): [string, string] | null {
+  const id = String(rep.sales_representative_id ?? rep.id ?? "");
+  const name = String(rep.sales_rep_full_name ?? "");
+  return id && name ? [id, name] : null;
+}
+
 function normalizeLineItems(order: Order | null): OrderLineItem[] {
   const value = order?.line_items;
   if (!value) return [];
@@ -218,6 +227,7 @@ export default function Orders() {
     originChannels: [] as string[],
     paymentMethods: [] as string[],
   });
+  const [representatives, setRepresentatives] = useState<Array<[string, string]>>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [searchInput, setSearchInput] = useState("");
@@ -306,22 +316,23 @@ export default function Orders() {
 
   useEffect(() => {
     let cancelled = false;
-    getOrderFilterOptions()
-      .then((options) => {
-        if (!cancelled) {
-          setFilterOptions({
-            statuses: Array.isArray(options.statuses) ? options.statuses : [],
-            originChannels: Array.isArray(options.origin_channels) ? options.origin_channels : [],
-            paymentMethods: Array.isArray(options.payment_methods) ? options.payment_methods : [],
-          });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setFilterOptions({ statuses: [], originChannels: [], paymentMethods: [] });
-      });
-    return () => {
-      cancelled = true;
-    };
+    Promise.allSettled([getOrderFilterOptions(), getAllRepresentatives()]).then(([optionsResult, repsResult]) => {
+      if (cancelled) return;
+      if (optionsResult.status === "fulfilled") {
+        const options = optionsResult.value;
+        setFilterOptions({
+          statuses: Array.isArray(options.statuses) ? options.statuses : [],
+          originChannels: Array.isArray(options.origin_channels) ? options.origin_channels : [],
+          paymentMethods: Array.isArray(options.payment_methods) ? options.payment_methods : [],
+        });
+      }
+      if (repsResult.status === "fulfilled") {
+        setRepresentatives(
+          repsResult.value.map(representativeOption).filter((item): item is [string, string] => item !== null),
+        );
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -372,6 +383,11 @@ export default function Orders() {
     () => new Set(orders.map((item) => orderStatusKey(item.order_status_code)).filter(Boolean)).size,
     [orders],
   );
+  const representativeOptions = useMemo(
+    () => representatives.map(([id, name]) => ({ value: id, label: name })),
+    [representatives],
+  );
+
   const statusFilterOptions = useMemo(() => {
     const keys: Set<string> = new Set(filterOptions.statuses.map((status) => orderStatusKey(status)).filter((key) => key === "open" || key === "closed"));
     const options = [
@@ -385,7 +401,7 @@ export default function Orders() {
     search.trim() && { key: "search", label: `Busqueda: ${search.trim()}`, clear: () => { setSearch(""); setSearchInput(""); } },
     status !== "all" && { key: "status", label: `Estado: ${orderStatusInfo(status).label}`, clear: () => setStatus("all") },
     customerId.trim() && { key: "customerId", label: `Cliente: ${customerId.trim()}`, clear: () => setCustomerId("") },
-    salesRepId.trim() && { key: "salesRepId", label: `Rep: ${salesRepId.trim()}`, clear: () => setSalesRepId("") },
+    salesRepId.trim() && { key: "salesRepId", label: `Rep: ${representatives.find(([id]) => id === salesRepId)?.[1] ?? salesRepId}`, clear: () => setSalesRepId("") },
     originChannel !== "all" && { key: "originChannel", label: `Canal: ${originChannel}`, clear: () => setOriginChannel("all") },
     originPlatform.trim() && { key: "originPlatform", label: `Plataforma: ${originPlatform.trim()}`, clear: () => setOriginPlatform("") },
     paymentMethod !== "all" && { key: "paymentMethod", label: `Pago: ${paymentMethod}`, clear: () => setPaymentMethod("all") },
@@ -399,7 +415,6 @@ export default function Orders() {
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
   const advancedFilterCount = [
     customerId,
-    salesRepId,
     originChannel !== "all",
     originPlatform,
     paymentMethod !== "all",
@@ -459,12 +474,12 @@ export default function Orders() {
 
         <Card>
           <CardContent className="space-y-5 p-4 sm:p-5">
-            <div className="grid gap-3 xl:grid-cols-[minmax(22rem,1fr)_14rem_15rem_auto]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_13rem_14rem_15rem_auto]">
               <div className="relative">
                 <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
                   <Search className="size-4" />
                 </button>
-                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} placeholder="Buscar por orden, cliente, factura o producto" disabled={loadingInitial} className="pl-9 pr-9" />
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} placeholder="Buscar por orden o cliente" disabled={loadingInitial} className="pl-9 pr-9" />
                 {search && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
                     <X className="size-4" />
@@ -480,6 +495,15 @@ export default function Orders() {
                   ))}
                 </SelectContent>
               </Select>
+              <SearchableSelect
+                value={salesRepId || "all"}
+                onValueChange={(v) => setSalesRepId(v === "all" ? "" : v)}
+                options={representativeOptions}
+                allLabel="Todos los representantes"
+                searchPlaceholder="Buscar representante…"
+                emptyLabel="No hay representantes"
+                disabled={loadingInitial}
+              />
               <Select value={sortOrder} onValueChange={setSortOrder} disabled={loadingInitial}>
                 <SelectTrigger className="gap-2">
                   <ArrowUpAZ className="size-4 shrink-0 text-muted-foreground" />
@@ -521,9 +545,6 @@ export default function Orders() {
                     <FilterSection icon={UserRound} title="Cliente y responsable">
                       <FilterField label="ID cliente">
                         <Input type="number" min="1" value={customerId} onChange={(event) => setCustomerId(event.target.value)} disabled={loadingInitial} placeholder="Ej. 12045" />
-                      </FilterField>
-                      <FilterField label="ID representante">
-                        <Input type="number" min="1" value={salesRepId} onChange={(event) => setSalesRepId(event.target.value)} disabled={loadingInitial} placeholder="Ej. 18" />
                       </FilterField>
                       <FilterField label="Factura">
                         <Input value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} disabled={loadingInitial} placeholder="Numero factura" />

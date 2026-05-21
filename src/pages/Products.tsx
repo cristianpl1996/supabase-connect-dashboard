@@ -533,7 +533,7 @@ export default function Products() {
                 <button type="button" onClick={commitSearch} disabled={loadingInitial} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
                   <Search className="size-4" />
                 </button>
-                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} disabled={loadingInitial} placeholder="Buscar SKU, producto, marca, categoria o bodega" className="h-10 pl-9 pr-9" />
+                <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitSearch()} disabled={loadingInitial} placeholder="Buscar por SKU o producto" className="h-10 pl-9 pr-9" />
                 {search && (
                   <button type="button" onClick={() => { setSearchInput(''); setSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive">
                     <X className="size-4" />
