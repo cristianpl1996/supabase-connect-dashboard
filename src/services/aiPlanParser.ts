@@ -29,14 +29,14 @@ export interface ContractAnalysisResult {
   funds: ContractAnalysisFund[];
 }
 
-const PLAN_ANALYSIS_MODEL = (import.meta.env.VITE_PLAN_ANALYSIS_MODEL as string | undefined) ?? 'gpt-5.4-mini';
-const PLAN_ANALYSIS_SYSTEM_PROMPT = `Actua como un analista de contratos comerciales.
+const PLAN_ANALYSIS_MODEL = (import.meta.env.VITE_PLAN_ANALYSIS_MODEL as string | undefined) ?? 'gpt-5.4';
+const PLAN_ANALYSIS_SYSTEM_PROMPT = `Eres un experto en análisis de contratos comerciales farmacéuticos y agropecuarios en Colombia. Tu única tarea es leer el PDF adjunto y extraer los datos del acuerdo comercial anual entre un laboratorio y un distribuidor.
 
-Analiza el PDF adjunto y devuelve un JSON puro, sin markdown, con esta estructura exacta:
+Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin texto adicional, con esta estructura:
 {
-  "brand_name": "string",
-  "year": 2027,
-  "annual_goal": 0,
+  "brand_name": "Nombre del laboratorio o marca tal como aparece en el contrato",
+  "year": 2026,
+  "annual_goal": 850000000,
   "invoice_discount_perc": 0,
   "rebate_sell_in_perc": 0,
   "rebate_sell_out_perc": 0,
@@ -44,22 +44,46 @@ Analiza el PDF adjunto y devuelve un JSON puro, sin markdown, con esta estructur
   "marketing_fixed_value": 0,
   "financial_discount_perc": 0,
   "total_margin_perc": 0,
-  "funds": [
-    { "concept_key": "Marketing", "custom_concept": "", "type": "percentage", "value": 0 }
-  ]
+  "funds": []
 }
 
-Reglas:
-- Usa 0 cuando no encuentres un valor claro.
-- annual_goal debe ser numero sin separadores.
-- Los porcentajes deben ser numeros normales. Ejemplo: 3% => 3.
-- total_margin_perc debe ser la suma de invoice_discount_perc + rebate_sell_in_perc + rebate_sell_out_perc + marketing_perc + financial_discount_perc.
-- En funds solo puedes usar estos concept_key: Desc_Pie_Factura, Rebate_SellIn, Rebate_SellOut, Marketing, Pronto_Pago, Otro.
-- Si el concepto detectado coincide con uno de los oficiales, usa ese concept_key y deja custom_concept vacio.
-- Si el concepto detectado no coincide con la lista oficial, usa concept_key = "Otro" y llena custom_concept con el nombre exacto detectado en el contrato.
-- Conserva en funds los conceptos detectados usando type = "percentage" o "fixed".
-- Debes leer el contenido del PDF adjunto. No respondas que no puedes analizar PDFs.
-- No agregues texto adicional. Responde solo JSON valido.`;
+INSTRUCCIONES DE EXTRACCIÓN:
+
+brand_name: Busca el nombre del laboratorio, fabricante o marca. Puede aparecer como "Laboratorio X", "Marca comercial", "Proveedor", "Fabricante".
+
+year: Año de vigencia del acuerdo. Busca "Año", "Vigencia", "Período", "2025", "2026", "2027".
+
+annual_goal: Meta anual de compras o ventas en pesos colombianos. Busca términos como "Meta de compra", "Objetivo de venta", "Target anual", "Cuota anual", "Goal". Número entero sin separadores.
+
+invoice_discount_perc: Descuento en pie de factura. Busca "Desc. pie de factura", "Descuento comercial", "Descuento de contado", "Dto. factura", "Descuento directo". Solo el porcentaje numérico.
+
+rebate_sell_in_perc: Rebate sobre compras (sell-in). Busca "Rebate sell-in", "Rebate de compra", "Bonificación sell-in", "Rappel de entrada".
+
+rebate_sell_out_perc: Rebate sobre ventas (sell-out). Busca "Rebate sell-out", "Rebate de venta", "Bonificación sell-out", "Rappel de salida".
+
+marketing_perc: Apoyo en marketing como porcentaje. Busca "Marketing", "Mercadeo", "Apoyo comercial %", "Inversión marketing".
+
+marketing_fixed_value: Apoyo en marketing como valor fijo en pesos. Busca "Apoyo fijo", "Valor fijo de marketing", "$ marketing". Si no existe, usa 0.
+
+financial_discount_perc: Descuento financiero o pronto pago. Busca "Pronto pago", "Descuento financiero", "Descuento por pago anticipado".
+
+total_margin_perc: Suma de TODOS los porcentajes detectados (invoice_discount_perc + rebate_sell_in_perc + rebate_sell_out_perc + marketing_perc + financial_discount_perc + cualquier otro porcentaje en funds de tipo "percentage").
+
+funds: Lista de TODOS los conceptos de negociación encontrados en el contrato. Para cada concepto usa:
+  - concept_key: uno de estos valores exactos: "Desc_Pie_Factura", "Rebate_SellIn", "Rebate_SellOut", "Marketing", "Pronto_Pago", "Otro"
+  - custom_concept: solo si concept_key es "Otro", escribe el nombre exacto del concepto tal como aparece en el contrato
+  - type: "percentage" si es un porcentaje, "fixed" si es un valor monetario fijo
+  - value: el valor numérico (porcentaje sin símbolo %, o monto en pesos sin separadores)
+
+REGLAS GENERALES:
+- Usa 0 para cualquier campo que no encuentres en el contrato.
+- Los porcentajes van sin símbolo: 3.5% → 3.5
+- Los montos van sin puntos ni comas de separación: $1.200.000 → 1200000
+- Si un concepto no está en la lista oficial, usa concept_key="Otro" y pon el nombre real en custom_concept.
+- Si hay tablas de descuentos por volumen, extrae el descuento base o el porcentaje más representativo.
+- Responde SOLO el JSON. Sin explicaciones, sin comentarios, sin markdown.`;
+
+
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -87,9 +111,9 @@ export async function analyzeContract(file: File): Promise<ContractAnalysisResul
   const response = await generateAiText({
     model: PLAN_ANALYSIS_MODEL,
     system_prompt: PLAN_ANALYSIS_SYSTEM_PROMPT,
-    user_input: 'Lee el PDF adjunto, identifica laboratorio, ano, meta, descuentos, rebates, marketing, pronto pago y devuelve exclusivamente el JSON solicitado. Si aparece un concepto fuera del catalogo permitido, envialo como concept_key=Otro con custom_concept.',
+    user_input: 'Analiza el contrato comercial adjunto y extrae todos los datos del acuerdo. Devuelve exclusivamente el JSON solicitado.',
     temperature: 0.1,
-    max_output_tokens: 1400,
+    max_output_tokens: 2000,
     input_files: [
       {
         filename: file.name || 'contrato.pdf',

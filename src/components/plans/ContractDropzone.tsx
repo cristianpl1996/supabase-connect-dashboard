@@ -20,7 +20,7 @@ interface ContractDropzoneProps {
       type: 'percentage' | 'fixed';
       value: number;
     }>;
-  }) => void;
+  }, file: File) => void;
   disabled?: boolean;
 }
 
@@ -46,7 +46,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
       const { analyzeContract } = await import('@/services/aiPlanParser');
       const result = await analyzeContract(file);
       setState('success');
-      onFileAnalyzed(result);
+      onFileAnalyzed(result, file);
     } catch (err) {
       setState('error');
       setErrorMessage(err instanceof Error ? err.message : 'Error al analizar el contrato');

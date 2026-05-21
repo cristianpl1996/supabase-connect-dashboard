@@ -58,11 +58,11 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secon
 
 const MECHANIC_LABELS: Record<string, string> = {
   descuento_linea: 'Descuento en Linea',
-  bonificacion_cantidad: 'Bonificacion (Precio Cero)',
+  bonificacion_cantidad: 'Bonificacion',
   precio_especial: 'Precio Especial',
-  descuento_volumen: 'Descuento por Volumen',
-  bonificacion_volumen: 'Bonificacion por Volumen',
-  combo: 'Combo de Productos',
+  descuento_volumen: 'Descuento Volumen',
+  bonificacion_volumen: 'Bonificacion Volumen',
+  combo: 'Combo Productos',
 };
 
 const Promotions = () => {
@@ -516,7 +516,7 @@ const Promotions = () => {
                 <div className="space-y-3 md:hidden">
                   {filteredPromotions.map((promo) => {
                     const statusConfig = STATUS_CONFIG[promo.status] || STATUS_CONFIG.borrador;
-                    const mechanicType = promo.mechanic?.promotion_type_label || promo.mechanic?.promotion_type || 'N/A';
+                    const mechanicType = promo.mechanic?.promotion_type || 'N/A';
                     const isCostHidden = hiddenCostRows.has(promo.id);
                     return (
                       <div key={promo.id} className="rounded-md border bg-card p-3">
@@ -575,7 +575,7 @@ const Promotions = () => {
                     <TableBody>
                       {filteredPromotions.map((promo) => {
                         const statusConfig = STATUS_CONFIG[promo.status] || STATUS_CONFIG.borrador;
-                        const mechanicType = promo.mechanic?.promotion_type_label || promo.mechanic?.promotion_type || 'N/A';
+                        const mechanicType = promo.mechanic?.promotion_type || 'N/A';
                         const isCostHidden = hiddenCostRows.has(promo.id);
                         return (
                           <TableRow key={promo.id}>

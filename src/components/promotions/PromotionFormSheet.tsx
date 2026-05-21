@@ -1305,6 +1305,10 @@ export function PromotionFormSheet({
                       {/* 2 — Bonificacion X+N */}
                       {mechanicState.promotionType === 'bonificacion_cantidad' && (
                         <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Producto base (el que debe comprar el cliente)</Label>
+                            <SearchableSelect value={mechanicState.mechanic.base_product_id || 'all'} onValueChange={(v) => updateMechanic({ base_product_id: v === 'all' ? null : v, base_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona el producto base" searchPlaceholder="Buscar producto…" emptyLabel="No hay productos" />
+                          </div>
                           <div className="space-y-2">
                             <Label>Cantidad a comprar (X)</Label>
                             <Input type="number" min={1} step={1} placeholder="Ej: 10" value={mechanicState.mechanic.base_quantity || ''} onChange={(e) => updateMechanic({ base_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
@@ -1314,7 +1318,7 @@ export function PromotionFormSheet({
                             <Input type="number" min={1} step={1} placeholder="Ej: 2" value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                           </div>
                           <div className="space-y-2 sm:col-span-2">
-                            <Label>Producto bonificado</Label>
+                            <Label>Tipo de producto bonificado</Label>
                             <Select value={mechanicState.mechanic.bonus_product_type || 'same_product'} onValueChange={(v) => updateMechanic({ bonus_product_type: v as 'same_product' | 'different_product', bonus_product_id: null, bonus_product_name: null })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{BONUS_PRODUCT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectContent>
@@ -1323,7 +1327,7 @@ export function PromotionFormSheet({
                           {mechanicState.mechanic.bonus_product_type === 'different_product' && (
                             <div className="space-y-2 sm:col-span-2">
                               <Label>Selecciona el producto bonificado</Label>
-                              <SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" />
+                              <SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" emptyLabel="No hay productos" />
                             </div>
                           )}
                         </div>
@@ -1332,6 +1336,10 @@ export function PromotionFormSheet({
                       {/* 3 — Precio Especial */}
                       {mechanicState.promotionType === 'precio_especial' && (
                         <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Producto con precio especial</Label>
+                            <SearchableSelect value={mechanicState.mechanic.special_price_product_id || 'all'} onValueChange={(v) => updateMechanic({ special_price_product_id: v === 'all' ? null : v, special_price_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona el producto" searchPlaceholder="Buscar producto…" emptyLabel="No hay productos" />
+                          </div>
                           <div className="space-y-2">
                             <Label>Precio especial ($)</Label>
                             <Input type="number" min={1} placeholder="Ej: 45000" value={mechanicState.mechanic.special_price || ''} onChange={(e) => updateMechanic({ special_price: e.target.value ? Math.max(1, Number(e.target.value)) : null })} />

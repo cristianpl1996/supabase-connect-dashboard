@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { createPlan, getPlan, updatePlan } from '@/lib/api';
+import { createPlan, getPlan, updatePlan, uploadPlanContract, BASE_URL } from '@/lib/api';
 import { Laboratory, AnnualPlan, PlanFund } from '@/types/database';
 import {
   Sheet,
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Layers3, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Layers3, Plus, Trash2, Loader2, FileText, ExternalLink, Building2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ContractAnalysisResult } from '@/services/aiPlanParser';
 import { ContractDropzone } from './ContractDropzone';
@@ -68,6 +68,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
   const aiExtractedDataRef = useRef<Record<string, unknown> | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [formErrors, setFormErrors] = useState<{ lab_id?: string; year?: string; purchase_goal?: string; funds?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFunds, setIsLoadingFunds] = useState(false);
 
@@ -113,7 +115,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     return sum + (purchaseGoal * fund.amount_value / 100);
   }, 0);
 
-  const handleContractAnalyzed = useCallback((result: ContractAnalysisResult) => {
+  const handleContractAnalyzed = useCallback((result: ContractAnalysisResult, file: File) => {
+    setContractFile(file);
     const matchedLab = laboratories.find(
       (lab) => lab.name.toLowerCase() === result.brand_name.toLowerCase()
         || lab.name.toLowerCase().includes(result.brand_name.toLowerCase())
@@ -208,30 +211,33 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
+    setContractFile(null);
+    setFormErrors({});
     aiExtractedDataRef.current = null;
   };
 
   const handleSubmit = async () => {
-    if (!labId) {
-      toast.error('Selecciona un laboratorio');
+    const errors: typeof formErrors = {};
+    if (!labId) errors.lab_id = 'Selecciona un laboratorio';
+    if (!year || year < 2020 || year > 2100) errors.year = 'Ingresa un año válido (2020-2100)';
+    if (purchaseGoal <= 0) errors.purchase_goal = 'La meta de compra debe ser mayor a 0';
+    if (funds.some((fund) => !fund.concept.trim())) errors.funds = 'Completa el nombre de todos los conceptos';
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
-    if (!year || year < 2020 || year > 2100) {
-      toast.error('Ingresa un ano valido');
-      return;
-    }
-    if (purchaseGoal <= 0) {
-      toast.error('La meta de compra debe ser mayor a 0');
-      return;
-    }
-    if (funds.some((fund) => !fund.concept.trim())) {
-      toast.error('Completa el nombre de todos los conceptos');
-      return;
-    }
+    setFormErrors({});
 
     setIsSubmitting(true);
 
     try {
+      let pdfUrl: string | null = editingPlan?.contract_pdf_url ?? null;
+      if (contractFile) {
+        const { url } = await uploadPlanContract(contractFile);
+        pdfUrl = url;
+      }
+
       const lab = laboratories.find((l) => l.id === labId);
       const payload = {
         lab_id: labId,
@@ -239,6 +245,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
         name: `Plan Comercial ${lab?.name || 'Lab'} ${year}`,
         total_purchase_goal: purchaseGoal,
         ai_extracted_data: aiExtractedDataRef.current,
+        contract_pdf_url: pdfUrl,
         funds: funds.map((fund) => ({
           id: fund.dbId,
           concept: fund.concept,
@@ -279,27 +286,84 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{isEditing ? 'Editar Plan' : 'Nuevo Plan Ano'}</SheetTitle>
+          <SheetTitle>{isEditing ? 'Editar Plan' : 'Nuevo Plan Año'}</SheetTitle>
           <SheetDescription>
             {isEditing ? 'Modifica los datos del acuerdo comercial' : 'Crea un nuevo acuerdo comercial con un laboratorio'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {!isEditing && (
-            <>
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                  Analisis Inteligente
-                </h3>
-                <ContractDropzone
-                  onFileAnalyzed={handleContractAnalyzed}
-                  disabled={isSubmitting}
-                />
+          {isEditing && editingPlan && (
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Editando plan</p>
+              <p className="font-semibold text-foreground leading-tight">{editingPlan.name}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Building2 className="size-3.5" />
+                  {laboratories.find((l) => l.id === editingPlan.lab_id)?.name || '—'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CalendarDays className="size-3.5" />
+                  {editingPlan.year}
+                </span>
               </div>
-              <Separator />
-            </>
+            </div>
           )}
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                {isEditing ? 'Contrato comercial' : 'Análisis Inteligente'}
+              </h3>
+              {isEditing && editingPlan?.contract_pdf_url && !contractFile && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                  <span className="size-1.5 rounded-full bg-green-500" />
+                  PDF adjunto
+                </span>
+              )}
+            </div>
+
+            {isEditing && editingPlan?.contract_pdf_url && !contractFile && (
+              <a
+                href={`${BASE_URL}${editingPlan.contract_pdf_url}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 rounded-lg border bg-muted/30 p-3.5 transition-all hover:border-primary/30 hover:bg-muted/50"
+              >
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <FileText className="size-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Contrato firmado</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Documento PDF adjunto</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors group-hover:bg-primary/20">
+                  Abrir
+                  <ExternalLink className="size-3" />
+                </span>
+              </a>
+            )}
+
+            <div>
+              {isEditing && (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {editingPlan?.contract_pdf_url ? 'Sube un nuevo PDF para reemplazar el contrato actual' : 'Adjunta el contrato en formato PDF'}
+                </p>
+              )}
+              <ContractDropzone
+                onFileAnalyzed={handleContractAnalyzed}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {contractFile && (
+              <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2">
+                <FileText className="size-4 text-green-600 shrink-0" />
+                <p className="text-xs text-green-700 font-medium truncate">{contractFile.name} — se subirá al guardar</p>
+              </div>
+            )}
+          </div>
+          <Separator />
 
           {isLoadingFunds && (
             <div className="flex items-center justify-center py-8">
@@ -315,8 +379,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
             <div className="space-y-2">
               <Label htmlFor="laboratory">Laboratorio</Label>
-              <Select value={labId} onValueChange={(v) => { setLabId(v); setLabNameFromAI(''); }}>
-                <SelectTrigger id="laboratory">
+              <Select value={labId} onValueChange={(v) => { setLabId(v); setLabNameFromAI(''); setFormErrors((e) => ({ ...e, lab_id: undefined })); }}>
+                <SelectTrigger id="laboratory" className={formErrors.lab_id ? 'border-destructive' : ''}>
                   <SelectValue placeholder={labNameFromAI || 'Selecciona un laboratorio'} />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,6 +397,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                   )}
                 </SelectContent>
               </Select>
+              {formErrors.lab_id && <p className="text-xs text-destructive">{formErrors.lab_id}</p>}
               {labNameFromAI && !labId && (
                 <p className="text-xs text-amber-600">
                   La IA detecto "{labNameFromAI}" pero no coincide con ningun laboratorio. Selecciona uno manualmente.
@@ -347,15 +412,17 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="year">Ano</Label>
+                <Label htmlFor="year">Año</Label>
                 <Input
                   id="year"
                   type="number"
                   min={2020}
                   max={2100}
                   value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value, 10) || currentYear)}
+                  className={formErrors.year ? 'border-destructive' : ''}
+                  onChange={(e) => { setYear(parseInt(e.target.value, 10) || currentYear); setFormErrors((err) => ({ ...err, year: undefined })); }}
                 />
+                {formErrors.year && <p className="text-xs text-destructive">{formErrors.year}</p>}
               </div>
 
               <div className="space-y-2">
@@ -366,8 +433,10 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                   min={0}
                   placeholder="0"
                   value={purchaseGoal || ''}
-                  onChange={(e) => setPurchaseGoal(parseFloat(e.target.value) || 0)}
+                  className={formErrors.purchase_goal ? 'border-destructive' : ''}
+                  onChange={(e) => { setPurchaseGoal(parseFloat(e.target.value) || 0); setFormErrors((err) => ({ ...err, purchase_goal: undefined })); }}
                 />
+                {formErrors.purchase_goal && <p className="text-xs text-destructive">{formErrors.purchase_goal}</p>}
               </div>
             </div>
           </div>
@@ -480,6 +549,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                 ))}
               </div>
             )}
+
+            {formErrors.funds && <p className="text-xs text-destructive">{formErrors.funds}</p>}
 
             {funds.length > 0 && (
               <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">

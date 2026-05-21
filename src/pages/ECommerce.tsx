@@ -591,6 +591,7 @@ export default function ECommerce() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const otpAttemptsRef = useRef(0);
+  const handlingUnauthorizedRef = useRef(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [phoneHint, setPhoneHint] = useState<string | null>(null);
@@ -807,6 +808,7 @@ export default function ECommerce() {
     setOtpLoading(true);
     try {
       const sessionResult = await verifyEcommerceOtp({ otp_token: otpTokenRef.current, code });
+      handlingUnauthorizedRef.current = false;
       setOtpStep(false);
       setOtpCode("");
       setSession(sessionResult);
@@ -876,6 +878,7 @@ export default function ECommerce() {
         return;
       }
       const session = next as EcommerceSession;
+      handlingUnauthorizedRef.current = false;
       setSession(session);
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       hydrateCheckoutForm(session);
@@ -900,6 +903,14 @@ export default function ECommerce() {
     setOrderReference(null);
   };
 
+  const handleManualLogout = () => {
+    toast.success("Sesión cerrada", {
+      description: "Has cerrado sesión exitosamente.",
+      duration: 3000,
+    });
+    resetSession();
+  };
+
   const openOrders = async () => {
     setOrdersOpen(true);
     setOrdersLoading(true);
@@ -917,10 +928,16 @@ export default function ECommerce() {
   };
 
   useEffect(() => {
-    const handleSessionExpired = () => {
-      toast.error("Sesión expirada", {
-        description: "Tu sesión ha expirado. Por favor ingresa nuevamente.",
-        duration: 4000,
+    const handleSessionExpired = (e: Event) => {
+      if (handlingUnauthorizedRef.current) return;
+      handlingUnauthorizedRef.current = true;
+      const detail = (e as CustomEvent<string>).detail;
+      const isOtherDevice = detail?.includes("otro dispositivo");
+      toast.error("Sesión cerrada", {
+        description: isOtherDevice
+          ? "Tu sesión fue iniciada en otro dispositivo."
+          : "Tu sesión ha expirado. Por favor ingresa nuevamente.",
+        duration: 5000,
       });
       resetSession();
     };
@@ -1284,7 +1301,7 @@ export default function ECommerce() {
                 Mis pedidos
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive dark:hover:bg-red-500/15 dark:focus:bg-red-500/15" onClick={resetSession}>
+              <DropdownMenuItem className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive dark:hover:bg-red-500/15 dark:focus:bg-red-500/15" onClick={handleManualLogout}>
                 <LogOut className="size-4" />
                 Cerrar sesion
               </DropdownMenuItem>

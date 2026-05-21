@@ -1,5 +1,5 @@
 // ─── Base URL ─────────────────────────────────────────────────────────────────
-const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
+export const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)
   ?? "https://api-ivanagro.bettercode.com.co";
 
 // ─── Token helpers (localStorage) ────────────────────────────────────────────
@@ -36,7 +36,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     const body = await res.json().catch(() => ({}));
     const message = body?.detail ?? body?.message ?? `Error ${res.status}`;
     if (res.status === 401) {
-      window.dispatchEvent(new Event("ivanagro:unauthorized"));
+      window.dispatchEvent(new CustomEvent("ivanagro:unauthorized", { detail: message }));
     }
     throw new ApiError(res.status, message);
   }
@@ -62,7 +62,7 @@ async function publicApiFetch<T>(path: string, options: RequestInit = {}, ecomme
     const body = await res.json().catch(() => ({}));
     const message = body?.detail ?? body?.message ?? `Error ${res.status}`;
     if (res.status === 401) {
-      window.dispatchEvent(new Event("ivanagro:ecommerce_unauthorized"));
+      window.dispatchEvent(new CustomEvent("ivanagro:ecommerce_unauthorized", { detail: message }));
     }
     throw new ApiError(res.status, typeof message === "string" ? message : JSON.stringify(message));
   }
@@ -1369,6 +1369,15 @@ export function updatePlanStatus(id: string, status: Plan["status"]): Promise<Pl
 
 export async function deletePlan(id: string): Promise<void> {
   await apiDetail<Plan>(`/api/v1/plans/${id}`, { method: "DELETE" });
+}
+
+export function uploadPlanContract(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<{ url: string }>("/api/v1/plans/upload-contract", {
+    method: "POST",
+    body: form,
+  });
 }
 
 export function listPromotions(params: PromotionListParams = {}): Promise<Promotion[]> {

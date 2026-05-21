@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { getPlan } from "@/lib/api";
+import { getPlan, BASE_URL } from "@/lib/api";
 import { AnnualPlan, PlanFund } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Loader2, Building2, CalendarDays, DollarSign, FileText, Percent, Target, WalletCards } from "lucide-react";
+import { Loader2, Building2, CalendarDays, DollarSign, FileText, Percent, Target, WalletCards, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface PlanDetailsSheetProps {
@@ -17,6 +17,29 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   negociacion: { label: "En negociacion", variant: "secondary" },
   cerrado: { label: "Cerrado", variant: "outline" },
 };
+
+const CONCEPT_LABELS: Record<string, string> = {
+  Desc_Pie_Factura: "Descuento Pie de Factura",
+  Rebate_SellIn: "Rebate Sell In",
+  Rebate_SellOut: "Rebate Sell Out",
+  Marketing: "Marketing",
+  Pronto_Pago: "Pronto Pago",
+};
+
+const PERIOD_LABELS: Record<string, string> = {
+  annual: "Anual",
+  quarterly: "Trimestral",
+  monthly: "Mensual",
+  semester: "Semestral",
+};
+
+function getConceptLabel(concept: string): string {
+  return CONCEPT_LABELS[concept] ?? concept;
+}
+
+function getPeriodLabel(period: string): string {
+  return PERIOD_LABELS[period] ?? period;
+}
 
 const BAR_COLORS = ["bg-primary", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-pink-500"];
 const STRIPED_BAR_CLASS = "bg-[linear-gradient(45deg,rgba(255,255,255,.24)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.24)_50%,rgba(255,255,255,.24)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] motion-safe:animate-[progress-stripes_1s_linear_infinite]";
@@ -109,17 +132,55 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
           </div>
 
           <section className="rounded-md border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <FileText className="size-4 text-primary" />
-                <h3 className="font-semibold">Datos del acuerdo</h3>
+                <h3 className="font-semibold">Acuerdo comercial</h3>
               </div>
+              {plan.created_at && (
+                <span className="text-xs text-muted-foreground">
+                  Creado: {new Date(plan.created_at).toLocaleDateString("es-CO")}
+                </span>
+              )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+            <div className="grid gap-2 sm:grid-cols-3">
               <PlanFact label="Responsable" value={plan.created_by_responsible} />
               <PlanFact label="Identificador" value={plan.created_by_identifier} />
               <PlanFact label="Marca origen" value={plan.created_by_brand} />
-              <PlanFact label="Creado" value={plan.created_at ? new Date(plan.created_at).toLocaleDateString("es-CO") : null} />
+            </div>
+
+            <div className="mt-3 border-t pt-3">
+              {plan.contract_pdf_url ? (
+                <a
+                  href={`${BASE_URL}${plan.contract_pdf_url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex items-center gap-3 rounded-lg border bg-muted/30 p-3.5 transition-all hover:border-primary/30 hover:bg-muted/50"
+                >
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <FileText className="size-5 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">Contrato firmado</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Documento PDF adjunto</p>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors group-hover:bg-primary/20">
+                    Abrir
+                    <ExternalLink className="size-3" />
+                  </span>
+                </a>
+              ) : (
+                <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/20 p-3.5">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <FileText className="size-5 text-muted-foreground/40" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Sin contrato adjunto</p>
+                    <p className="text-xs text-muted-foreground/60">Edita el plan para adjuntar un PDF</p>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -150,7 +211,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                         key={fund.id}
                         className={`${BAR_COLORS[index % BAR_COLORS.length]} ${STRIPED_BAR_CLASS} transition-[width] duration-700 ease-out`}
                         style={{ width: barsReady ? `${percentage}%` : "0%" }}
-                        title={`${fund.concept}: ${formatCurrency(fund.resolvedAmount)}`}
+                        title={`${getConceptLabel(fund.concept)}: ${formatCurrency(fund.resolvedAmount)}`}
                       />
                     );
                   })}
@@ -165,14 +226,14 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className={`h-2.5 w-2.5 rounded-full ${BAR_COLORS[index % BAR_COLORS.length]}`} />
-                              <p className="truncate font-semibold">{fund.concept}</p>
+                              <p className="truncate font-semibold">{getConceptLabel(fund.concept)}</p>
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                               <Badge variant="outline" className="gap-1">
                                 {fund.amount_type === "porcentaje" ? <Percent className="size-3" /> : <DollarSign className="size-3" />}
                                 {fund.amount_type === "porcentaje" ? `${fund.amount_value}%` : "Fijo"}
                               </Badge>
-                              <Badge variant="secondary">{fund.budget_period || "annual"}</Badge>
+                              <Badge variant="secondary">{getPeriodLabel(fund.budget_period || "annual")}</Badge>
                             </div>
                           </div>
                           <div className="text-left sm:text-right">

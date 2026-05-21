@@ -431,8 +431,8 @@ const Plans = () => {
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-1">
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading} title="Editar"><Pencil className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading} title="Eliminar"><Trash2 className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para editarlo' : 'Editar'}><Pencil className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para eliminarlo' : 'Eliminar'}><Trash2 className="size-4" /></Button>
                         </div>
                       </div>
                     );
@@ -585,8 +585,8 @@ const Plans = () => {
                                   size="icon"
                                   className="size-8"
                                   onClick={() => handleEditPlan(plan)}
-                                  disabled={loading}
-                                  title="Editar"
+                                  disabled={loading || plan.status === 'activo'}
+                                  title={plan.status === 'activo' ? 'Desactiva el plan para editarlo' : 'Editar'}
                                 >
                                   <Pencil className="size-4" />
                                 </Button>
@@ -595,8 +595,8 @@ const Plans = () => {
                                   size="icon"
                                   className="size-8 text-destructive hover:text-destructive"
                                   onClick={() => handleDeleteClick(plan)}
-                                  disabled={loading}
-                                  title="Eliminar"
+                                  disabled={loading || plan.status === 'activo'}
+                                  title={plan.status === 'activo' ? 'Desactiva el plan para eliminarlo' : 'Eliminar'}
                                 >
                                   <Trash2 className="size-4" />
                                 </Button>
