@@ -6,6 +6,7 @@ import {
   listLaboratories,
   listPromotions,
   updatePromotionStatus,
+  syncSapCancel,
 } from '@/lib/api';
 import { Promotion, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -182,6 +183,7 @@ const Promotions = () => {
     if (!promoToDelete) return;
     setIsDeleting(true);
     try {
+      void syncSapCancel(promoToDelete.id);
       await deletePromotion(promoToDelete.id);
       toast.success('Promocion eliminada exitosamente');
       fetchData();

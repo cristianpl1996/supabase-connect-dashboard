@@ -64,7 +64,7 @@ export const EMPTY_MECHANIC: PromotionMechanicData = {
   base_product_name: null,
   base_quantity: null,
   bonus_quantity: null,
-  bonus_product_type: null,
+  bonus_product_type: "same_product",
   bonus_product_id: null,
   bonus_product_name: null,
   minimum_amount: null,
@@ -148,14 +148,11 @@ export function validatePromotionMechanic(state: PromotionMechanicFormState): st
     if (mechanic.discount_type === "fixed" && !positiveMoney(mechanic.discount_value)) return "El valor del descuento debe ser mayor a 0";
   }
   if (promotionType === "bonificacion_cantidad") {
-    if (!mechanic.base_product_id) return "Debes seleccionar el producto base";
     if (!positiveInt(mechanic.base_quantity)) return "La cantidad a comprar debe ser un entero mayor a 0";
     if (!positiveInt(mechanic.bonus_quantity)) return "La cantidad bonificada debe ser un entero mayor a 0";
-    if (!mechanic.bonus_product_type) return "Debes definir el tipo de producto bonificado";
     if (mechanic.bonus_product_type === "different_product" && !mechanic.bonus_product_id) return "Debes seleccionar el producto bonificado";
   }
   if (promotionType === "precio_especial") {
-    if (!mechanic.special_price_product_id) return "Debes seleccionar el producto con precio especial";
     if (!positiveMoney(mechanic.special_price)) return "El precio especial debe ser mayor a 0";
     if (mechanic.condition_type === "minimum_quantity" && !positiveInt(mechanic.minimum_quantity)) return "La cantidad minima debe ser un entero mayor a 0";
   }
@@ -187,6 +184,7 @@ export function inferMechanicStateFromPromotion(mechanic?: PromoMechanic | null)
   if (!mechanic) return resetMechanicForPromotionType("");
   const promotionType = (mechanic.promotion_type || "") as PromotionType | "";
   const normalized = { ...EMPTY_MECHANIC, ...(mechanic.mechanic || {}) };
+  normalized.bonus_product_type = normalized.bonus_product_type || "same_product";
   return {
     promotionType,
     conditionType: (normalized.condition_type || mechanic.condition_type || "") as MechanicConditionType | "",
@@ -204,19 +202,17 @@ export function summarizePromotionMechanic(state: PromotionMechanicFormState): s
     return `Descuento de ${val} sobre todos los productos seleccionados.`;
   }
   if (state.promotionType === "bonificacion_cantidad") {
-    const base = mechanic.base_product_name || "el producto seleccionado";
     const bqty = mechanic.bonus_quantity || 0;
     const bbase = mechanic.base_quantity || 0;
     if (mechanic.bonus_product_type === "different_product") {
-      return `Por cada ${bbase} unidades de ${base}, el cliente recibe ${bqty} unidad(es) de ${mechanic.bonus_product_name || "producto bonificado"} a precio cero.`;
+      return `Por cada ${bbase} unidades de el producto seleccionado, el cliente recibe ${bqty} unidad(es) de ${mechanic.bonus_product_name || "producto bonificado"} a precio cero.`;
     }
-    return `Por cada ${bbase} unidades de ${base}, el cliente recibe ${bqty} unidad(es) del mismo producto a precio cero.`;
+    return `Por cada ${bbase} unidades de el producto seleccionado, el cliente recibe ${bqty} unidad(es) del mismo producto a precio cero.`;
   }
   if (state.promotionType === "precio_especial") {
-    const product = mechanic.special_price_product_name || "El producto seleccionado";
     return mechanic.minimum_quantity
-      ? `${product} a precio especial de ${formatCurrency(mechanic.special_price)} desde ${mechanic.minimum_quantity} unidades.`
-      : `${product} a precio especial de ${formatCurrency(mechanic.special_price)}.`;
+      ? `Los productos seleccionados a precio especial de ${formatCurrency(mechanic.special_price)} desde ${mechanic.minimum_quantity} unidades.`
+      : `Los productos seleccionados a precio especial de ${formatCurrency(mechanic.special_price)}.`;
   }
   if (state.promotionType === "descuento_volumen") {
     const threshold = mechanic.condition_type === "minimum_amount" ? formatCurrency(mechanic.minimum_amount) : `${mechanic.minimum_quantity || 0} unidades`;
