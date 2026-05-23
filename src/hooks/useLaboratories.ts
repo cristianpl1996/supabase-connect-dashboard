@@ -29,14 +29,20 @@ export interface LaboratoryFormData {
 export function useLaboratories() {
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const fetchLabs = useCallback(async () => {
     setIsLoading(true);
+    setIsError(false);
+    setErrorMessage('');
     try {
       const data = await listLaboratories();
       setLaboratories(data || []);
     } catch (error) {
       console.error('Error fetching laboratories:', error);
+      setIsError(true);
+      setErrorMessage(error instanceof Error ? error.message : 'Error desconocido');
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +88,8 @@ export function useLaboratories() {
   return {
     laboratories,
     isLoading,
+    isError,
+    errorMessage,
     createLab,
     updateLab,
     deleteLab,

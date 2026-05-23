@@ -87,6 +87,7 @@ export interface AuthUser {
   laboratory_id?: string;
   approval_limit?: number | null;
   is_promoter?: boolean;
+  requires_otp?: boolean;
 }
 
 export interface TokenResponse {
@@ -1268,6 +1269,17 @@ export function getProductFilterOptions(): Promise<ProductFilterOptions> {
   return apiDetail<ProductFilterOptions>("/api/v1/products/filter-options");
 }
 
+export interface ProductLightItem {
+  product_sku: string;
+  product_commercial_name?: string | null;
+}
+
+export function searchProductsLight(search: string): Promise<ApiListResponse<ProductLightItem>> {
+  return apiFetch<ApiListResponse<ProductLightItem>>(
+    withQuery("/api/v1/catalog/search", { q: search, limit: 20, offset: 0 })
+  );
+}
+
 export function getProduct(sku: string): Promise<ProductCatalogItem> {
   return apiDetail<ProductCatalogItem>(`/api/v1/products/${encodeURIComponent(sku)}`);
 }
@@ -1616,5 +1628,129 @@ export async function syncSapClose(promoId: string): Promise<SapSyncResult | nul
   } catch (err) {
     console.warn("[SAP Sync] close failed:", err);
     return null;
+  }
+}
+
+// ── App Users (username/password auth) ────────────────────────────────────────
+
+export interface AppUserRecord {
+  id: number;
+  username: string;
+  role: 'superadmin' | 'supervisor' | 'sales_rep';
+  phone?: string | null;
+  distributor_id: number;
+  sales_representative_id?: number | null;
+  is_active: boolean;
+  requires_otp: boolean;
+}
+
+export interface AppUserCreate {
+  username: string;
+  password: string;
+  role: 'superadmin' | 'supervisor' | 'sales_rep';
+  phone?: string | null;
+  distributor_id?: number;
+  sales_representative_id?: number | null;
+  requires_otp?: boolean;
+}
+
+export interface AppUserUpdate {
+  username?: string;
+  password?: string;
+  role?: 'superadmin' | 'supervisor' | 'sales_rep';
+  phone?: string | null;
+  distributor_id?: number;
+  sales_representative_id?: number | null;
+  is_active?: boolean;
+  requires_otp?: boolean;
+}
+
+export interface AppUserFilters {
+  search?: string;
+  role?: string;
+  is_active?: boolean;
+  requires_otp?: boolean;
+  has_phone?: boolean;
+  order_by?: string;
+}
+
+export function listAppUsers(filters?: AppUserFilters): Promise<AppUserRecord[]> {
+  const params = new URLSearchParams();
+  if (filters?.search) params.set('search', filters.search);
+  if (filters?.role) params.set('role', filters.role);
+  if (filters?.is_active !== undefined) params.set('is_active', String(filters.is_active));
+  if (filters?.requires_otp !== undefined) params.set('requires_otp', String(filters.requires_otp));
+  if (filters?.has_phone !== undefined) params.set('has_phone', String(filters.has_phone));
+  if (filters?.order_by) params.set('order_by', filters.order_by);
+  const qs = params.toString();
+  return apiFetch<AppUserRecord[]>(`/api/v1/users${qs ? `?${qs}` : ''}`);
+}
+
+export function createAppUser(data: AppUserCreate): Promise<AppUserRecord> {
+  return apiFetch<AppUserRecord>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateAppUser(id: number, data: AppUserUpdate): Promise<AppUserRecord> {
+  return apiFetch<AppUserRecord>(`/api/v1/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deactivateAppUser(id: number): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}/api/v1/users/${id}`, { method: 'DELETE', headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.detail ?? `Error ${res.status}`);
+  }
+}
+
+// ── Agotados ───────────────────────────────────────────────────────────────────
+
+export interface Agotado {
+  id: number;
+  product_sku: string;
+  product_name?: string | null;
+  reason: string;
+  notes?: string | null;
+  sales_rep_id: number;
+  sales_rep_name?: string | null;
+  status: 'activo' | 'resuelto';
+  reported_at: string;
+  resolved_at?: string | null;
+}
+
+export interface AgotadoCreate {
+  product_sku: string;
+  product_name?: string | null;
+  reason: string;
+  notes?: string | null;
+}
+
+export async function createAgotado(data: AgotadoCreate): Promise<Agotado> {
+  return apiDetail<Agotado>('/api/v1/agotados', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function listAgotados(params?: { status?: string; limit?: number; offset?: number }): Promise<Agotado[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+  if (params?.offset !== undefined) qs.set('offset', String(params.offset));
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return apiDetail<Agotado[]>(`/api/v1/agotados${query}`);
+}
+
+export async function resolveAgotado(id: number): Promise<Agotado> {
+  return apiDetail<Agotado>(`/api/v1/agotados/${id}/resolve`, { method: 'PATCH' });
+}
+
+export async function deleteAgotado(id: number): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}/api/v1/agotados/${id}`, { method: 'DELETE', headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.detail ?? `Error ${res.status}`);
   }
 }

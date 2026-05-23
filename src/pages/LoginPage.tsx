@@ -292,16 +292,16 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right panel — form ─────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 bg-gray-50">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8 sm:py-10 bg-gray-50">
         <div className="w-full max-w-[420px]">
 
           {/* Logo above card */}
-          <div className="flex flex-col items-center mb-8">
-            <img src={logoIco} alt="Ivanagro" className="h-24 w-auto object-contain drop-shadow-sm" />
+          <div className="flex flex-col items-center mb-5 sm:mb-8">
+            <img src={logoIco} alt="Ivanagro" className="h-16 sm:h-24 w-auto object-contain drop-shadow-sm" />
           </div>
 
           {/* Card */}
-          <div className="login-card-animate bg-white rounded-2xl border border-gray-200 shadow-xl px-9 py-9 space-y-6"
+          <div className="login-card-animate bg-white rounded-2xl border border-gray-200 shadow-xl px-5 py-7 sm:px-9 sm:py-9 space-y-6"
             style={{ boxShadow: "0 4px 32px 0 rgba(10,150,63,0.08), 0 1.5px 8px 0 rgba(0,0,0,0.06)" }}>
 
             {!otpStep ? (
@@ -309,7 +309,7 @@ export default function LoginPage() {
                 {/* ── Step 1: credentials ─────────────────────────────── */}
                 <div className="flex flex-col items-center gap-3">
                   <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Iniciar sesión</h2>
                     <p className="text-sm text-gray-500">Accede a tu plataforma de gestión comercial</p>
                   </div>
                 </div>
@@ -405,7 +405,7 @@ export default function LoginPage() {
               <>
                 {/* ── Step 2: OTP verification ─────────────────────────── */}
                 <div className="text-center space-y-1.5">
-                  <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Verificación OTP</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Verificación OTP</h2>
                   <p className="text-sm text-gray-500">
                     Ingresa el código de 6 dígitos enviado al número
                     {phoneHint && <span className="font-semibold text-gray-700"> *****{phoneHint.slice(-4)}</span>}

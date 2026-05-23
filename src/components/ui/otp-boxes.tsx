@@ -61,21 +61,23 @@ export function OtpBoxes({ value, onChange, onComplete }: {
         e.target.style.backgroundColor = digits[i] ? "#f0fdf4" : "#f9fafb";
       }}
       style={{
-        width: 48, height: 58, textAlign: "center",
-        fontSize: "1.5rem", fontWeight: 700,
+        width: "clamp(36px, 10vw, 48px)", height: "clamp(44px, 12vw, 58px)",
+        textAlign: "center",
+        fontSize: "clamp(1.1rem, 4vw, 1.5rem)", fontWeight: 700,
         color: "#111827",
         backgroundColor: digits[i] ? "#f0fdf4" : "#f9fafb",
         border: `2px solid ${digits[i] ? "#16a34a" : "#d1d5db"}`,
         borderRadius: 12, outline: "2px solid transparent", outlineOffset: 2, caretColor: "transparent",
         transition: "border-color 0.15s, box-shadow 0.15s, background-color 0.15s",
+        flexShrink: 0,
       }}
     />
   );
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "clamp(4px, 1.5vw, 8px)", width: "100%", justifyContent: "center" }}>
       {[0, 1, 2].map(box)}
-      <span style={{ color: "#d1d5db", fontSize: "1.4rem", fontWeight: 300, userSelect: "none" }}>—</span>
+      <span style={{ color: "#d1d5db", fontSize: "1.2rem", fontWeight: 300, userSelect: "none", flexShrink: 0 }}>—</span>
       {[3, 4, 5].map(box)}
     </div>
   );

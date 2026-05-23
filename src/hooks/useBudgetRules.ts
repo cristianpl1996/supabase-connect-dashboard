@@ -47,9 +47,13 @@ export function useBudgetRules() {
   const [rules, setRules] = useState<BudgetRule[]>([]);
   const [config, setConfig] = useState<BudgetRulesConfig>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const fetchRules = useCallback(async () => {
     setIsLoading(true);
+    setIsError(false);
+    setErrorMessage('');
     try {
       const data = await listBudgetRules();
       setRules(data || []);
@@ -60,6 +64,8 @@ export function useBudgetRules() {
       setConfig(nextConfig);
     } catch (error) {
       console.error('Error fetching budget_rules:', error);
+      setIsError(true);
+      setErrorMessage(error instanceof Error ? error.message : 'Error desconocido');
       setRules([]);
       setConfig({});
     } finally {
@@ -102,6 +108,8 @@ export function useBudgetRules() {
     rules,
     config,
     isLoading,
+    isError,
+    errorMessage,
     toggleRule,
     refetch: fetchRules,
   };

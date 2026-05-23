@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Map,
   Package,
+  PackageX,
   ReceiptText,
   Settings,
   Tag,
@@ -23,7 +24,15 @@ export const mainNavItems = [
   { title: "Marketing Kit", shortTitle: "Marketing", url: "/marketing", icon: Image },
   { title: "Billetera & Conciliacion", shortTitle: "Billetera", url: "/wallet", icon: Wallet },
   { title: "Mapa de Clientes", shortTitle: "Mapa", url: "/map", icon: Map },
+  { title: "Dashboard Agotados", shortTitle: "Agotados", url: "/sold-out", icon: PackageX },
 ] as const;
+
+export const agotadosNavItem = {
+  title: "Dashboard Agotados",
+  shortTitle: "Agotados",
+  url: "/sold-out",
+  icon: PackageX,
+} as const;
 
 export const settingsNavItem = {
   title: "Configuracion",
@@ -45,5 +54,5 @@ export const mobileMoreNavItems = [
   mainNavItems[6],
   mainNavItems[7],
   mainNavItems[8],
-  settingsNavItem,
+  mainNavItems[10],
 ] as const;

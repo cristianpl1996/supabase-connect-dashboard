@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowUp, Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ArrowUp, Bell, LogOut, Menu, Moon, Settings, Sun } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 
@@ -53,7 +53,12 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const initials = getInitials(user?.full_name, user?.username);
   const displayName = user?.full_name ?? user?.username ?? "Usuario";
-  const displayRole = user?.role ?? "Administrador";
+  const ROLE_LABELS: Record<string, string> = {
+    sales_rep: "Representante de ventas",
+    superadmin: "Superadmin",
+    admin: "Administrador",
+  };
+  const displayRole = ROLE_LABELS[user?.role ?? ""] ?? user?.role ?? "Administrador";
 
   const { data: notificationsSummary, refetch: refetchNotifications } = useQuery({
     queryKey: ["header-notifications"],
@@ -262,11 +267,23 @@ export function AppLayout({ children }: AppLayoutProps) {
                     {user?.email && (
                       <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                     )}
-                    <p className="mt-0.5 text-xs capitalize leading-none text-muted-foreground">
+                    <p className="mt-0.5 text-xs leading-none text-muted-foreground">
                       {displayRole}
                     </p>
                   </div>
                 </DropdownMenuLabel>
+
+                {user?.role !== 'sales_rep' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                      <Link to="/settings">
+                        <Settings className="size-4" />
+                        Configuración
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
 
                 <DropdownMenuSeparator />
 

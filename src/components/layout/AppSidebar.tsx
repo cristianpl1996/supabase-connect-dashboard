@@ -1,3 +1,4 @@
+import React from "react";
 import logoIco from "@/assets/logoico.png";
 import logo from "@/assets/logo.png";
 import { Link, useLocation } from "react-router-dom";
@@ -31,8 +32,10 @@ function getInitials(name?: string, username?: string): string {
     .slice(0, 2);
 }
 
+type NavItemData = { title: string; shortTitle: string; url: string; icon: React.ElementType };
+
 interface NavItemProps {
-  item: (typeof mainNavItems)[number] | typeof settingsNavItem;
+  item: NavItemData;
   isCollapsed: boolean;
 }
 
@@ -70,10 +73,20 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const { user } = useAuth();
+  const isSalesRep = user?.role === 'sales_rep';
+  // sales_rep sees only "Agotados" renamed; others see the full nav
+  const visibleNavItems: NavItemData[] = isSalesRep
+    ? [{ ...mainNavItems[mainNavItems.length - 1], title: 'Reportar Agotados', shortTitle: 'Reportar' }]
+    : [...mainNavItems];
 
   const initials = getInitials(user?.full_name, user?.username);
   const displayName = user?.full_name ?? user?.username ?? "Usuario";
-  const displayRole = user?.role ?? "Administrador";
+  const ROLE_LABELS: Record<string, string> = {
+    sales_rep: "Representante de ventas",
+    superadmin: "Superadmin",
+    admin: "Administrador",
+  };
+  const displayRole = ROLE_LABELS[user?.role ?? ""] ?? user?.role ?? "Administrador";
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50 bg-sidebar shadow-sm">
@@ -107,7 +120,7 @@ export function AppSidebar() {
           )}
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {mainNavItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <NavItem key={item.url} item={item} isCollapsed={isCollapsed} />
               ))}
             </SidebarMenu>
@@ -117,11 +130,14 @@ export function AppSidebar() {
 
       <SidebarFooter className="px-2 pb-4">
         <Separator className="opacity-40" />
-        <SidebarMenu>
-          <NavItem item={settingsNavItem} isCollapsed={isCollapsed} />
-        </SidebarMenu>
-
-        <Separator className="opacity-40" />
+        {!isSalesRep && (
+          <>
+            <SidebarMenu>
+              <NavItem item={settingsNavItem} isCollapsed={isCollapsed} />
+            </SidebarMenu>
+            <Separator className="opacity-40" />
+          </>
+        )}
 
         {isCollapsed ? (
           <Tooltip>
@@ -136,7 +152,7 @@ export function AppSidebar() {
             </TooltipTrigger>
             <TooltipContent side="right">
               <p className="font-medium">{displayName}</p>
-              <p className="text-xs capitalize text-muted-foreground">{displayRole}</p>
+              <p className="text-xs text-muted-foreground">{displayRole}</p>
             </TooltipContent>
           </Tooltip>
         ) : (
@@ -146,7 +162,7 @@ export function AppSidebar() {
             </Avatar>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium leading-tight text-sidebar-foreground">{displayName}</p>
-              <p className="truncate text-xs capitalize leading-tight text-muted-foreground">{displayRole}</p>
+              <p className="truncate text-xs leading-tight text-muted-foreground">{displayRole}</p>
             </div>
           </div>
         )}
