@@ -3,9 +3,9 @@ import { Link, useLocation } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
-import { agotadosNavItem, mobileMoreNavItems, mobilePrimaryNavItems } from "./navItems";
+import { mainNavItems, mobileMoreNavItems, mobilePrimaryNavItems, salesRepMoreNavItems } from "./navItems";
 import { useAuth } from "@/contexts/AuthContext";
 
 function isRouteActive(pathname: string, url: string) {
@@ -34,24 +34,51 @@ export function MobileBottomNav() {
   const isSalesRep = user?.role === "sales_rep";
   const moreActive = mobileMoreNavItems.some((item) => isRouteActive(pathname, item.url));
 
+  if (isSalesRep) {
+    const disabledItems = [mainNavItems[2], mainNavItems[3], mainNavItems[0]];
+    return (
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-sidebar-border bg-sidebar px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 text-sidebar-foreground shadow-[0_-8px_24px_rgba(15,23,42,0.14)] md:hidden">
+        <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-stretch gap-1">
+          {disabledItems.map((item) => (
+            <Button
+              key={item.url}
+              variant="ghost"
+              disabled
+              className={cn(mobileNavItemClass, "pointer-events-none opacity-35")}
+            >
+              <item.icon className="size-5 shrink-0" />
+              <span className="w-full truncate leading-none">{item.shortTitle}</span>
+            </Button>
+          ))}
+          {salesRepMoreNavItems.map((item) => {
+            const active = isRouteActive(pathname, item.url);
+            return (
+              <Button
+                key={item.url}
+                variant="ghost"
+                asChild
+                className={cn(
+                  mobileNavItemClass,
+                  active ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
+                )}
+              >
+                <Link to={item.url} aria-current={active ? "page" : undefined}>
+                  <item.icon className="size-5 shrink-0" />
+                  <span className="w-full truncate leading-none">{item.shortTitle}</span>
+                </Link>
+              </Button>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-sidebar-border bg-sidebar px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 text-sidebar-foreground shadow-[0_-8px_24px_rgba(15,23,42,0.14)] md:hidden">
       <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-stretch gap-1">
         {mobilePrimaryNavItems.map((item) => {
           const active = isRouteActive(pathname, item.url);
-          if (isSalesRep) {
-            return (
-              <Button
-                key={item.url}
-                variant="ghost"
-                disabled
-                className={cn(mobileNavItemClass, "pointer-events-none opacity-35")}
-              >
-                <item.icon className="size-5 shrink-0" />
-                <span className="w-full truncate leading-none">{item.shortTitle}</span>
-              </Button>
-            );
-          }
           return (
             <Button
               key={item.url}
@@ -70,60 +97,44 @@ export function MobileBottomNav() {
           );
         })}
 
-        {/* 5th slot: Agotados for sales_rep, Más drawer for others */}
-        {isSalesRep ? (
-          <Button
-            variant="ghost"
-            asChild
-            className={cn(
-              mobileNavItemClass,
-              isRouteActive(pathname, agotadosNavItem.url) ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
-            )}
-          >
-            <Link to={agotadosNavItem.url} aria-current={isRouteActive(pathname, agotadosNavItem.url) ? "page" : undefined}>
-              <agotadosNavItem.icon className="size-5 shrink-0" />
-              <span className="w-full truncate leading-none">{agotadosNavItem.shortTitle}</span>
-            </Link>
-          </Button>
-        ) : (
-          <Drawer open={open} onOpenChange={setOpen}>
-            <DrawerTrigger asChild>
-              <Button
-                variant="ghost"
-                className={cn(
-                  mobileNavItemClass,
-                  moreActive || open ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
-                )}
-              >
-                <MoreHorizontal className="size-5 shrink-0" />
-                <span className="w-full truncate leading-none">Mas</span>
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden">
-              <div className="mt-2 grid grid-cols-3 gap-2 bg-sidebar px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
-                {mobileMoreNavItems.map((item) => {
-                  const active = isRouteActive(pathname, item.url);
-                  return (
-                    <Button
-                      key={item.url}
-                      variant="outline"
-                      asChild
-                      className={cn(
-                        "relative h-20 min-w-0 flex-col items-center justify-center gap-2 rounded-xl px-2 text-center text-xs",
-                        active ? mobileDrawerItemActiveClass : mobileDrawerItemInactiveClass,
-                      )}
-                    >
-                      <Link to={item.url} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined}>
-                        <item.icon className="size-5 shrink-0" />
-                        <span className="w-full truncate">{item.shortTitle}</span>
-                      </Link>
-                    </Button>
-                  );
-                })}
-              </div>
-            </DrawerContent>
-          </Drawer>
-        )}
+        {/* 5th slot: Más drawer */}
+        <Drawer open={open} onOpenChange={setOpen}>
+          <DrawerTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                mobileNavItemClass,
+                moreActive || open ? mobileNavItemActiveClass : mobileNavItemInactiveClass,
+              )}
+            >
+              <MoreHorizontal className="size-5 shrink-0" />
+              <span className="w-full truncate leading-none">Mas</span>
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent className="border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden">
+            <div className="mt-2 grid grid-cols-3 gap-2 bg-sidebar px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
+              {mobileMoreNavItems.map((item) => {
+                const active = isRouteActive(pathname, item.url);
+                return (
+                  <Button
+                    key={item.url}
+                    variant="outline"
+                    asChild
+                    className={cn(
+                      "relative h-20 min-w-0 flex-col items-center justify-center gap-2 rounded-xl px-2 text-center text-xs",
+                      active ? mobileDrawerItemActiveClass : mobileDrawerItemInactiveClass,
+                    )}
+                  >
+                    <Link to={item.url} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined}>
+                      <item.icon className="size-5 shrink-0" />
+                      <span className="w-full truncate">{item.shortTitle}</span>
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </nav>
   );

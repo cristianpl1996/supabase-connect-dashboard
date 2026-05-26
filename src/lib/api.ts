@@ -1754,3 +1754,61 @@ export async function deleteAgotado(id: number): Promise<void> {
     throw new ApiError(res.status, body?.detail ?? `Error ${res.status}`);
   }
 }
+
+// ── Promotor Transfers ─────────────────────────────────────────────────────────
+
+export interface PromotorTransferItem {
+  id: string;
+  transfer_id: string;
+  line_number: number;
+  product_sku: string;
+  product_name: string | null;
+  quantity: number;
+}
+
+export interface PromotorTransfer {
+  id: string;
+  reference: string;
+  promotor_id: number;
+  promotor_name: string | null;
+  sales_representative_id: number;
+  sales_representative_name: string | null;
+  distributor_id: number;
+  customer_id: number | null;
+  customer_name: string | null;
+  status: "borrador" | "enviada" | "cancelada";
+  observations: string | null;
+  items: PromotorTransferItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransferListParams {
+  status?: string;
+  sales_representative_id?: number;
+  promotor_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export function listTransfers(params: TransferListParams = {}): Promise<PromotorTransfer[]> {
+  return apiFetch<PromotorTransfer[]>(withQuery("/api/v1/promotor-transfers", {
+    status: params.status,
+    sales_representative_id: params.sales_representative_id,
+    promotor_id: params.promotor_id,
+    limit: params.limit ?? 1000,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function getTransfer(id: string): Promise<PromotorTransfer> {
+  return apiFetch<PromotorTransfer>(`/api/v1/promotor-transfers/${id}`);
+}
+
+export function submitTransfer(id: string): Promise<PromotorTransfer> {
+  return apiFetch<PromotorTransfer>(`/api/v1/promotor-transfers/${id}/submit`, { method: "PATCH" });
+}
+
+export function cancelTransfer(id: string): Promise<PromotorTransfer> {
+  return apiFetch<PromotorTransfer>(`/api/v1/promotor-transfers/${id}/cancel`, { method: "PATCH" });
+}

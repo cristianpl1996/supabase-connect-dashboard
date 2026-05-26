@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -36,7 +36,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, PackageX, Search, CheckCircle2, Trash2, X, ArrowUp, BarChart2 } from "lucide-react";
+import { Loader2, PackageX, Search, CheckCircle2, Trash2, X, BarChart2, Check, History } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
@@ -53,10 +55,65 @@ const REASONS = [
   "Otro",
 ];
 
+// ── Step indicator ─────────────────────────────────────────────────────────────
+
+function StepBar({ currentStep }: { currentStep: 1 | 2 | 3 }) {
+  const steps = [
+    { n: 1 as const, title: "Elige productos", short: "Productos" },
+    { n: 2 as const, title: "Selecciona motivo", short: "Motivo" },
+    { n: 3 as const, title: "Enviar reporte", short: "Enviar" },
+  ];
+  return (
+    <div className="rounded-lg border border-border bg-muted/60 px-4 pb-8 pt-5 sm:px-8">
+      <p className="mb-5 text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        Pasos para reportar
+      </p>
+      <div className="flex w-full items-start">
+        {steps.map((step, i) => (
+          <Fragment key={step.n}>
+            {i > 0 && (
+              <div
+                className={cn(
+                  "mt-5 h-0.5 flex-1 transition-colors duration-300",
+                  step.n <= currentStep ? "bg-primary" : "bg-border",
+                )}
+              />
+            )}
+            <div className="flex w-20 flex-col items-center gap-1.5 text-center sm:w-28">
+              <div
+                className={cn(
+                  "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ring-2 transition-all duration-300",
+                  step.n < currentStep && "bg-primary ring-primary text-primary-foreground",
+                  step.n === currentStep && "bg-primary/10 ring-primary text-primary scale-110",
+                  step.n > currentStep && "bg-background ring-border text-muted-foreground",
+                )}
+              >
+                {step.n < currentStep ? <Check className="size-4" /> : step.n}
+              </div>
+              <p
+                className={cn(
+                  "text-[11px] font-semibold leading-tight transition-colors",
+                  step.n === currentStep ? "text-primary" : step.n < currentStep ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                <span className="sm:hidden">{step.short}</span>
+                <span className="hidden sm:inline">{step.title}</span>
+              </p>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Sales Rep View ─────────────────────────────────────────────────────────────
 
 function SalesRepView() {
   const queryClient = useQueryClient();
+
+  // Tab
+  const [activeTab, setActiveTab] = useState<"reportar" | "historial">("reportar");
 
   // Product search
   const [productSearch, setProductSearch] = useState("");
@@ -78,7 +135,6 @@ function SalesRepView() {
   // Infinite display
   const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const handleProductSearchChange = useCallback((value: string) => {
     setProductSearch(value);
@@ -100,8 +156,11 @@ function SalesRepView() {
     refetch: refetchProducts,
   } = useQuery({
     queryKey: ["products-agotados-light", debouncedSearch],
-    queryFn: () => searchProductsLight(debouncedSearch),
-    enabled: debouncedSearch.length >= 1,
+    queryFn: () =>
+      debouncedSearch.trim()
+        ? searchProductsLight(debouncedSearch)
+        : Promise.resolve({ data: [], total: 0 }),
+    enabled: true,
     staleTime: 30_000,
   });
 
@@ -155,12 +214,6 @@ function SalesRepView() {
     observer.observe(target);
     return () => observer.disconnect();
   }, [hasMoreDisplay]);
-
-  useEffect(() => {
-    const onScroll = () => setShowScrollTop(window.scrollY > 300);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   const commitReportSearch = () => setReportSearch(reportSearchInput.trim());
 
@@ -219,12 +272,18 @@ function SalesRepView() {
       setOtroDetalle("");
       setNotes("");
       clearProductSearch();
+      setActiveTab("historial");
     } catch {
       toast({ title: "Error al reportar", description: "Intenta de nuevo.", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Step 1 = no products selected; Step 2 = products but no reason; Step 3 = ready
+  const currentStep: 1 | 2 | 3 = selected.length === 0 ? 1 : !reason ? 2 : 3;
+
+  const activoCount = myReports.filter((r) => r.status === "activo").length;
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
@@ -244,352 +303,385 @@ function SalesRepView() {
         />
       )}
 
-      <ErrorDisabledContent disabled={reportsError} className="space-y-5 sm:space-y-6">
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Product search */}
-          <div className="lg:col-span-2 space-y-3">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Buscar Productos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    placeholder="Buscar por nombre o SKU"
-                    className="pl-9 pr-16"
-                    value={productSearch}
-                    onChange={(e) => handleProductSearchChange(e.target.value)}
-                    disabled={submitting}
-                  />
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                    {fetchingProducts && (
-                      <Loader2 className="size-3.5 text-muted-foreground animate-spin" />
+      <ErrorDisabledContent disabled={reportsError}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "reportar" | "historial")}
+          className="space-y-5 sm:space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="reportar" className="gap-2 text-sm">
+              <PackageX className="size-4" />
+              Reportar
+            </TabsTrigger>
+            <TabsTrigger value="historial" className="gap-2 text-sm">
+              <History className="size-4" />
+              Historial
+              {activoCount > 0 && (
+                <span className="ml-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {activoCount > 9 ? "9+" : activoCount}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab: Reportar ── */}
+          <TabsContent value="reportar" className="space-y-5 sm:space-y-6 mt-0">
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Product search */}
+              <div className="lg:col-span-2">
+                <Card className="h-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Buscar Productos</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        placeholder="Filtrar por nombre o SKU…"
+                        className="h-10 pl-9 pr-10 text-sm"
+                        value={productSearch}
+                        onChange={(e) => handleProductSearchChange(e.target.value)}
+                        disabled={submitting}
+                      />
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                        {fetchingProducts && <Loader2 className="size-3.5 text-muted-foreground animate-spin" />}
+                        {productSearch && (
+                          <button type="button" onClick={clearProductSearch} className="text-muted-foreground hover:text-destructive transition-colors">
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border overflow-hidden">
+                      {loadingProducts ? (
+                        <div className="space-y-2 p-2">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <div key={i} className="h-11 animate-pulse rounded bg-muted" />
+                          ))}
+                        </div>
+                      ) : productsError ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+                          <PackageX className="size-8 text-muted-foreground/30" />
+                          <p className="text-sm text-muted-foreground">Error al buscar productos</p>
+                          <button type="button" onClick={() => void refetchProducts()} className="text-xs text-primary underline">
+                            Reintentar
+                          </button>
+                        </div>
+                      ) : products.length === 0 && !debouncedSearch.trim() ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-center gap-1">
+                          <Search className="size-8 text-muted-foreground/30 mb-1" />
+                          <p className="text-sm text-muted-foreground">Escribe el nombre o SKU para buscar un producto</p>
+                        </div>
+                      ) : products.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-center gap-1">
+                          <PackageX className="size-8 text-muted-foreground/30 mb-1" />
+                          <p className="text-sm text-muted-foreground">Sin resultados para "{debouncedSearch}"</p>
+                          <button type="button" onClick={clearProductSearch} className="text-xs text-primary underline mt-1">
+                            Limpiar búsqueda
+                          </button>
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10" />
+                              <TableHead>SKU</TableHead>
+                              <TableHead>Nombre</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {products.map((p) => {
+                              const isChecked = selected.some((s) => s.product_sku === p.product_sku);
+                              return (
+                                <TableRow key={p.product_sku} className="cursor-pointer" onClick={() => toggleSelect(p)}>
+                                  <TableCell>
+                                    <Checkbox checked={isChecked} onCheckedChange={() => toggleSelect(p)} onClick={(e) => e.stopPropagation()} />
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">{p.product_sku}</TableCell>
+                                  <TableCell className="text-sm">{p.product_commercial_name ?? "—"}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Report panel */}
+              <div>
+                <Card className="h-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Reportar seleccionados</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selected.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Selecciona productos de la lista</p>
+                    ) : (
+                      <div className="rounded-md border divide-y max-h-40 overflow-y-auto">
+                        {selected.map((p) => (
+                          <div key={p.product_sku} className="flex items-center justify-between px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{p.product_commercial_name ?? p.product_sku}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{p.product_sku}</p>
+                            </div>
+                            <button onClick={() => toggleSelect(p)} className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors" disabled={submitting}>
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                    {productSearch && (
+
+                    <div className="space-y-1.5">
+                      <Label className={formErrors.reason ? "text-destructive" : ""}>
+                        Motivo <span className="text-destructive">*</span>
+                      </Label>
+                      <Select
+                        value={reason}
+                        onValueChange={(v) => { setReason(v); setFormErrors((e) => ({ ...e, reason: undefined })); if (v !== "Otro") setOtroDetalle(""); }}
+                        disabled={submitting}
+                      >
+                        <SelectTrigger className={formErrors.reason ? "border-destructive" : ""}>
+                          <SelectValue placeholder="Selecciona motivo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {formErrors.reason && <p className="text-xs text-destructive">{formErrors.reason}</p>}
+                    </div>
+
+                    {reason === "Otro" && (
+                      <div className="space-y-1.5">
+                        <Label className={formErrors.otroDetalle ? "text-destructive" : ""}>
+                          Especifica el caso <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          placeholder="Describe el motivo..."
+                          value={otroDetalle}
+                          onChange={(e) => { setOtroDetalle(e.target.value); setFormErrors((er) => ({ ...er, otroDetalle: undefined })); }}
+                          disabled={submitting}
+                          className={formErrors.otroDetalle ? "border-destructive focus-visible:ring-destructive/30" : ""}
+                        />
+                        {formErrors.otroDetalle && <p className="text-xs text-destructive">{formErrors.otroDetalle}</p>}
+                      </div>
+                    )}
+
+                    {reason !== "Otro" && (
+                      <div className="space-y-1.5">
+                        <Label>Notas <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
+                        <Textarea placeholder="Información adicional..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} disabled={submitting} />
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      onClick={handleSubmit}
+                      disabled={submitting || !selected.length}
+                    >
+                      {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : <PackageX className="size-4 mr-2" />}
+                      Enviar Reporte {selected.length > 0 ? `(${selected.length})` : ""}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Step indicator */}
+            <StepBar currentStep={currentStep} />
+          </TabsContent>
+
+          {/* ── Tab: Historial ── */}
+          <TabsContent value="historial" className="mt-0 space-y-5 sm:space-y-6">
+            {/* KPIs */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { label: "Activos", value: myReports.filter((r) => r.status === "activo").length, className: "text-destructive", icon: PackageX, iconClass: "text-destructive" },
+                { label: "Resueltos", value: myReports.filter((r) => r.status === "resuelto").length, className: "", icon: CheckCircle2, iconClass: "text-primary" },
+                { label: "Total", value: myReports.length, className: "", icon: BarChart2, iconClass: "text-primary" },
+              ].map((metric) => (
+                <Card key={metric.label}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">{metric.label}</p>
+                      <metric.icon className={`size-4 shrink-0 ${metric.iconClass}`} />
+                    </div>
+                    {loadingReports ? (
+                      <div className="mt-1 h-7 w-24 animate-pulse rounded bg-muted" />
+                    ) : (
+                      <p className={`mt-1 text-3xl font-bold ${metric.className}`}>{metric.value}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Card className="overflow-hidden">
+              <CardHeader className="space-y-3 p-4 sm:p-6 pb-3">
+                <div className="grid gap-3 sm:grid-cols-[1fr_200px_160px]">
+                  <div className="relative min-w-0">
+                    <button
+                      type="button"
+                      onClick={commitReportSearch}
+                      disabled={loadingReports}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    >
+                      <Search className="size-4" />
+                    </button>
+                    <Input
+                      value={reportSearchInput}
+                      onChange={(e) => setReportSearchInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && commitReportSearch()}
+                      disabled={loadingReports}
+                      placeholder="Buscar por producto o SKU"
+                      className="h-10 pl-9 pr-9 text-sm"
+                    />
+                    {reportSearch && (
                       <button
                         type="button"
-                        onClick={clearProductSearch}
-                        className="text-muted-foreground transition-colors hover:text-destructive"
+                        onClick={() => { setReportSearchInput(""); setReportSearch(""); }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive"
                       >
                         <X className="size-4" />
                       </button>
                     )}
                   </div>
+                  <SearchableSelect
+                    value={filterReason}
+                    onValueChange={setFilterReason}
+                    options={reasonOptions}
+                    allLabel="Todos los motivos"
+                    searchPlaceholder="Buscar motivo…"
+                    emptyLabel="No hay motivos"
+                    disabled={loadingReports}
+                  />
+                  <Select value={filterStatus} onValueChange={setFilterStatus} disabled={loadingReports}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="activo">Activos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                {productSearch.length >= 1 && (
-                  <div className="rounded-md border overflow-hidden">
-                    {loadingProducts || (fetchingProducts && products.length === 0) ? (
-                      <div className="space-y-2 p-2">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="h-12 animate-pulse rounded bg-muted" />
-                        ))}
-                      </div>
-                    ) : productsError ? (
-                      <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
-                        <PackageX className="size-8 text-muted-foreground/30" />
-                        <p className="text-sm text-muted-foreground">Error al buscar productos</p>
-                        <button type="button" onClick={() => void refetchProducts()} className="text-xs text-primary underline">
-                          Reintentar
-                        </button>
-                      </div>
-                    ) : debouncedSearch.length < 1 ? (
-                      <div className="flex items-center justify-center py-6 gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="size-4 animate-spin" />
-                        Buscando…
-                      </div>
-                    ) : products.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 text-center">
-                        <Search className="size-8 text-muted-foreground/30 mb-2" />
-                        <p className="text-sm text-muted-foreground">No se encontraron productos</p>
-                      </div>
-                    ) : (
+                {activeFilters.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                    {activeFilters.map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={f.clear}
+                        disabled={loadingReports}
+                        className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15"
+                      >
+                        <span className="truncate">{f.label}</span>
+                        <X className="size-3 shrink-0" />
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={clearReportFilters}
+                      disabled={loadingReports}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" /> Limpiar
+                    </button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="pt-0 px-4 sm:px-6 pb-4 sm:pb-6">
+                {loadingReports ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map((i) => <div key={i} className="h-12 animate-pulse rounded bg-muted" />)}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <PackageX className="size-12 text-muted-foreground/30 mb-4" />
+                    <p className="font-medium text-muted-foreground">
+                      {activeFilters.length > 0 ? "No hay reportes con los filtros seleccionados" : "Aún no tienes reportes"}
+                    </p>
+                    {activeFilters.length > 0 && (
+                      <Button variant="outline" className="mt-4 gap-2" onClick={clearReportFilters}>
+                        <X className="size-4" /> Limpiar filtros
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="hidden sm:table-cell">SKU</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead>Motivo</TableHead>
+                            <TableHead className="hidden md:table-cell">Reportado</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead className="w-10" />
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Nombre</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {products.map((p) => {
-                            const isChecked = selected.some((s) => s.product_sku === p.product_sku);
-                            return (
-                              <TableRow key={p.product_sku} className="cursor-pointer" onClick={() => toggleSelect(p)}>
-                                <TableCell>
-                                  <Checkbox checked={isChecked} onCheckedChange={() => toggleSelect(p)} onClick={(e) => e.stopPropagation()} />
-                                </TableCell>
-                                <TableCell className="font-mono text-xs">{p.product_sku}</TableCell>
-                                <TableCell className="text-sm">{p.product_commercial_name ?? "—"}</TableCell>
-                              </TableRow>
-                            );
-                          })}
+                          {displayed.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell className="hidden sm:table-cell font-mono text-xs">{r.product_sku}</TableCell>
+                              <TableCell className="text-sm">
+                                <p className="font-medium leading-snug">{r.product_name ?? "—"}</p>
+                                <p className="mt-0.5 font-mono text-xs text-muted-foreground sm:hidden">{r.product_sku}</p>
+                              </TableCell>
+                              <TableCell className="text-sm">{r.reason}</TableCell>
+                              <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                                {new Date(r.reported_at).toLocaleString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={r.status === "activo" ? "destructive" : "secondary"}>
+                                  {r.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {r.status === "activo" && (() => {
+                                  const createdToday = new Date(r.reported_at).toDateString() === new Date().toDateString();
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-8 text-destructive hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed"
+                                      onClick={() => createdToday && deleteMutation.mutate(r.id)}
+                                      disabled={deleteMutation.isPending || !createdToday}
+                                      title={!createdToday ? "Solo puedes eliminar reportes del día de hoy" : "Eliminar reporte"}
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </Button>
+                                  );
+                                })()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
-                    )}
-                  </div>
-                )}
-
-                {productSearch.length < 1 && (
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                    <Search className="size-4 shrink-0 text-primary" />
-                    <span>Escribe el nombre o SKU para buscar un producto</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Report panel */}
-          <div className="space-y-3">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Reportar seleccionados</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selected.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Selecciona productos de la lista</p>
-                ) : (
-                  <div className="rounded-md border divide-y">
-                    {selected.map((p) => (
-                      <div key={p.product_sku} className="flex items-center justify-between px-3 py-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{p.product_commercial_name ?? p.product_sku}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{p.product_sku}</p>
-                        </div>
-                        <button
-                          onClick={() => toggleSelect(p)}
-                          className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                          disabled={submitting}
-                        >
-                          <X className="size-4" />
-                        </button>
+                    </div>
+                    <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+                    {hasMoreDisplay && (
+                      <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Cargando más reportes…</span>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                    {!hasMoreDisplay && filtered.length > DISPLAY_PAGE && (
+                      <p className="py-2 text-center text-xs text-muted-foreground">
+                        {filtered.length} reportes en total
+                      </p>
+                    )}
+                  </>
                 )}
-
-                <div className="space-y-1.5">
-                  <Label className={formErrors.reason ? "text-destructive" : ""}>Motivo <span className="text-destructive">*</span></Label>
-                  <Select
-                    value={reason}
-                    onValueChange={(v) => { setReason(v); setFormErrors((e) => ({ ...e, reason: undefined })); if (v !== "Otro") setOtroDetalle(""); }}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger className={formErrors.reason ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Selecciona motivo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {formErrors.reason && <p className="text-xs text-destructive">{formErrors.reason}</p>}
-                </div>
-
-                {reason === "Otro" && (
-                  <div className="space-y-1.5">
-                    <Label className={formErrors.otroDetalle ? "text-destructive" : ""}>
-                      Especifica el caso <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      placeholder="Describe el motivo..."
-                      value={otroDetalle}
-                      onChange={(e) => { setOtroDetalle(e.target.value); setFormErrors((er) => ({ ...er, otroDetalle: undefined })); }}
-                      disabled={submitting}
-                      className={formErrors.otroDetalle ? "border-destructive focus-visible:ring-destructive/30" : ""}
-                    />
-                    {formErrors.otroDetalle && <p className="text-xs text-destructive">{formErrors.otroDetalle}</p>}
-                  </div>
-                )}
-
-                {reason !== "Otro" && (
-                  <div className="space-y-1.5">
-                    <Label>Notas <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
-                    <Textarea placeholder="Información adicional..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} disabled={submitting} />
-                  </div>
-                )}
-
-                <Button
-                  className="w-full"
-                  onClick={handleSubmit}
-                  disabled={submitting || !selected.length}
-                >
-                  {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : <PackageX className="size-4 mr-2" />}
-                  Enviar Reporte {selected.length > 0 ? `(${selected.length})` : ""}
-                </Button>
               </CardContent>
             </Card>
-          </div>
-        </div>
-
-        {/* My reports */}
-        <Card className="overflow-hidden">
-          <CardHeader className="space-y-3 p-4 sm:p-6 pb-3">
-            <div className="grid gap-3 sm:grid-cols-[1fr_200px_160px]">
-              {/* Search */}
-              <div className="relative min-w-0">
-                <button
-                  type="button"
-                  onClick={commitReportSearch}
-                  disabled={loadingReports}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-                >
-                  <Search className="size-4" />
-                </button>
-                <Input
-                  value={reportSearchInput}
-                  onChange={(e) => setReportSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && commitReportSearch()}
-                  disabled={loadingReports}
-                  placeholder="Buscar por producto o SKU"
-                  className="h-10 pl-9 pr-9"
-                />
-                {reportSearch && (
-                  <button
-                    type="button"
-                    onClick={() => { setReportSearchInput(""); setReportSearch(""); }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-destructive"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-              <SearchableSelect
-                value={filterReason}
-                onValueChange={setFilterReason}
-                options={reasonOptions}
-                allLabel="Todos los motivos"
-                searchPlaceholder="Buscar motivo…"
-                emptyLabel="No hay motivos"
-                disabled={loadingReports}
-              />
-              <Select value={filterStatus} onValueChange={setFilterStatus} disabled={loadingReports}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="activo">Activos</SelectItem>
-                  <SelectItem value="all">Todos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                {activeFilters.map((f) => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={f.clear}
-                    disabled={loadingReports}
-                    className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15"
-                  >
-                    <span className="truncate">{f.label}</span>
-                    <X className="size-3 shrink-0" />
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={clearReportFilters}
-                  disabled={loadingReports}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <X className="size-3" /> Limpiar
-                </button>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="pt-0 px-4 sm:px-6 pb-4 sm:pb-6">
-            {loadingReports ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => <div key={i} className="h-12 animate-pulse rounded bg-muted" />)}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <PackageX className="size-12 text-muted-foreground/30 mb-4" />
-                <p className="font-medium text-muted-foreground">
-                  {activeFilters.length > 0 ? "No hay reportes con los filtros seleccionados" : "No se pudieron encontraron reportes"}
-                </p>
-                {activeFilters.length > 0 && (
-                  <Button variant="outline" className="mt-4 gap-2" onClick={clearReportFilters}>
-                    <X className="size-4" /> Limpiar filtros
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Motivo</TableHead>
-                        <TableHead>Reportado</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead className="w-10" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayed.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-mono text-xs">{r.product_sku}</TableCell>
-                          <TableCell className="text-sm">{r.product_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{r.reason}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(r.reported_at).toLocaleDateString("es-CO")}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={r.status === "activo" ? "destructive" : "secondary"}>
-                              {r.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {r.status === "activo" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-destructive hover:text-destructive"
-                                onClick={() => deleteMutation.mutate(r.id)}
-                                disabled={deleteMutation.isPending}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div ref={sentinelRef} className="h-px" aria-hidden="true" />
-                {hasMoreDisplay && (
-                  <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
-                    <Loader2 className="size-4 animate-spin" />
-                    <span>Cargando más reportes…</span>
-                  </div>
-                )}
-                {!hasMoreDisplay && filtered.length > DISPLAY_PAGE && (
-                  <p className="py-2 text-center text-xs text-muted-foreground">
-                    {filtered.length} reportes en total
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+        </Tabs>
       </ErrorDisabledContent>
-
-      {showScrollTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-6 right-6 z-50 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
-          aria-label="Volver al inicio"
-        >
-          <ArrowUp className="size-5" />
-        </button>
-      )}
     </div>
   );
 }
@@ -611,9 +703,6 @@ function SuperadminView() {
   // Display pagination (client-side infinite scroll over fetched data)
   const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Scroll-to-top
-  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const { data: reports = [], isLoading, isError, error, refetch } = useQuery<Agotado[]>({
     queryKey: ["agotados-all", filterStatus],
@@ -671,13 +760,6 @@ function SuperadminView() {
     return () => observer.disconnect();
   }, [hasMoreDisplay]);
 
-  // Scroll-to-top visibility
-  useEffect(() => {
-    const onScroll = () => setShowScrollTop(window.scrollY > 300);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   const commitSearch = () => setSearch(searchInput.trim());
 
   const clearAllFilters = () => {
@@ -731,17 +813,20 @@ function SuperadminView() {
         {/* Metrics */}
         <div className="grid gap-4 sm:grid-cols-3">
           {[
-            { label: "Activos", value: activos, className: "text-destructive" },
-            { label: "Total reportes", value: reports.length, className: "" },
-            { label: "Representantes", value: totalReps, className: "" },
+            { label: "Activos", value: activos, className: "text-destructive", icon: PackageX, iconClass: "text-destructive" },
+            { label: "Total reportes", value: reports.length, className: "", icon: BarChart2, iconClass: "text-primary" },
+            { label: "Representantes", value: totalReps, className: "", icon: CheckCircle2, iconClass: "text-primary" },
           ].map((metric) => (
             <Card key={metric.label}>
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">{metric.label}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">{metric.label}</p>
+                  <metric.icon className={`size-4 shrink-0 ${metric.iconClass}`} />
+                </div>
                 {isLoading ? (
                   <div className="mt-1 h-7 w-24 animate-pulse rounded bg-muted" />
                 ) : (
-                  <p className={`text-3xl font-bold ${metric.className}`}>{metric.value}</p>
+                  <p className={`mt-1 text-3xl font-bold ${metric.className}`}>{metric.value}</p>
                 )}
               </CardContent>
             </Card>
@@ -859,11 +944,11 @@ function SuperadminView() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>SKU</TableHead>
+                        <TableHead className="hidden sm:table-cell">SKU</TableHead>
                         <TableHead>Producto</TableHead>
-                        <TableHead>Motivo</TableHead>
-                        <TableHead>Rep. de Venta</TableHead>
-                        <TableHead>Reportado</TableHead>
+                        <TableHead className="hidden sm:table-cell">Motivo</TableHead>
+                        <TableHead className="hidden md:table-cell">Rep. de Venta</TableHead>
+                        <TableHead className="hidden md:table-cell">Reportado</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="w-24" />
                       </TableRow>
@@ -871,12 +956,17 @@ function SuperadminView() {
                     <TableBody>
                       {displayed.map((r) => (
                         <TableRow key={r.id}>
-                          <TableCell className="font-mono text-xs">{r.product_sku}</TableCell>
-                          <TableCell className="text-sm">{r.product_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{r.reason}</TableCell>
-                          <TableCell className="text-sm">{r.sales_rep_name ?? `#${r.sales_rep_id}`}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(r.reported_at).toLocaleDateString("es-CO")}
+                          <TableCell className="hidden sm:table-cell font-mono text-xs">{r.product_sku}</TableCell>
+                          <TableCell className="text-sm">
+                            <p className="font-medium leading-snug">{r.product_name ?? "—"}</p>
+                            <p className="mt-0.5 font-mono text-xs text-muted-foreground sm:hidden">{r.product_sku}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">{r.reason}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground md:hidden sm:block hidden">{r.sales_rep_name ?? `#${r.sales_rep_id}`}</p>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{r.reason}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{r.sales_rep_name ?? `#${r.sales_rep_id}`}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                            {new Date(r.reported_at).toLocaleString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                           </TableCell>
                           <TableCell>
                             <Badge variant={r.status === "activo" ? "destructive" : "secondary"}>
@@ -932,17 +1022,6 @@ function SuperadminView() {
         reports={reports}
       />
 
-      {/* Scroll-to-top FAB */}
-      {showScrollTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-6 right-6 z-50 flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
-          aria-label="Volver al inicio"
-        >
-          <ArrowUp className="size-5" />
-        </button>
-      )}
     </div>
   );
 }

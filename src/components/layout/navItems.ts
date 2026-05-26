@@ -1,4 +1,5 @@
 import {
+  ArrowRightLeft,
   CalendarDays,
   FileText,
   Image,
@@ -25,6 +26,7 @@ export const mainNavItems = [
   { title: "Billetera & Conciliacion", shortTitle: "Billetera", url: "/wallet", icon: Wallet },
   { title: "Mapa de Clientes", shortTitle: "Mapa", url: "/map", icon: Map },
   { title: "Dashboard Agotados", shortTitle: "Agotados", url: "/sold-out", icon: PackageX },
+  { title: "Transferencias", shortTitle: "Transferencias", url: "/transfers", icon: ArrowRightLeft },
 ] as const;
 
 export const agotadosNavItem = {
@@ -33,6 +35,15 @@ export const agotadosNavItem = {
   url: "/sold-out",
   icon: PackageX,
 } as const;
+
+export const transfersNavItem = {
+  title: "Transferencias",
+  shortTitle: "Transferencias",
+  url: "/transfers",
+  icon: ArrowRightLeft,
+} as const;
+
+export const salesRepMoreNavItems = [agotadosNavItem, transfersNavItem] as const;
 
 export const settingsNavItem = {
   title: "Configuracion",
@@ -55,4 +66,5 @@ export const mobileMoreNavItems = [
   mainNavItems[7],
   mainNavItems[8],
   mainNavItems[10],
+  mainNavItems[11],
 ] as const;

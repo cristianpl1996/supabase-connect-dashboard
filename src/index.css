@@ -8,6 +8,12 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  fieldset {
+    border: none;
+    margin: 0;
+    padding: 0;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;

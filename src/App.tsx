@@ -29,6 +29,7 @@ import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
 import Agotados from "./pages/Agotados";
+import Transfers from "./pages/Transfers";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ const App = () => (
                           <Route path="/settings" element={<SalesRepRouteGuard><PromoterRouteGuard restricted><Settings /></PromoterRouteGuard></SalesRepRouteGuard>} />
                           <Route path="/map" element={<SalesRepRouteGuard><MapPage /></SalesRepRouteGuard>} />
                           <Route path="/sold-out" element={<Agotados />} />
+                          <Route path="/transfers" element={<Transfers />} />
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </AppLayout>

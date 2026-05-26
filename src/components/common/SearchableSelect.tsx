@@ -53,7 +53,7 @@ export function SearchableSelect({
           aria-controls={listId}
           aria-expanded={open}
           disabled={disabled}
-          className="h-10 w-full justify-between px-3 font-normal"
+          className="h-10 w-full justify-between px-3 text-sm font-normal"
         >
           <span className="truncate">{selected.label}</span>
           <ChevronsUpDown className="ml-2 size-4 shrink-0 text-muted-foreground" />

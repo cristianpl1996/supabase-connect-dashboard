@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { mainNavItems, settingsNavItem } from "./navItems";
+import { mainNavItems, settingsNavItem, transfersNavItem } from "./navItems";
 
 function getInitials(name?: string, username?: string): string {
   const source = name ?? username ?? "U";
@@ -74,9 +74,12 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
   const { user } = useAuth();
   const isSalesRep = user?.role === 'sales_rep';
-  // sales_rep sees only "Agotados" renamed; others see the full nav
+  // sales_rep sees Agotados + Transferencias; others see the full nav
   const visibleNavItems: NavItemData[] = isSalesRep
-    ? [{ ...mainNavItems[mainNavItems.length - 1], title: 'Reportar Agotados', shortTitle: 'Reportar' }]
+    ? [
+        { ...mainNavItems[mainNavItems.length - 2], title: "Reportar Agotados", shortTitle: "Reportar" },
+        { ...transfersNavItem },
+      ]
     : [...mainNavItems];
 
   const initials = getInitials(user?.full_name, user?.username);
