@@ -92,11 +92,6 @@ const PRODUCT_APPLICATION_OPTIONS = [
   { value: 'filters', label: 'Marca / Sector / Categoria / Especie' },
 ];
 
-const ACCOUNTING_TREATMENTS = [
-  { value: 'descuento_pie', label: 'Descuento Pie de Factura' },
-  { value: 'bonificacion_precio_cero', label: 'Bonificacion a Precio Cero' },
-  { value: 'precio_especial', label: 'Precio Especial' },
-];
 const WITHOUT_REPRESENTATIVE_OPTION = 'without_rep';
 
 const formFocusClasses = [
@@ -217,7 +212,6 @@ export function PromotionFormSheet({
   const customerOptionsHasMoreRef = useRef(false);
   const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(() => resetMechanicForPromotionType(''));
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
-  const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
@@ -271,55 +265,48 @@ export function PromotionFormSheet({
           setDescription(details.description || '');
           setStartDate(details.start_date);
           setEndDate(details.end_date);
-          const targetSegment = details.target_segment as {
-            type?: string;
-            scope?: string;
-            product_skus?: string[];
-            target_config?: Record<string, unknown>;
-            customer_ids?: string[];
-            product_filters?: Record<string, string>;
-            customer_filters?: Record<string, string>;
-          } | null;
-          const targetScope = details.target_scope || targetSegment?.scope || (targetSegment?.type && targetSegment.type !== 'todo' ? 'customer_segment' : 'all');
-          const targetConfig = (details.target_config || targetSegment?.target_config || {}) as Record<string, unknown>;
-          setSegment(String(targetConfig.segment_preset || 'custom'));
-          setScope(targetScope);
-          const existingProductFilters = (targetConfig.product_filters ?? targetSegment?.product_filters) as Record<string, unknown> | undefined;
-          setProductApplicationMode(existingProductFilters ? 'filters' : 'specific');
-          setSelectedProductSkus(Array.isArray(details.product_skus) ? details.product_skus : Array.isArray(targetSegment?.product_skus) ? targetSegment.product_skus : []);
-          setSelectedCustomerIds(Array.isArray(targetConfig.customer_ids) ? targetConfig.customer_ids.map(String) : Array.isArray(targetSegment?.customer_ids) ? targetSegment.customer_ids : []);
-          setProductFilterBrand(String(existingProductFilters?.brand_name || targetConfig.brand_name || targetSegment?.product_filters?.brand_name || ''));
-          setProductFilterCategory(String(existingProductFilters?.category || targetConfig.category || targetSegment?.product_filters?.category || ''));
-          setProductFilterSector(String(existingProductFilters?.industry_sector || targetConfig.industry_sector || targetSegment?.product_filters?.industry_sector || ''));
-          setProductFilterSpecies(String(existingProductFilters?.target_species || targetConfig.target_species || targetSegment?.product_filters?.target_species || ''));
-          setCustomerFilterBusinessType(String(targetConfig.business_type || targetSegment?.customer_filters?.business_type || ''));
-          setCustomerFilterCity(String(targetConfig.city || targetSegment?.customer_filters?.city || ''));
-          setCustomerFilterState(String(targetConfig.state || targetSegment?.customer_filters?.state || ''));
+          const seg = (details.target_segment || {}) as Record<string, unknown>;
+          const products = (seg.products || {}) as Record<string, unknown>;
+          const audience = (seg.audience || {}) as Record<string, unknown>;
+          const pFilters = (products.filters || {}) as Record<string, string>;
+          const cFilters = (audience.filters || {}) as Record<string, unknown>;
+          const audienceScope = String(audience.scope || details.audience_scope || 'all');
+          setScope(audienceScope);
+          setProductApplicationMode(String(products.mode || details.product_mode || 'specific'));
+          setSelectedProductSkus(Array.isArray(products.skus) ? (products.skus as string[]) : (Array.isArray(details.product_skus) ? details.product_skus : []));
+          setSelectedCustomerIds(Array.isArray(audience.customer_ids) ? (audience.customer_ids as string[]).map(String) : (Array.isArray(details.customer_ids) ? details.customer_ids : []));
+          setProductFilterBrand(pFilters.brand_name || '');
+          setProductFilterCategory(pFilters.category || '');
+          setProductFilterSector(pFilters.industry_sector || '');
+          setProductFilterSpecies(pFilters.target_species || '');
+          setSegment(String(cFilters.segment_preset || 'custom'));
+          setCustomerFilterBusinessType(String(cFilters.business_type || ''));
+          setCustomerFilterCity(String(cFilters.city || ''));
+          setCustomerFilterState(String(cFilters.state || ''));
           setCustomerFilterRepresentative(
-            typeof targetConfig.sales_representative_id === 'number' || typeof targetConfig.sales_representative_id === 'string'
-              ? String(targetConfig.sales_representative_id)
-              : targetConfig.has_sales_representative === true ? 'with'
-                : targetConfig.has_sales_representative === false ? WITHOUT_REPRESENTATIVE_OPTION
+            typeof cFilters.sales_representative_id === 'number' || typeof cFilters.sales_representative_id === 'string'
+              ? String(cFilters.sales_representative_id)
+              : cFilters.has_sales_representative === true ? 'with'
+                : cFilters.has_sales_representative === false ? WITHOUT_REPRESENTATIVE_OPTION
                   : 'all',
           );
           setCustomerFilterLocation(
-            targetConfig.has_location === true ? 'with'
-              : targetConfig.has_location === false ? 'without'
+            cFilters.has_location === true ? 'with'
+              : cFilters.has_location === false ? 'without'
                 : 'all',
           );
-          setCustomerFilterMinPurchases(String(targetConfig.min_purchases || ''));
-          setCustomerFilterMaxPurchases(String(targetConfig.max_purchases || ''));
-          setCustomerFilterMinDays(String(targetConfig.min_days_since_last_purchase || ''));
-          setCustomerFilterMaxDays(String(targetConfig.max_days_since_last_purchase || ''));
-          setCustomerFilterClv(String(targetConfig.customer_clv_segment || ''));
-          setCustomerFilterRfm(String(targetConfig.customer_rfm_segment || ''));
+          setCustomerFilterMinPurchases(String(cFilters.min_purchases || ''));
+          setCustomerFilterMaxPurchases(String(cFilters.max_purchases || ''));
+          setCustomerFilterMinDays(String(cFilters.min_days_since_last_purchase || ''));
+          setCustomerFilterMaxDays(String(cFilters.max_days_since_last_purchase || ''));
+          setCustomerFilterClv(String(cFilters.customer_clv_segment || ''));
+          setCustomerFilterRfm(String(cFilters.customer_rfm_segment || ''));
           setEstimatedCost(details.estimated_cost || 0);
           setMaxRedemptions(details.max_redemptions || '');
 
           const mechanic = details.mechanic;
           if (mechanic) {
             setMechanicState(inferMechanicStateFromPromotion(mechanic));
-            setAccountingTreatment(mechanic.accounting_treatment || 'descuento_pie');
           }
         } catch (err) {
           console.error('Error loading promotion:', err);
@@ -604,7 +591,6 @@ export function PromotionFormSheet({
     setCustomerNameMap({});
     setMechanicState(resetMechanicForPromotionType(''));
     setEstimatedCost(0);
-    setAccountingTreatment('descuento_pie');
     setMaxRedemptions('');
     setBudgetError(null);
     setSpendableBalance(null);
@@ -625,8 +611,11 @@ export function PromotionFormSheet({
     const errors: Record<string, string> = {};
     if (!labId) errors.labId = 'Selecciona un laboratorio';
     if (!title.trim()) errors.title = 'Ingresa un titulo para la promocion';
+    const today = new Date().toISOString().split('T')[0];
     if (!startDate || !endDate) errors.dates = 'Selecciona las fechas de vigencia';
-    else if (new Date(startDate) > new Date(endDate)) errors.dates = 'La fecha inicio debe ser anterior a la de fin';
+    else if (startDate < today) errors.dates = 'La fecha de inicio no puede ser anterior a hoy';
+    else if (endDate < today) errors.dates = 'La fecha de fin no puede ser anterior a hoy';
+    else if (startDate > endDate) errors.dates = 'La fecha inicio debe ser anterior a la de fin';
     if (productApplicationMode === 'specific' && selectedProductSkus.length === 0)
       errors.products = 'Selecciona al menos un producto';
     if (productApplicationMode === 'filters' && !hasProductFilters)
@@ -640,85 +629,6 @@ export function PromotionFormSheet({
     return errors;
   }, [labId, title, startDate, endDate, productApplicationMode, selectedProductSkus,
     hasProductFilters, scope, selectedCustomerIds, segment, hasCustomerFilters, mechanicState]);
-
-  const buildTargetConfig = useMemo(() => {
-    return () => {
-      const productFilters = productApplicationMode === 'filters'
-        ? {
-          brand_name: productFilterBrand || undefined,
-          industry_sector: productFilterSector || undefined,
-          category: productFilterCategory || undefined,
-          target_species: productFilterSpecies || undefined,
-        }
-        : undefined;
-
-      if (scope === 'all') {
-        return {
-          preset: 'commercial_base',
-          has_sales_representative: true,
-          min_purchases: 1,
-          product_filter_mode: productApplicationMode,
-          product_filters: productFilters,
-        };
-      }
-      const target: Record<string, unknown> = {};
-      target.product_filter_mode = productApplicationMode;
-      target.product_filters = productFilters;
-      if (scope === 'customers') {
-        target.customer_ids = selectedCustomerIds;
-      }
-      if (scope === 'customer_segment') {
-        Object.assign(target, buildSegmentPresetConfig(segment));
-        if (segment !== 'custom') {
-          target.segment_preset = segment;
-        }
-        target.business_type = customerFilterBusinessType === 'all' ? undefined : customerFilterBusinessType || undefined;
-        target.city = customerFilterCity || undefined;
-        target.state = customerFilterState || undefined;
-        target.has_sales_representative =
-          customerFilterRepresentative === 'with' ? true
-            : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false
-              : customerFilterRepresentative !== 'all' ? true
-                : undefined;
-        target.sales_representative_id =
-          customerFilterRepresentative !== 'all' && customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION
-            ? Number(customerFilterRepresentative)
-            : undefined;
-        target.has_location =
-          customerFilterLocation === 'with' ? true
-            : customerFilterLocation === 'without' ? false
-              : undefined;
-        target.min_purchases = customerFilterMinPurchases ? Number(customerFilterMinPurchases) : undefined;
-        target.max_purchases = customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : undefined;
-        target.min_days_since_last_purchase = customerFilterMinDays ? Number(customerFilterMinDays) : undefined;
-        target.max_days_since_last_purchase = customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined;
-        target.customer_clv_segment = customerFilterClv || undefined;
-        target.customer_rfm_segment = customerFilterRfm || undefined;
-      }
-      return target;
-    };
-  }, [
-    buildSegmentPresetConfig,
-    customerFilterBusinessType,
-    customerFilterCity,
-    customerFilterClv,
-    customerFilterLocation,
-    customerFilterMaxDays,
-    customerFilterMaxPurchases,
-    customerFilterMinDays,
-    customerFilterMinPurchases,
-    customerFilterRepresentative,
-    customerFilterRfm,
-    customerFilterState,
-    productApplicationMode,
-    productFilterBrand,
-    productFilterCategory,
-    productFilterSector,
-    productFilterSpecies,
-    scope,
-    segment,
-    selectedCustomerIds,
-  ]);
 
   const productSelectOptions = useMemo(
     () =>
@@ -823,16 +733,41 @@ export function PromotionFormSheet({
           })),
         },
       });
-      mechanicPayload.accounting_treatment = accountingTreatment;
+      const productFilters = productApplicationMode === 'filters' ? {
+        brand_name: productFilterBrand || null,
+        industry_sector: productFilterSector || null,
+        category: productFilterCategory || null,
+        target_species: productFilterSpecies || null,
+      } : null;
+
+      const customerFilters = scope === 'customer_segment' ? {
+        business_type: customerFilterBusinessType || null,
+        city: customerFilterCity || null,
+        state: customerFilterState || null,
+        has_sales_representative: customerFilterRepresentative === 'with' ? true : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false : null,
+        sales_representative_id: (customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION && customerFilterRepresentative !== 'all') ? Number(customerFilterRepresentative) : null,
+        has_location: customerFilterLocation === 'with' ? true : customerFilterLocation === 'without' ? false : null,
+        min_purchases: customerFilterMinPurchases ? Number(customerFilterMinPurchases) : null,
+        max_purchases: customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : null,
+        min_days_since_last_purchase: customerFilterMinDays ? Number(customerFilterMinDays) : null,
+        max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : null,
+        customer_clv_segment: customerFilterClv || null,
+        customer_rfm_segment: customerFilterRfm || null,
+        segment_preset: segment !== 'custom' ? segment : null,
+      } : null;
+
       const payload = {
         lab_id: labId,
         title: title.trim(),
         description: description.trim() || null,
         start_date: startDate,
         end_date: endDate,
+        product_application_mode: productApplicationMode,
         product_skus: productApplicationMode === 'specific' ? selectedProductSkus : [],
+        product_filters: productFilters,
         target_scope: scope as 'all' | 'customers' | 'customer_segment',
-        target_config: buildTargetConfig(),
+        customer_ids: scope === 'customers' ? selectedCustomerIds : [],
+        customer_filters: customerFilters,
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
@@ -843,11 +778,7 @@ export function PromotionFormSheet({
         ? await updatePromotion(editingPromo.id, payload)
         : await createPromotion(payload);
 
-      if (result.requires_manager_approval) {
-        toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
-      } else {
-        toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
-      }
+      toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
 
       resetForm();
       onSuccess();
@@ -934,11 +865,11 @@ export function PromotionFormSheet({
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="startDate">Fecha Inicio</Label>
-                      <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
+                      <Input id="startDate" type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setStartDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="endDate">Fecha Fin</Label>
-                      <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
+                      <Input id="endDate" type="date" value={endDate} min={startDate || new Date().toISOString().split('T')[0]} onChange={(e) => setEndDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
                       {submitted && <FieldError error={formErrors.dates} />}
                     </div>
                   </div>
@@ -1280,16 +1211,16 @@ export function PromotionFormSheet({
                             <Label>Tipo de descuento</Label>
                             <Select value={mechanicState.mechanic.discount_type || 'percentage'} onValueChange={(v) => updateMechanic({ discount_type: v as 'percentage' | 'fixed' })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>{DISCOUNT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                              <SelectContent>{DISCOUNT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} disabled={item.value === 'fixed'}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>{mechanicState.mechanic.discount_type === 'fixed' ? 'Valor del descuento ($)' : 'Porcentaje de descuento (%)'}</Label>
+                            <Label>Porcentaje de descuento (%)</Label>
                             <Input
                               type="number"
                               min={1}
-                              max={mechanicState.mechanic.discount_type === 'percentage' ? 100 : undefined}
-                              placeholder={mechanicState.mechanic.discount_type === 'fixed' ? 'Ej: 5000' : 'Ej: 15'}
+                              max={100}
+                              placeholder="Ej: 15"
                               value={mechanicState.mechanic.discount_value || ''}
                               onChange={(e) => {
                                 let v = e.target.value ? Number(e.target.value) : null;
@@ -1508,17 +1439,6 @@ export function PromotionFormSheet({
                       <Label htmlFor="maxRedemptions">Max. Redenciones (opcional)</Label>
                       <Input id="maxRedemptions" type="number" min={0} value={maxRedemptions} onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value, 10) : '')} placeholder="500" />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Tratamiento Contable (ERP)</Label>
-                    <Select value={accountingTreatment} onValueChange={setAccountingTreatment}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNTING_TREATMENTS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Define como se reflejara esta promocion en SAP Business One</p>
                   </div>
 
                   {estimatedCost > 0 && !budgetError && (

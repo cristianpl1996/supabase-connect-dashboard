@@ -83,7 +83,11 @@ export function resetMechanicForPromotionType(nextType: PromotionType | ""): Pro
     combo: { conditionType: "product_mix", benefitType: "percentage_discount" },
   };
   const d = nextType ? defaults[nextType] : { conditionType: "" as const, benefitType: "" as const };
-  return { promotionType: nextType, conditionType: d.conditionType, benefitType: d.benefitType, mechanic: { ...EMPTY_MECHANIC } };
+  const mechanic = { ...EMPTY_MECHANIC };
+  if (nextType === "descuento_linea" || nextType === "descuento_volumen") {
+    mechanic.discount_type = "percentage";
+  }
+  return { promotionType: nextType, conditionType: d.conditionType, benefitType: d.benefitType, mechanic };
 }
 
 export function createRequiredProduct(): RequiredPromotionProduct {
@@ -143,9 +147,8 @@ export function validatePromotionMechanic(state: PromotionMechanicFormState): st
   const validPct = (v: number | null | undefined) => v != null && v > 0 && v <= 100;
 
   if (promotionType === "descuento_linea") {
-    if (!mechanic.discount_type) return "Debes definir el tipo de descuento";
-    if (mechanic.discount_type === "percentage" && !validPct(mechanic.discount_value)) return "El porcentaje debe ser mayor a 0 y maximo 100";
-    if (mechanic.discount_type === "fixed" && !positiveMoney(mechanic.discount_value)) return "El valor del descuento debe ser mayor a 0";
+    if (mechanic.discount_type !== "percentage") return "El descuento en linea solo admite porcentaje";
+    if (!validPct(mechanic.discount_value)) return "El porcentaje debe ser mayor a 0 y maximo 100";
   }
   if (promotionType === "bonificacion_cantidad") {
     if (!positiveInt(mechanic.base_quantity)) return "La cantidad a comprar debe ser un entero mayor a 0";
@@ -185,6 +188,9 @@ export function inferMechanicStateFromPromotion(mechanic?: PromoMechanic | null)
   const promotionType = (mechanic.promotion_type || "") as PromotionType | "";
   const normalized = { ...EMPTY_MECHANIC, ...(mechanic.mechanic || {}) };
   normalized.bonus_product_type = normalized.bonus_product_type || "same_product";
+  if ((promotionType === "descuento_linea" || promotionType === "descuento_volumen") && !normalized.discount_type) {
+    normalized.discount_type = "percentage";
+  }
   return {
     promotionType,
     conditionType: (normalized.condition_type || mechanic.condition_type || "") as MechanicConditionType | "",
