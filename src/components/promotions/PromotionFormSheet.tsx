@@ -10,8 +10,6 @@ import {
   listProducts,
   RequiredPromotionProduct,
   updatePromotion,
-  syncSapCreate,
-  syncSapUpdate,
   CustomerRecord,
   FilterOptionItem,
   ProductCatalogItem,
@@ -849,13 +847,6 @@ export function PromotionFormSheet({
         toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
       } else {
         toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
-      }
-
-      // Sync to SAP Business One (fire-and-forget — SAP failure never blocks the UI)
-      if (isEditing && editingPromo) {
-        void syncSapUpdate(editingPromo.id);
-      } else {
-        void syncSapCreate(result.id);
       }
 
       resetForm();

@@ -15,11 +15,8 @@ interface PromotionDetailsSheetProps {
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   borrador: { label: "Borrador", variant: "outline" },
-  revision: { label: "En revision", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
   activa: { label: "Activa", variant: "default" },
-  pausada: { label: "Pausada", variant: "secondary" },
-  finalizada: { label: "Finalizada", variant: "outline" },
+  finalizada: { label: "Finalizada", variant: "secondary" },
   cancelada: { label: "Cancelada", variant: "destructive" },
 };
 

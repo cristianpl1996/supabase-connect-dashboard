@@ -6,7 +6,6 @@ import {
   listLaboratories,
   listPromotions,
   updatePromotionStatus,
-  syncSapCancel,
 } from '@/lib/api';
 import { Promotion, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,11 +48,8 @@ import * as XLSX from 'xlsx';
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   borrador: { label: 'Borrador', variant: 'outline' },
-  revision: { label: 'En Revision', variant: 'secondary' },
-  aprobada: { label: 'Aprobada', variant: 'default' },
   activa: { label: 'Activa', variant: 'default' },
-  pausada: { label: 'Pausada', variant: 'secondary' },
-  finalizada: { label: 'Finalizada', variant: 'outline' },
+  finalizada: { label: 'Finalizada', variant: 'secondary' },
   cancelada: { label: 'Cancelada', variant: 'destructive' },
 };
 
@@ -183,7 +179,6 @@ const Promotions = () => {
     if (!promoToDelete) return;
     setIsDeleting(true);
     try {
-      void syncSapCancel(promoToDelete.id);
       await deletePromotion(promoToDelete.id);
       toast.success('Promocion eliminada exitosamente');
       fetchData();
@@ -198,12 +193,12 @@ const Promotions = () => {
   };
 
   const handleToggleStatus = async (promo: Promotion) => {
-    const newStatus = promo.status === 'activa' ? 'pausada' : 'activa';
+    const newStatus = promo.status === 'activa' ? 'borrador' : 'activa';
     setTogglingStatusId(promo.id);
     try {
       const updated = await updatePromotionStatus(promo.id, newStatus);
       setPromotions((prev) => prev.map((p) => (p.id === promo.id ? updated : p)));
-      toast.success(`Promocion ${newStatus === 'activa' ? 'activada' : 'pausada'}`);
+      toast.success(`Promocion ${newStatus === 'activa' ? 'activada' : 'desactivada'}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       toast.error(`Error al cambiar estado: ${errorMessage}`);
@@ -531,7 +526,7 @@ const Promotions = () => {
                             checked={promo.status === 'activa'}
                             onCheckedChange={() => handleToggleStatus(promo)}
                             disabled={loading || togglingStatusId === promo.id}
-                            aria-label={`${promo.status === 'activa' ? 'Pausar' : 'Activar'} promocion`}
+                            aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                           />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -586,7 +581,7 @@ const Promotions = () => {
                                 checked={promo.status === 'activa'}
                                 onCheckedChange={() => handleToggleStatus(promo)}
                                 disabled={loading || togglingStatusId === promo.id}
-                                aria-label={`${promo.status === 'activa' ? 'Pausar' : 'Activar'} promocion`}
+                                aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                               />
                             </TableCell>
                             <TableCell className="max-w-[260px] font-medium">

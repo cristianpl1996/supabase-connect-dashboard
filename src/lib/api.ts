@@ -1577,60 +1577,6 @@ export function markAllNotificationsRead(): Promise<{ updated_count: number }> {
   });
 }
 
-// ── SAP Business One Campaign Sync ────────────────────────────────────────────
-
-export interface SapSyncResult {
-  promo_id: string;
-  sap_campaign_number: number | null;
-  success: boolean;
-  error: string | null;
-  note?: string;
-}
-
-export async function syncSapCreate(promoId: string): Promise<SapSyncResult | null> {
-  try {
-    return await apiDetail<SapSyncResult>(`/api/v1/sap-sync/campaigns/create/${promoId}`, {
-      method: "POST",
-    });
-  } catch (err) {
-    console.warn("[SAP Sync] create failed:", err);
-    return null;
-  }
-}
-
-export async function syncSapUpdate(promoId: string): Promise<SapSyncResult | null> {
-  try {
-    return await apiDetail<SapSyncResult>(`/api/v1/sap-sync/campaigns/update/${promoId}`, {
-      method: "POST",
-    });
-  } catch (err) {
-    console.warn("[SAP Sync] update failed:", err);
-    return null;
-  }
-}
-
-export async function syncSapCancel(promoId: string): Promise<SapSyncResult | null> {
-  try {
-    return await apiDetail<SapSyncResult>(`/api/v1/sap-sync/campaigns/cancel/${promoId}`, {
-      method: "POST",
-    });
-  } catch (err) {
-    console.warn("[SAP Sync] cancel failed:", err);
-    return null;
-  }
-}
-
-export async function syncSapClose(promoId: string): Promise<SapSyncResult | null> {
-  try {
-    return await apiDetail<SapSyncResult>(`/api/v1/sap-sync/campaigns/close/${promoId}`, {
-      method: "POST",
-    });
-  } catch (err) {
-    console.warn("[SAP Sync] close failed:", err);
-    return null;
-  }
-}
-
 // ── App Users (username/password auth) ────────────────────────────────────────
 
 export interface AppUserRecord {
