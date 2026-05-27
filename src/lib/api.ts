@@ -1727,6 +1727,7 @@ export interface PromotorTransfer {
   sales_representative_name: string | null;
   sales_representative_brand_id: number | null;
   sales_representative_brand_name: string | null;
+  brand_id: number | null;
   brand: string | null;
   distributor_id: number;
   customer_id: number | null;

@@ -86,11 +86,11 @@ function getEncargado(t: PromotorTransfer): { name: string; role: EncargadoRole 
 
 function RoleBadge({ role, className }: { role: EncargadoRole; className?: string }) {
   return role === "promotor" ? (
-    <Badge variant="outline" className={cn("h-5 w-fit px-1.5 text-[10px] font-medium border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400", className)}>
+    <Badge className={cn("h-5 w-fit px-1.5 text-[10px] font-semibold bg-amber-100 text-amber-700 border-0 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300", className)}>
       Promotor
     </Badge>
   ) : (
-    <Badge variant="outline" className={cn("h-5 w-fit px-1.5 text-[10px] font-medium border-green-600 text-green-700 dark:border-green-500 dark:text-green-400", className)}>
+    <Badge className={cn("h-5 w-fit px-1.5 text-[10px] font-semibold bg-green-100 text-green-700 border-0 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-300", className)}>
       Rep. de Marca
     </Badge>
   );
@@ -236,7 +236,7 @@ function TransferDetailSheet({
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Identificador</p>
-                      <p className="font-mono text-sm">{transfer.sales_representative_brand_id ?? "—"}</p>
+                      <p className="font-mono text-sm">{transfer.brand_id ?? "—"}</p>
                     </div>
                   </div>
                 </section>
