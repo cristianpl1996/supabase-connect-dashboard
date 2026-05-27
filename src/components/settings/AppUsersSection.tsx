@@ -48,10 +48,94 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Loader2, Plus, Pencil, UserX, Users, Eye, EyeOff, ShieldCheck, UserCog, UserRound, Lock, Search, X } from 'lucide-react';
+import { Check, Info, Loader2, Plus, Pencil, UserX, Users, Eye, EyeOff, ShieldCheck, UserCog, UserRound, Lock, Search, X } from 'lucide-react';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+interface PasswordReq {
+  label: string;
+  met: boolean;
+}
+
+function getPasswordReqs(pwd: string): PasswordReq[] {
+  return [
+    { label: 'Mínimo 8 caracteres', met: pwd.length >= 8 },
+    { label: 'Una letra mayúscula', met: /[A-Z]/.test(pwd) },
+    { label: 'Un número', met: /[0-9]/.test(pwd) },
+    { label: 'Un carácter especial', met: /[^A-Za-z0-9]/.test(pwd) },
+  ];
+}
+
+function getStrengthLevel(reqs: PasswordReq[]): { score: number; label: string; color: string } {
+  const score = reqs.filter((r) => r.met).length;
+  if (score <= 1) return { score, label: 'Bajo', color: 'bg-red-500' };
+  if (score <= 3) return { score, label: 'Medio', color: 'bg-amber-400' };
+  return { score, label: 'Alto', color: 'bg-green-500' };
+}
+
+function PasswordStrengthMeter({ password }: { password: string }) {
+  if (!password) return null;
+  const reqs = getPasswordReqs(password);
+  const { score, label, color } = getStrengthLevel(reqs);
+
+  const badgeVariants: Record<string, string> = {
+    Bajo: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800',
+    Medio: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+    Alto: 'bg-green-50 text-green-600 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800',
+  };
+
+  return (
+    <div className="mt-5 rounded-xl border bg-muted/30 p-3.5 space-y-3">
+      {/* Header + bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Seguridad de la contraseña</span>
+          <span className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-none', badgeVariants[label])}>
+            {label}
+          </span>
+        </div>
+        <div className="flex gap-1.5">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                'h-2 flex-1 rounded-full transition-all duration-300',
+                i <= score ? color : 'bg-border',
+              )}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Requirements grid */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        {reqs.map((req) => (
+          <div key={req.label} className="flex items-center gap-2">
+            <div
+              className={cn(
+                'flex size-4 shrink-0 items-center justify-center rounded-full border transition-all duration-200',
+                req.met
+                  ? 'border-green-500 bg-green-500'
+                  : 'border-border bg-background',
+              )}
+            >
+              {req.met && <Check className="size-2.5 text-white stroke-[3]" />}
+            </div>
+            <span
+              className={cn(
+                'text-xs leading-tight transition-colors duration-200',
+                req.met ? 'text-foreground font-medium' : 'text-muted-foreground',
+              )}
+            >
+              {req.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Superadmin',
@@ -251,8 +335,15 @@ export function AppUsersSection({ onError }: AppUsersSectionProps) {
 
     // Password
     const pwd = editing ? editPassword : form.password;
-    if (!editing && !pwd) next.password = 'La contraseña es requerida';
-    else if (pwd && pwd.length < 6) next.password = 'Mínimo 6 caracteres';
+    if (!editing && !pwd) {
+      next.password = 'La contraseña es requerida';
+    } else if (pwd) {
+      const reqs = getPasswordReqs(pwd);
+      const unmet = reqs.filter((r) => !r.met);
+      if (unmet.length > 0) {
+        next.password = unmet[0].label;
+      }
+    }
 
     // Phone
     const phone = normalizePhone(form.phone ?? '');
@@ -626,20 +717,30 @@ export function AppUsersSection({ onError }: AppUsersSectionProps) {
 
               {/* Password */}
               <div className="space-y-1.5">
-                <Label htmlFor="usr-password">
-                  {editing ? 'Nueva contraseña' : 'Contraseña'}{' '}
-                  {!editing && <span className="text-destructive">*</span>}
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="usr-password">
+                    {editing ? 'Nueva contraseña' : 'Contraseña'}{' '}
+                    {!editing && <span className="text-destructive">*</span>}
+                  </Label>
                   {editing && (
-                    <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      (dejar vacío para no cambiar)
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex cursor-default items-center gap-1 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                          <Info className="size-3 shrink-0" />
+                          Opcional
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-52 text-center text-xs">
+                        Deja vacío si no deseas cambiar la contraseña actual del usuario
+                      </TooltipContent>
+                    </Tooltip>
                   )}
-                </Label>
+                </div>
                 <div className="relative">
                   <Input
                     id="usr-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder={editing ? '••••••••' : 'Mínimo 6 caracteres'}
+                    placeholder={editing ? '••••••••' : 'Mínimo 8 caracteres'}
                     value={editing ? editPassword : form.password}
                     onChange={(e) => {
                       if (editing) {
@@ -667,6 +768,7 @@ export function AppUsersSection({ onError }: AppUsersSectionProps) {
                 </div>
                 {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
               </div>
+              <PasswordStrengthMeter password={editing ? editPassword : form.password} />
 
               {/* Role */}
               <div className="space-y-1.5">
