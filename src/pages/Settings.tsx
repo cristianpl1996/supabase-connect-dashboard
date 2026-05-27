@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings as SettingsIcon, ShieldCheck, Users, FlaskConical } from 'lucide-react';
+import { Bell, Settings as SettingsIcon, ShieldCheck, Users, FlaskConical } from 'lucide-react';
 import { BudgetRulesTab } from '@/components/settings/BudgetRulesTab';
 import { LaboratoriesTab } from '@/components/settings/LaboratoriesTab';
 import { AppUsersSection } from '@/components/settings/AppUsersSection';
+import { NotificationPreferencesTab } from '@/components/settings/NotificationPreferencesTab';
 import { PageHeader } from '@/components/common/PageHeader';
 
 const Settings = () => {
@@ -28,11 +29,11 @@ const Settings = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-4">
           <TabsTrigger value="budget" className="gap-1.5 text-xs sm:text-sm">
             <ShieldCheck className="size-4 shrink-0" />
-            <span className="hidden xs:inline sm:inline truncate">Reglas de Presupuesto</span>
-            <span className="xs:hidden sm:hidden">Presupuesto</span>
+            <span className="hidden sm:inline truncate">Reglas de Presupuesto</span>
+            <span className="sm:hidden truncate">Presupuesto</span>
           </TabsTrigger>
           <TabsTrigger value="labs" className="gap-1.5 text-xs sm:text-sm">
             <FlaskConical className="size-4 shrink-0" />
@@ -42,6 +43,10 @@ const Settings = () => {
             <Users className="size-4 shrink-0" />
             <span className="hidden sm:inline truncate">Usuarios y Accesos</span>
             <span className="sm:hidden truncate">Usuarios</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5 text-xs sm:text-sm">
+            <Bell className="size-4 shrink-0" />
+            <span className="truncate">Notificaciones</span>
           </TabsTrigger>
         </TabsList>
 
@@ -55,6 +60,16 @@ const Settings = () => {
 
         <TabsContent value="users" className="space-y-6">
           <AppUsersSection onError={makeErrorHandler('users')} />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <div>
+            <h3 className="text-base font-semibold">Preferencias de notificaciones</h3>
+            <p className="text-sm text-muted-foreground">
+              Activa o desactiva los avisos que aparecen en la campanita según tu rol.
+            </p>
+          </div>
+          <NotificationPreferencesTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -1583,6 +1583,27 @@ export function markAllNotificationsRead(): Promise<{ updated_count: number }> {
   });
 }
 
+export interface NotificationPreference {
+  notification_type: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+
+export function getNotificationPreferences(): Promise<NotificationPreference[]> {
+  return apiFetch<NotificationPreference[]>("/api/v1/notifications/preferences");
+}
+
+export function updateNotificationPreference(
+  notificationType: string,
+  enabled: boolean,
+): Promise<{ notification_type: string; enabled: boolean }> {
+  return apiFetch<{ notification_type: string; enabled: boolean }>(
+    `/api/v1/notifications/preferences/${notificationType}`,
+    { method: "PUT", body: JSON.stringify({ enabled }) },
+  );
+}
+
 // ── App Users (username/password auth) ────────────────────────────────────────
 
 export interface AppUserRecord {
