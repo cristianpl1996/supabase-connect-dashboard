@@ -62,13 +62,7 @@ const Settings = () => {
           <AppUsersSection onError={makeErrorHandler('users')} />
         </TabsContent>
 
-        <TabsContent value="notifications" className="space-y-4">
-          <div>
-            <h3 className="text-base font-semibold">Preferencias de notificaciones</h3>
-            <p className="text-sm text-muted-foreground">
-              Activa o desactiva los avisos que aparecen en la campanita según tu rol.
-            </p>
-          </div>
+        <TabsContent value="notifications">
           <NotificationPreferencesTab />
         </TabsContent>
       </Tabs>
