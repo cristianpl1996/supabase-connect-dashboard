@@ -1230,7 +1230,7 @@ export function PromotionFormSheet({
                         <SlidersHorizontal className="size-4 text-primary" />
                         <span className="flex-1">Filtros de productos</span>
                         {hasProductFilters && (
-                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                             <X className="size-3" />Limpiar
                           </button>
                         )}
@@ -1256,12 +1256,13 @@ export function PromotionFormSheet({
                         </div>
                       </div>
                       {hasProductFilters && (
-                        <div className="flex items-center gap-3">
-                          <p className={`flex-1 text-xs font-medium ${productFilterFetching ? 'text-muted-foreground' : productFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                        <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+                          <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${productFilterFetching ? 'text-muted-foreground' : productFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                            {productFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
                             {productFilterFetching ? 'Buscando productos...' : productFilterCount === null ? '' : productFilterCount === 0 ? 'Sin productos para estos filtros' : `${productFilterCount} producto(s) encontrado(s)`}
                           </p>
                           {!productFilterFetching && productFilterCount != null && productFilterCount > 0 && (
-                            <button type="button" onClick={() => setShowFilteredProducts((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                            <button type="button" onClick={() => setShowFilteredProducts((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                               {showFilteredProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                               {showFilteredProducts ? 'Ocultar' : 'Ver lista'}
                             </button>
@@ -1349,7 +1350,7 @@ export function PromotionFormSheet({
                             <SlidersHorizontal className="size-4 text-primary" />
                             <span className="flex-1">Filtros de clientes</span>
                             {hasCustomerFilters && (
-                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                                 <X className="size-3" />Limpiar
                               </button>
                             )}
@@ -1408,12 +1409,13 @@ export function PromotionFormSheet({
                             </div>
                           </div>
                           {hasCustomerFilters && (
-                            <div className="flex items-center gap-3">
-                              <p className={`flex-1 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+                              <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                                {customerFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
                                 {customerFilterFetching ? 'Buscando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para estos filtros' : `${customerFilterCount} cliente(s) coinciden`}
                               </p>
                               {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
-                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                                   {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                                   {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
                                 </button>
@@ -1447,12 +1449,13 @@ export function PromotionFormSheet({
                               <X className="size-3" />Cambiar
                             </button>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <p className={`flex-1 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                          <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+                            <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                              {customerFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
                               {customerFilterFetching ? 'Calculando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para este segmento' : `${customerFilterCount} cliente(s) en este segmento`}
                             </p>
                             {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
-                              <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                                 {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                                 {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
                               </button>

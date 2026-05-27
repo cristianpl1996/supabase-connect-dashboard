@@ -1,7 +1,8 @@
 import React from "react";
 import logoIco from "@/assets/logoico.png";
 import logo from "@/assets/logo.png";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -72,7 +73,9 @@ function NavItem({ item, isCollapsed }: NavItemProps) {
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const handleLogout = () => { logout(); navigate("/login"); };
   const isSalesRep = user?.role === 'sales_rep';
   // sales_rep sees Agotados + Transferencias; others see the full nav
   const visibleNavItems: NavItemData[] = isSalesRep
@@ -167,6 +170,14 @@ export function AppSidebar() {
               <p className="truncate text-sm font-medium leading-tight text-sidebar-foreground">{displayName}</p>
               <p className="truncate text-xs leading-tight text-muted-foreground">{displayRole}</p>
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" onClick={handleLogout} className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                  <LogOut className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Cerrar sesión</p></TooltipContent>
+            </Tooltip>
           </div>
         )}
       </SidebarFooter>
