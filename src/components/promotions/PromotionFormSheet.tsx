@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'rea
 import {
   createPromotion,
   getAllRepresentatives,
+  getCustomer,
   getCustomerFilterOptions,
   getProductFilterOptions,
   getPromotion,
@@ -56,6 +57,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   BONUS_PRODUCT_TYPE_OPTIONS,
@@ -94,9 +96,9 @@ const SEGMENT_OPTIONS = [
 ];
 
 const SCOPE_OPTIONS = [
-  { value: 'all', label: 'Toda mi base' },
   { value: 'customers', label: 'Clientes especificos' },
   { value: 'customer_segment', label: 'Segmento de clientes' },
+  { value: 'all', label: 'Toda mi base' },
 ];
 const PRODUCT_APPLICATION_OPTIONS = [
   { value: 'specific', label: 'Productos especificos' },
@@ -192,18 +194,20 @@ export function PromotionFormSheet({
 
   const [approvalWarning, setApprovalWarning] = useState<string | null>(null);
   const [labId, setLabId] = useState('');
+  const [origin, setOrigin] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [segment, setSegment] = useState('custom');
-  const [scope, setScope] = useState('all');
+  const [scope, setScope] = useState('customers');
   const [selectedProductSkus, setSelectedProductSkus] = useState<string[]>([]);
   const [productApplicationMode, setProductApplicationMode] = useState('specific');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [productNameMap, setProductNameMap] = useState<Record<string, string>>({});
   const [customerNameMap, setCustomerNameMap] = useState<Record<string, string>>({});
   const [productFilterBrand, setProductFilterBrand] = useState('');
+  const [productFilterExternalBrandId, setProductFilterExternalBrandId] = useState('');
   const [productFilterCategory, setProductFilterCategory] = useState('');
   const [productFilterSector, setProductFilterSector] = useState('');
   const [productFilterSpecies, setProductFilterSpecies] = useState('');
@@ -297,6 +301,7 @@ export function PromotionFormSheet({
         try {
           const details = await getPromotion(editingPromo.id);
           setLabId(details.lab_id);
+          setOrigin(details.origin || '');
           setTitle(details.title);
           setDescription(details.description || '');
           setStartDate(details.start_date);
@@ -307,8 +312,23 @@ export function PromotionFormSheet({
           setScope(details.audience_scope || 'all');
           setProductApplicationMode(details.product_mode || 'specific');
           setSelectedProductSkus(details.product_skus || []);
-          setSelectedCustomerIds(details.customer_ids || []);
+          const customerIds = details.customer_ids || [];
+          setSelectedCustomerIds(customerIds);
+          if (customerIds.length > 0) {
+            Promise.allSettled(customerIds.map((id) => getCustomer(parseInt(id, 10)))).then((results) => {
+              const names: Record<string, string> = {};
+              results.forEach((res, i) => {
+                if (res.status === 'fulfilled') {
+                  const c = res.value as Record<string, unknown>;
+                  const name = String(c.customer_full_name || c.customer_name || '').trim();
+                  if (name) names[customerIds[i]] = name;
+                }
+              });
+              if (Object.keys(names).length > 0) setCustomerNameMap((prev) => ({ ...prev, ...names }));
+            });
+          }
           setProductFilterBrand(String(pf.brand_name || ''));
+          setProductFilterExternalBrandId(pf.external_brand_id ? String(pf.external_brand_id) : '');
           setProductFilterCategory(String(pf.category || ''));
           setProductFilterSector(String(pf.industry_sector || ''));
           setProductFilterSpecies(String(pf.target_species || ''));
@@ -586,6 +606,7 @@ export function PromotionFormSheet({
 
   const resetForm = () => {
     setLabId('');
+    setOrigin('');
     setTitle('');
     setDescription('');
     setStartDate('');
@@ -596,6 +617,7 @@ export function PromotionFormSheet({
     setProductApplicationMode('specific');
     setSelectedCustomerIds([]);
     setProductFilterBrand('');
+    setProductFilterExternalBrandId('');
     setProductFilterCategory('');
     setProductFilterSector('');
     setProductFilterSpecies('');
@@ -634,36 +656,46 @@ export function PromotionFormSheet({
   };
 
   // Debounced product filter state
-  const [debouncedProdFilters, setDebouncedProdFilters] = useState({ brand: '', sector: '', category: '', species: '' });
+  const [debouncedProdFilters, setDebouncedProdFilters] = useState({ brand: '', sector: '', category: '', species: '', external_brand_id: '' });
   const [productFilterCount, setProductFilterCount] = useState<number | null>(null);
   const [productFilterFetching, setProductFilterFetching] = useState(false);
   const [productFilterResults, setProductFilterResults] = useState<ProductCatalogItem[]>([]);
   const [showFilteredProducts, setShowFilteredProducts] = useState(false);
+  const [filterExcludedSkus, setFilterExcludedSkus] = useState<string[]>([]);
+  const [filterResultsSearch, setFilterResultsSearch] = useState('');
+  const [customerResultsSearch, setCustomerResultsSearch] = useState('');
+  const [showSelectedProducts, setShowSelectedProducts] = useState(false);
   const [debouncedCustFilters, setDebouncedCustFilters] = useState<Record<string, unknown>>({});
   const [customerFilterCount, setCustomerFilterCount] = useState<number | null>(null);
   const [customerFilterFetching, setCustomerFilterFetching] = useState(false);
   const [customerFilterResults, setCustomerFilterResults] = useState<CustomerRecord[]>([]);
   const [showFilteredCustomers, setShowFilteredCustomers] = useState(false);
+  const [showSelectedCustomers, setShowSelectedCustomers] = useState(false);
+  const [customerExcludedIds, setCustomerExcludedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedProdFilters({
       brand: productFilterBrand, sector: productFilterSector,
       category: productFilterCategory, species: productFilterSpecies,
+      external_brand_id: productFilterExternalBrandId,
     }), 600);
     return () => clearTimeout(t);
-  }, [productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies]);
+  }, [productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies, productFilterExternalBrandId]);
 
   useEffect(() => {
-    const anyFilter = debouncedProdFilters.brand || debouncedProdFilters.sector || debouncedProdFilters.category || debouncedProdFilters.species;
-    if (productApplicationMode !== 'filters' || !anyFilter) { setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); return; }
+    const anyFilter = debouncedProdFilters.brand || debouncedProdFilters.sector || debouncedProdFilters.category || debouncedProdFilters.species || debouncedProdFilters.external_brand_id;
+    if (productApplicationMode !== 'filters' || !anyFilter) { setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); setFilterExcludedSkus([]); return; }
     setProductFilterFetching(true);
+    setFilterExcludedSkus([]);
     listProducts({
       brand_name: debouncedProdFilters.brand || undefined,
+      external_brand_id: debouncedProdFilters.external_brand_id ? Number(debouncedProdFilters.external_brand_id) : undefined,
       industry_sector: debouncedProdFilters.sector || undefined,
       category: debouncedProdFilters.category || undefined,
       target_species: debouncedProdFilters.species || undefined,
       is_catalog_verified: true,
       is_discontinued: false,
+      limit: 2000,
     }).then((r) => { setProductFilterCount(r.length); setProductFilterResults(r); }).catch(() => { setProductFilterCount(null); setProductFilterResults([]); }).finally(() => setProductFilterFetching(false));
   }, [debouncedProdFilters, productApplicationMode]);
 
@@ -690,9 +722,10 @@ export function PromotionFormSheet({
   useEffect(() => {
     const isManual = scope === 'customer_segment' && segment === 'custom';
     const anyFilter = Object.values(debouncedCustFilters).some((v) => v != null);
-    if (!isManual || !anyFilter) { setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); return; }
+    if (!isManual || !anyFilter) { setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); setCustomerExcludedIds([]); return; }
     setCustomerFilterFetching(true);
-    getCustomersPage({ ...debouncedCustFilters, limit: 50 })
+    setCustomerExcludedIds([]);
+    getCustomersPage({ ...debouncedCustFilters, limit: 2000 })
       .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
       .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
       .finally(() => setCustomerFilterFetching(false));
@@ -703,13 +736,13 @@ export function PromotionFormSheet({
     const presetFilters = buildSegmentPresetConfig(segment);
     setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false);
     setCustomerFilterFetching(true);
-    getCustomersPage({ ...presetFilters, limit: 50 })
+    getCustomersPage({ ...presetFilters, limit: 2000 })
       .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
       .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
       .finally(() => setCustomerFilterFetching(false));
   }, [scope, segment]);
 
-  const hasProductFilters = Boolean(productFilterBrand || productFilterSector || productFilterCategory || productFilterSpecies);
+  const hasProductFilters = Boolean(productFilterBrand || productFilterExternalBrandId || productFilterSector || productFilterCategory || productFilterSpecies);
   const hasCustomerFilters = Boolean(
     customerFilterBusinessType || customerFilterCity || customerFilterState
     || customerFilterRepresentative !== 'all' || customerFilterLocation !== 'all'
@@ -721,6 +754,7 @@ export function PromotionFormSheet({
   const formErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     if (!labId) errors.labId = 'Selecciona un laboratorio';
+    if (!origin) errors.origin = 'Selecciona el origen de la promocion';
     if (!title.trim()) errors.title = 'Ingresa un titulo para la promocion';
     const today = new Date().toISOString().split('T')[0];
     if (!startDate || !endDate) errors.dates = 'Selecciona las fechas de vigencia';
@@ -746,7 +780,7 @@ export function PromotionFormSheet({
     const mechanicError = validatePromotionMechanic(mechanicState);
     if (mechanicError) errors.mechanic = mechanicError;
     return errors;
-  }, [labId, title, startDate, endDate, productApplicationMode, selectedProductSkus,
+  }, [labId, origin, title, startDate, endDate, productApplicationMode, selectedProductSkus,
     hasProductFilters, productFilterCount, productFilterFetching, scope, selectedCustomerIds, segment,
     hasCustomerFilters, customerFilterCount, mechanicState]);
 
@@ -755,6 +789,7 @@ export function PromotionFormSheet({
       const productFilters = productApplicationMode === 'filters'
         ? {
           brand_name: productFilterBrand || undefined,
+          external_brand_id: productFilterExternalBrandId ? Number(productFilterExternalBrandId) : undefined,
           industry_sector: productFilterSector || undefined,
           category: productFilterCategory || undefined,
           target_species: productFilterSpecies || undefined,
@@ -894,16 +929,12 @@ export function PromotionFormSheet({
     if (!sku || selectedProductSkus.includes(sku)) return;
     if (name) setProductNameMap((prev) => ({ ...prev, [sku]: name }));
     setSelectedProductSkus((prev) => [...prev, sku]);
-    setProductSearch('');
-    setProductOptions([]);
   };
 
   const addCustomerId = (id: string, name?: string) => {
     if (!id || selectedCustomerIds.includes(id)) return;
     if (name) setCustomerNameMap((prev) => ({ ...prev, [id]: name }));
     setSelectedCustomerIds((prev) => [...prev, id]);
-    setCustomerSearch('');
-    setCustomerOptions([]);
   };
 
   const handleSubmit = async () => {
@@ -950,6 +981,7 @@ export function PromotionFormSheet({
           max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined,
           customer_clv_segment: customerFilterClv || undefined,
           customer_rfm_segment: customerFilterRfm || undefined,
+          excluded_customer_ids: customerExcludedIds.length > 0 ? customerExcludedIds.map(Number) : undefined,
         };
         return Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined));
       };
@@ -958,6 +990,7 @@ export function PromotionFormSheet({
       const productFiltersPayload = productApplicationMode === 'filters'
         ? {
           brand_name: productFilterBrand || undefined,
+          external_brand_id: productFilterExternalBrandId ? Number(productFilterExternalBrandId) : undefined,
           industry_sector: productFilterSector || undefined,
           category: productFilterCategory || undefined,
           target_species: productFilterSpecies || undefined,
@@ -966,6 +999,7 @@ export function PromotionFormSheet({
 
       const payload = {
         lab_id: labId,
+        origin: origin || null,
         title: title.trim(),
         description: description.trim() || null,
         start_date: startDate,
@@ -973,7 +1007,7 @@ export function PromotionFormSheet({
         product_application_mode: productApplicationMode,
         product_skus: productApplicationMode === 'specific'
           ? selectedProductSkus
-          : productFilterResults.map((p) => p.product_sku),
+          : productFilterResults.filter((p) => !filterExcludedSkus.includes(p.product_sku)).map((p) => p.product_sku),
         product_filters: productFiltersPayload,
         target_scope: scope as 'all' | 'customers' | 'customer_segment',
         customer_ids: scope === 'customers' ? selectedCustomerIds : undefined,
@@ -1015,7 +1049,7 @@ export function PromotionFormSheet({
   const mechanicSummary = useMemo(() => summarizePromotionMechanic(mechanicState), [mechanicState]);
 
   const stepHasErrors = (step: number): boolean => {
-    if (step === 1) return !!(formErrors.labId || formErrors.title || formErrors.dates);
+    if (step === 1) return !!(formErrors.labId || formErrors.origin || formErrors.title || formErrors.dates);
     if (step === 2) return !!formErrors.products;
     if (step === 3) return !!formErrors.scope;
     if (step === 4) return !!formErrors.mechanic;
@@ -1141,6 +1175,19 @@ export function PromotionFormSheet({
                       {submitted && <FieldError error={formErrors.labId} />}
                     </div>
                     <div className="space-y-2">
+                      <Label className="font-medium">Origen <span className="text-destructive">*</span></Label>
+                      <Select value={origin} onValueChange={setOrigin}>
+                        <SelectTrigger className={submitted && formErrors.origin ? 'border-destructive' : ''}>
+                          <SelectValue placeholder="Selecciona el origen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Dinamica comercial">Dinamica comercial</SelectItem>
+                          <SelectItem value="Recurso propio">Recurso propio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {submitted && <FieldError error={formErrors.origin} />}
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="title" className="font-medium">Titulo de la Promocion <span className="text-destructive">*</span></Label>
                       <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7%" value={title} onChange={(e) => setTitle(e.target.value)} className={submitted && formErrors.title ? 'border-destructive' : ''} />
                       {submitted && <FieldError error={formErrors.title} />}
@@ -1183,12 +1230,26 @@ export function PromotionFormSheet({
                     </Select>
                   </div>
                   {productApplicationMode === 'specific' ? (
-                    <>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
+                    <div className="space-y-2">
+                      {/* Search input */}
+                      <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2.5">
+                        {loadingProductOptions
+                          ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                          : <Search className="size-4 shrink-0 text-muted-foreground" />}
+                        <input
+                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                          placeholder="Buscar productos por SKU, nombre o marca"
+                        />
+                        {productSearch && (
+                          <button type="button" onClick={() => { setProductSearch(''); setProductOptions([]); }} className="text-muted-foreground transition-colors hover:text-destructive">
+                            <X className="size-4" />
+                          </button>
+                        )}
                       </div>
-                      {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos…</p>}
+
+                      {/* Search results dropdown */}
                       {visibleProductOptions.length > 0 && (
                         <div
                           ref={productListRef}
@@ -1212,25 +1273,57 @@ export function PromotionFormSheet({
                           {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-2">
-                        {selectedProductSkus.length === 0 ? (
-                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
-                        ) : (
-                          selectedProductSkus.map((sku) => (
-                            <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[200px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
-                              <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="size-3 shrink-0" />
-                            </Button>
-                          ))
+
+                      {/* Selected products card */}
+                      <div className={cn("rounded-lg border", selectedProductSkus.length === 0 && "border-dashed")}>
+                        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <Package className={cn("size-4 shrink-0", selectedProductSkus.length === 0 ? "text-muted-foreground/50" : "text-primary")} />
+                            <span className={cn("text-sm font-medium", selectedProductSkus.length === 0 && "text-muted-foreground")}>
+                              {selectedProductSkus.length === 0
+                                ? 'Sin productos seleccionados'
+                                : `${selectedProductSkus.length} producto${selectedProductSkus.length !== 1 ? 's' : ''} seleccionado${selectedProductSkus.length !== 1 ? 's' : ''}`}
+                            </span>
+                          </div>
+                          {selectedProductSkus.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowSelectedProducts((v) => !v)}
+                              className="flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                            >
+                              {showSelectedProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                              {showSelectedProducts ? 'Ocultar' : 'Ver'}
+                            </button>
+                          )}
+                        </div>
+                        {showSelectedProducts && selectedProductSkus.length > 0 && (
+                          <div className="divide-y border-t">
+                            {selectedProductSkus.map((sku) => (
+                              <div key={sku} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                <span className="min-w-0 truncate">{productLabelBySku(sku) || sku}</span>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className="font-mono text-xs text-muted-foreground">{sku}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}
+                                    className="text-muted-foreground transition-colors hover:text-destructive"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <SlidersHorizontal className="size-4 text-primary" />
                         <span className="flex-1">Filtros de productos</span>
                         {hasProductFilters && (
-                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterExternalBrandId(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); setFilterExcludedSkus([]); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                             <X className="size-3" />Limpiar
                           </button>
                         )}
@@ -1255,30 +1348,83 @@ export function PromotionFormSheet({
                           </div>
                         </div>
                       </div>
-                      {hasProductFilters && (
-                        <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
-                          <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${productFilterFetching ? 'text-muted-foreground' : productFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
-                            {productFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-                            {productFilterFetching ? 'Buscando productos...' : productFilterCount === null ? '' : productFilterCount === 0 ? 'Sin productos para estos filtros' : `${productFilterCount} producto(s) encontrado(s)`}
-                          </p>
-                          {!productFilterFetching && productFilterCount != null && productFilterCount > 0 && (
-                            <button type="button" onClick={() => setShowFilteredProducts((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
-                              {showFilteredProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                              {showFilteredProducts ? 'Ocultar' : 'Ver lista'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {showFilteredProducts && productFilterResults.length > 0 && (
-                        <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
-                          {productFilterResults.map((p) => (
-                            <div key={p.product_sku} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
-                              <span className="text-sm">{p.product_commercial_name || p.product_sku}</span>
-                              <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{p.product_sku}</span>
+                      {(() => {
+                        const effectiveCount = (productFilterCount ?? 0) - filterExcludedSkus.length;
+                        const allVisible = productFilterResults.filter((p) => !filterExcludedSkus.includes(p.product_sku));
+                        const isZero = hasProductFilters && !productFilterFetching && productFilterCount !== null && effectiveCount === 0;
+                        const searchTerm = filterResultsSearch.trim().toLowerCase();
+                        const displayedResults = searchTerm
+                          ? allVisible.filter((p) => (p.product_commercial_name || p.product_sku).toLowerCase().includes(searchTerm) || p.product_sku.toLowerCase().includes(searchTerm))
+                          : allVisible;
+                        return (
+                          <div className={cn("rounded-lg border", !hasProductFilters && "border-dashed")}>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                              <div className="flex items-center gap-2">
+                                {productFilterFetching
+                                  ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                                  : <SlidersHorizontal className={cn("size-4 shrink-0", !hasProductFilters ? "text-muted-foreground/50" : isZero ? "text-destructive" : "text-primary")} />}
+                                <span className={cn(
+                                  "text-sm font-medium",
+                                  !hasProductFilters || productFilterCount === null ? "text-muted-foreground" :
+                                  isZero ? "text-destructive" : "",
+                                )}>
+                                  {!hasProductFilters
+                                    ? 'Sin filtros seleccionados'
+                                    : productFilterFetching
+                                    ? 'Buscando productos...'
+                                    : productFilterCount === null
+                                    ? 'Aplica los filtros para ver resultados'
+                                    : isZero
+                                    ? 'Sin productos para estos filtros'
+                                    : `${effectiveCount} producto${effectiveCount !== 1 ? 's' : ''} encontrado${effectiveCount !== 1 ? 's' : ''}`}
+                                </span>
+                              </div>
+                              {!productFilterFetching && hasProductFilters && productFilterCount !== null && effectiveCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowFilteredProducts((v) => !v); setFilterResultsSearch(''); }}
+                                  className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground"
+                                >
+                                  {showFilteredProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                                  {showFilteredProducts ? 'Ocultar' : 'Ver'}
+                                </button>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            {showFilteredProducts && allVisible.length > 0 && (
+                              <div className="border-t">
+                                {allVisible.length > 10 && (
+                                  <div className="flex items-center gap-2 border-b px-3 py-2.5">
+                                    <Search className="size-4 shrink-0 text-muted-foreground" />
+                                    <input
+                                      className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                      placeholder="Buscar en resultados..."
+                                      value={filterResultsSearch}
+                                      onChange={(e) => setFilterResultsSearch(e.target.value)}
+                                    />
+                                    {filterResultsSearch && <button type="button" onClick={() => setFilterResultsSearch('')}><X className="size-4 text-muted-foreground hover:text-foreground" /></button>}
+                                  </div>
+                                )}
+                                <div className="max-h-72 overflow-y-auto divide-y">
+                                  {displayedResults.map((p) => (
+                                    <div key={p.product_sku} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                      <span className="min-w-0 truncate">{p.product_commercial_name || p.product_sku}</span>
+                                      <div className="flex shrink-0 items-center gap-2">
+                                        <span className="font-mono text-xs text-muted-foreground">{p.product_sku}</span>
+                                        <button type="button" onClick={() => setFilterExcludedSkus((prev) => [...prev, p.product_sku])} className="text-muted-foreground transition-colors hover:text-destructive">
+                                          <X className="size-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {searchTerm && displayedResults.length === 0 && (
+                                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados para "{filterResultsSearch}"</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   {submitted && <FieldError error={formErrors.products} />}
@@ -1297,13 +1443,21 @@ export function PromotionFormSheet({
                       </SelectContent>
                     </Select>
                   </div>
-                  {scope === 'customers' && (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input className="pl-9" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Buscar clientes por nombre, NIT o email" />
+                  {scope === 'all' && (
+                    <div className="rounded-lg border border-dashed">
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <Users className="size-4 shrink-0 text-muted-foreground/50" />
+                        <span className="text-sm text-muted-foreground">La promocion aplicara a toda tu base de clientes activos sin excepcion</span>
                       </div>
-                      {loadingCustomerOptions && <p className="text-xs text-muted-foreground">Buscando clientes…</p>}
+                    </div>
+                  )}
+                  {scope === 'customers' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2.5">
+                        {loadingCustomerOptions ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <Search className="size-4 shrink-0 text-muted-foreground" />}
+                        <input className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Buscar clientes por nombre, NIT o email" />
+                        {customerSearch && <button type="button" onClick={() => { setCustomerSearch(''); setCustomerOptions([]); }}><X className="size-4 text-muted-foreground hover:text-foreground" /></button>}
+                      </div>
                       {customerOptions.length > 0 && (
                         <div className="max-h-56 overflow-y-auto rounded-md border divide-y" onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreCustomers(); }}>
                           {customerOptions.map((customer) => {
@@ -1319,15 +1473,33 @@ export function PromotionFormSheet({
                           {loadingMoreCustomers && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-2">
-                        {selectedCustomerIds.length === 0 ? (
-                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin clientes seleccionados</span>
-                        ) : (
-                          selectedCustomerIds.map((id) => (
-                            <Button key={id} type="button" variant="secondary" size="sm" className="max-w-[220px] gap-1" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}>
-                              <span className="truncate">{customerNameMap[id] ?? `Cliente ${id}`}</span><X className="size-3 shrink-0" />
-                            </Button>
-                          ))
+                      <div className={cn("rounded-lg border", selectedCustomerIds.length === 0 && "border-dashed")}>
+                        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <Users className={cn("size-4 shrink-0", selectedCustomerIds.length === 0 ? "text-muted-foreground/50" : "text-primary")} />
+                            <span className={cn("text-sm font-medium", selectedCustomerIds.length === 0 && "text-muted-foreground")}>
+                              {selectedCustomerIds.length === 0 ? 'Sin clientes seleccionados' : `${selectedCustomerIds.length} cliente(s) seleccionado(s)`}
+                            </span>
+                          </div>
+                          {selectedCustomerIds.length > 0 && (
+                            <button type="button" onClick={() => setShowSelectedCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                              {showSelectedCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                              {showSelectedCustomers ? 'Ocultar' : 'Ver'}
+                            </button>
+                          )}
+                        </div>
+                        {showSelectedCustomers && selectedCustomerIds.length > 0 && (
+                          <div className="divide-y border-t">
+                            {selectedCustomerIds.map((id) => (
+                              <div key={id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                <span className="min-w-0 truncate">{customerNameMap[id] ?? `Cliente ${id}`}</span>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className="font-mono text-xs text-muted-foreground">{id}</span>
+                                  <button type="button" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}><X className="size-3.5 text-muted-foreground hover:text-foreground" /></button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                       {submitted && <FieldError error={formErrors.scope} />}
@@ -1350,7 +1522,7 @@ export function PromotionFormSheet({
                             <SlidersHorizontal className="size-4 text-primary" />
                             <span className="flex-1">Filtros de clientes</span>
                             {hasCustomerFilters && (
-                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); setCustomerExcludedIds([]); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                                 <X className="size-3" />Limpiar
                               </button>
                             )}
@@ -1408,33 +1580,70 @@ export function PromotionFormSheet({
                               </div>
                             </div>
                           </div>
-                          {hasCustomerFilters && (
-                            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
-                              <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
-                                {customerFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-                                {customerFilterFetching ? 'Buscando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para estos filtros' : `${customerFilterCount} cliente(s) coinciden`}
-                              </p>
-                              {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
-                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
-                                  {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                                  {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {showFilteredCustomers && customerFilterResults.length > 0 && (
-                            <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
-                              {customerFilterResults.map((c) => (
-                                <div key={String(c.id)} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
-                                  <span className="truncate text-sm">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
-                                  <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
+                          {(() => {
+                            const effectiveCount = (customerFilterCount ?? 0) - customerExcludedIds.length;
+                            const allVisible = customerFilterResults.filter((c) => !customerExcludedIds.includes(String(c.id)));
+                            const isZero = hasCustomerFilters && !customerFilterFetching && customerFilterCount !== null && effectiveCount === 0;
+                            const searchTerm = customerResultsSearch.trim().toLowerCase();
+                            const displayedResults = searchTerm
+                              ? allVisible.filter((c) => {
+                                  const name = String(c.customer_full_name || c.customer_name || '').toLowerCase();
+                                  const govId = String(c.customer_government_id || '').toLowerCase();
+                                  return name.includes(searchTerm) || govId.includes(searchTerm);
+                                })
+                              : allVisible;
+                            return (
+                              <div className={cn("rounded-lg border", !hasCustomerFilters && "border-dashed")}>
+                                <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                                  <div className="flex items-center gap-2">
+                                    {customerFilterFetching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <SlidersHorizontal className={cn("size-4 shrink-0", !hasCustomerFilters ? "text-muted-foreground/50" : isZero ? "text-destructive" : "text-primary")} />}
+                                    <span className={cn("text-sm font-medium", !hasCustomerFilters || customerFilterFetching || customerFilterCount === null ? "text-muted-foreground" : isZero ? "text-destructive" : "text-foreground")}>
+                                      {customerFilterFetching ? 'Buscando clientes...' : !hasCustomerFilters ? 'Sin filtros seleccionados' : customerFilterCount === null ? 'Aplica filtros para ver clientes' : isZero ? 'Sin clientes para estos filtros' : `${effectiveCount} cliente(s) encontrado(s)`}
+                                    </span>
+                                  </div>
+                                  {!customerFilterFetching && hasCustomerFilters && customerFilterCount !== null && effectiveCount > 0 && (
+                                    <button type="button" onClick={() => { setShowFilteredCustomers((v) => !v); setCustomerResultsSearch(''); }} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                                      {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                                      {showFilteredCustomers ? 'Ocultar' : 'Ver'}
+                                    </button>
+                                  )}
                                 </div>
-                              ))}
-                              {customerFilterCount != null && customerFilterCount > customerFilterResults.length && (
-                                <div className="px-3 py-2 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más</div>
-                              )}
-                            </div>
-                          )}
+                                {showFilteredCustomers && allVisible.length > 0 && (
+                                  <div className="border-t">
+                                    {allVisible.length > 10 && (
+                                      <div className="flex items-center gap-2 border-b px-3 py-2.5">
+                                        <Search className="size-4 shrink-0 text-muted-foreground" />
+                                        <input
+                                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                          placeholder="Buscar en resultados..."
+                                          value={customerResultsSearch}
+                                          onChange={(e) => setCustomerResultsSearch(e.target.value)}
+                                        />
+                                        {customerResultsSearch && <button type="button" onClick={() => setCustomerResultsSearch('')}><X className="size-4 text-muted-foreground hover:text-foreground" /></button>}
+                                      </div>
+                                    )}
+                                    <div className="max-h-72 overflow-y-auto divide-y">
+                                      {displayedResults.map((c) => (
+                                        <div key={String(c.id)} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                          <span className="min-w-0 truncate">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
+                                          <div className="flex shrink-0 items-center gap-2">
+                                            <span className="font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
+                                            <button type="button" onClick={() => setCustomerExcludedIds((prev) => [...prev, String(c.id)])}><X className="size-3.5 text-muted-foreground hover:text-foreground" /></button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      {searchTerm && displayedResults.length === 0 && (
+                                        <p className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados para "{customerResultsSearch}"</p>
+                                      )}
+                                      {customerFilterCount != null && customerFilterCount > customerFilterResults.length && !searchTerm && (
+                                        <div className="px-3 py-2.5 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más sin cargar</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       {segment !== 'custom' && (
@@ -1445,35 +1654,39 @@ export function PromotionFormSheet({
                               <p className="text-sm font-medium">Filtro predefinido activo</p>
                               <p className="text-xs text-muted-foreground">{SEGMENT_OPTIONS.find((o) => o.value === segment)?.label}</p>
                             </div>
-                            <button type="button" onClick={() => { setSegment('custom'); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                              <X className="size-3" />Cambiar
+                            <button type="button" onClick={() => { setSegment('custom'); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                              <X className="size-3" />Limpiar
                             </button>
                           </div>
-                          <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
-                            <p className={`flex flex-1 items-center gap-2 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
-                              {customerFilterFetching && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-                              {customerFilterFetching ? 'Calculando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para este segmento' : `${customerFilterCount} cliente(s) en este segmento`}
-                            </p>
-                            {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
-                              <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
-                                {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                                {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
-                              </button>
-                            )}
-                          </div>
-                          {showFilteredCustomers && customerFilterResults.length > 0 && (
-                            <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
-                              {customerFilterResults.map((c) => (
-                                <div key={String(c.id)} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
-                                  <span className="truncate text-sm">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
-                                  <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
-                                </div>
-                              ))}
-                              {customerFilterCount != null && customerFilterCount > customerFilterResults.length && (
-                                <div className="px-3 py-2 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más</div>
+                          <div className={cn("rounded-lg border", customerFilterCount === null && "border-dashed")}>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                              <div className="flex items-center gap-2">
+                                {customerFilterFetching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <SlidersHorizontal className={cn("size-4 shrink-0", customerFilterCount === null ? "text-muted-foreground/50" : customerFilterCount === 0 ? "text-destructive" : "text-primary")} />}
+                                <span className={cn("text-sm font-medium", customerFilterFetching || customerFilterCount === null ? "text-muted-foreground" : customerFilterCount === 0 ? "text-destructive" : "text-foreground")}>
+                                  {customerFilterFetching ? 'Calculando clientes...' : customerFilterCount === null ? 'Calculando...' : customerFilterCount === 0 ? 'Sin clientes para este segmento' : `${customerFilterCount} cliente(s) en este segmento`}
+                                </span>
+                              </div>
+                              {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
+                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                                  {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                                  {showFilteredCustomers ? 'Ocultar' : 'Ver'}
+                                </button>
                               )}
                             </div>
-                          )}
+                            {showFilteredCustomers && customerFilterResults.length > 0 && (
+                              <div className="max-h-48 overflow-y-auto divide-y border-t">
+                                {customerFilterResults.map((c) => (
+                                  <div key={String(c.id)} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                    <span className="min-w-0 truncate">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
+                                  </div>
+                                ))}
+                                {customerFilterCount != null && customerFilterCount > customerFilterResults.length && (
+                                  <div className="px-3 py-2.5 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                       {submitted && <FieldError error={formErrors.scope} />}
@@ -1502,6 +1715,15 @@ export function PromotionFormSheet({
                       <p className="text-xs text-muted-foreground">{PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.helpText}</p>
                     )}
                   </div>
+
+                  {!mechanicState.promotionType && (
+                    <div className="rounded-lg border border-dashed">
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <Zap className="size-4 shrink-0 text-muted-foreground/50" />
+                        <span className="text-sm text-muted-foreground">Selecciona el tipo de promocion para configurar la regla comercial</span>
+                      </div>
+                    </div>
+                  )}
 
                   {mechanicState.promotionType && (
                     <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
@@ -1682,9 +1904,9 @@ export function PromotionFormSheet({
 
               {/* STEP 5: Resumen */}
               {currentStep === 5 && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {submitted && [1, 2, 3, 4].some((s) => stepHasErrors(s)) && (
-                    <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+                    <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
                       <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15">
                         <AlertTriangle className="size-3.5 text-destructive" />
                       </div>
@@ -1692,12 +1914,7 @@ export function PromotionFormSheet({
                         <p className="text-xs font-semibold text-destructive">Revisa estos pasos antes de guardar</p>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {[1, 2, 3, 4].filter((s) => stepHasErrors(s)).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => setCurrentStep(s)}
-                              className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
-                            >
+                            <button key={s} type="button" onClick={() => setCurrentStep(s)} className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20">
                               {STEPS[s - 1].label}
                             </button>
                           ))}
@@ -1705,74 +1922,164 @@ export function PromotionFormSheet({
                       </div>
                     </div>
                   )}
-                  <div className="grid gap-3">
-                    <StepSummary title="Datos Generales" step={1} onEdit={() => setCurrentStep(1)}>
-                      <SummaryRow label="Laboratorio" value={laboratories.find((l) => l.id === labId)?.name || labId} />
-                      <SummaryRow label="Titulo" value={title} />
-                      {description && <SummaryRow label="Descripcion" value={description} />}
-                      <SummaryRow label="Vigencia" value={startDate && endDate ? `${startDate} → ${endDate}` : undefined} />
-                    </StepSummary>
-                    <StepSummary title="Productos" step={2} onEdit={() => setCurrentStep(2)}>
-                      <SummaryRow label="Modo" value={productApplicationMode === 'specific' ? 'Productos especificos' : 'Por filtros'} />
-                      {productApplicationMode === 'specific'
-                        ? <SummaryRow label="Seleccionados" value={selectedProductSkus.length > 0 ? `${selectedProductSkus.length} producto(s)` : undefined} />
-                        : <SummaryRow label="Filtros" value={[productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies].filter(Boolean).join(' / ') || undefined} />
-                      }
-                      {productApplicationMode === 'filters' && productFilterCount != null && (
-                        <SummaryRow label="Coincidencias" value={`${productFilterCount} producto(s)`} />
-                      )}
-                    </StepSummary>
-                    <StepSummary title="Alcance" step={3} onEdit={() => setCurrentStep(3)}>
-                      <SummaryRow label="Aplica a" value={SCOPE_OPTIONS.find((o) => o.value === scope)?.label || scope} />
-                      {scope === 'customers' && <SummaryRow label="Clientes" value={`${selectedCustomerIds.length} seleccionado(s)`} />}
-                      {scope === 'customer_segment' && <SummaryRow label="Segmento" value={SEGMENT_OPTIONS.find((o) => o.value === segment)?.label || segment} />}
-                      {scope === 'customer_segment' && customerFilterCount != null && (
-                        <SummaryRow label="Coincidencias" value={`${customerFilterCount} cliente(s)`} />
-                      )}
-                    </StepSummary>
-                    <StepSummary title="Regla Comercial" step={4} onEdit={() => setCurrentStep(4)}>
-                      <SummaryRow label="Tipo" value={PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.label || (mechanicState.promotionType || 'Sin configurar')} />
-                      {mechanicSummary !== 'Selecciona el tipo de promocion para ver el resumen.' && (
-                        <SummaryRow label="Resumen" value={mechanicSummary} />
-                      )}
-                    </StepSummary>
-                  </div>
-                  <div className="rounded-lg border bg-card p-3">
-                    <div className="mb-3 flex items-center gap-2">
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <DollarSign className="size-3.5" />
+
+                  {/* Hero card */}
+                  <div className="rounded-xl border bg-gradient-to-br from-primary/5 via-primary/[0.02] to-transparent p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                          {isEditing ? 'Editando promocion' : 'Nuevo borrador'}
+                        </span>
+                        <h3 className="mt-1.5 truncate text-sm font-semibold leading-tight">{title || '—'}</h3>
+                        <p className="mt-0.5 text-sm text-muted-foreground">{laboratories.find((l) => l.id === labId)?.name || labId}</p>
+                        {origin && <p className="mt-0.5 text-xs text-muted-foreground">{origin}</p>}
                       </div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Control Financiero</p>
                     </div>
-                    <div className="grid gap-3 pl-8 sm:grid-cols-2">
+                    {startDate && endDate && (
+                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/15 bg-background/60 px-3 py-2 text-xs">
+                        <CheckCircle2 className="size-3.5 shrink-0 text-primary" />
+                        <span className="font-medium text-foreground">{startDate}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-medium text-foreground">{endDate}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section cards */}
+                  <div className="grid gap-2.5">
+                    {/* Productos */}
+                    <div className="rounded-xl border bg-card overflow-hidden">
+                      <div className="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                          <Package className="size-3.5 text-primary" />
+                        </div>
+                        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Productos</span>
+                        <button type="button" onClick={() => setCurrentStep(2)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                      </div>
+                      <div className="divide-y px-4">
+                        <SummaryRow2 label="Modo" value={productApplicationMode === 'specific' ? 'Productos especificos' : 'Por filtros'} />
+                        {productApplicationMode === 'specific' ? (
+                          <SummaryRow2 label="Seleccionados" value={
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                              {selectedProductSkus.length} producto{selectedProductSkus.length !== 1 ? 's' : ''}
+                            </span>
+                          } />
+                        ) : (
+                          <>
+                            {[productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies].filter(Boolean).length > 0 && (
+                              <SummaryRow2 label="Filtros" value={
+                                <div className="flex flex-wrap gap-1">
+                                  {[productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies].filter(Boolean).map((f) => (
+                                    <span key={f} className="rounded-full border bg-muted px-2 py-0.5 text-xs font-medium">{f}</span>
+                                  ))}
+                                </div>
+                              } />
+                            )}
+                            {productFilterCount != null && (
+                              <SummaryRow2 label="Coincidencias" value={
+                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  {(productFilterCount - filterExcludedSkus.length).toLocaleString()} encontrado{productFilterCount !== 1 ? 's' : ''}
+                                </span>
+                              } />
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Alcance */}
+                    <div className="rounded-xl border bg-card overflow-hidden">
+                      <div className="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                          <Users className="size-3.5 text-primary" />
+                        </div>
+                        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Alcance</span>
+                        <button type="button" onClick={() => setCurrentStep(3)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                      </div>
+                      <div className="divide-y px-4">
+                        <SummaryRow2 label="Aplica a" value={SCOPE_OPTIONS.find((o) => o.value === scope)?.label || scope} />
+                        {scope === 'customers' && (
+                          <SummaryRow2 label="Clientes" value={
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                              {selectedCustomerIds.length} seleccionado{selectedCustomerIds.length !== 1 ? 's' : ''}
+                            </span>
+                          } />
+                        )}
+                        {scope === 'customer_segment' && (
+                          <SummaryRow2 label="Segmento" value={SEGMENT_OPTIONS.find((o) => o.value === segment)?.label || segment} />
+                        )}
+                        {scope === 'customer_segment' && customerFilterCount != null && (
+                          <SummaryRow2 label="Clientes" value={
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              {(customerFilterCount - customerExcludedIds.length).toLocaleString()} encontrado{customerFilterCount !== 1 ? 's' : ''}
+                            </span>
+                          } />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Regla Comercial */}
+                    <div className="rounded-xl border bg-card overflow-hidden">
+                      <div className="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                          <Zap className="size-3.5 text-primary" />
+                        </div>
+                        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Regla Comercial</span>
+                        <button type="button" onClick={() => setCurrentStep(4)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                      </div>
+                      <div className="divide-y px-4">
+                        <SummaryRow2 label="Tipo" value={
+                          mechanicState.promotionType
+                            ? <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">{PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.label || mechanicState.promotionType}</span>
+                            : 'Sin configurar'
+                        } />
+                        {mechanicSummary !== 'Selecciona el tipo de promocion para ver el resumen.' && (
+                          <SummaryRow2 label="Condicion" value={mechanicSummary} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Control Financiero */}
+                  <div className="rounded-xl border bg-card overflow-hidden">
+                    <div className="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5">
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                        <DollarSign className="size-3.5 text-primary" />
+                      </div>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Control Financiero</span>
+                    </div>
+                    <div className="grid gap-3 p-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="estimatedCost" className="text-xs font-medium text-muted-foreground">Costo Estimado ($) <span className="font-normal">(opcional)</span></Label>
+                        <Label htmlFor="estimatedCost" className="text-xs font-medium">Costo Estimado ($) <span className="font-normal text-muted-foreground">(opcional)</span></Label>
                         <Input id="estimatedCost" type="number" min={0} value={estimatedCost || ''} onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)} placeholder="1000000" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="maxRedemptions" className="text-xs font-medium text-muted-foreground">Max. Redenciones (opcional)</Label>
+                        <Label htmlFor="maxRedemptions" className="text-xs font-medium">Max. Redenciones <span className="font-normal text-muted-foreground">(opcional)</span></Label>
                         <Input id="maxRedemptions" type="number" min={0} value={maxRedemptions} onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value, 10) : '')} placeholder="500" />
                       </div>
                     </div>
                     {estimatedCost > 0 && !budgetError && (
-                      <div className="ml-8 mt-3 rounded-lg bg-primary/8 px-3 py-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">Costo estimado</span>
-                          <span className="text-base font-bold text-primary">{formatCurrency(estimatedCost)}</span>
+                      <div className="mx-4 mb-4 divide-y rounded-lg border bg-muted/20 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-muted-foreground">Costo estimado</span>
+                          <span className="text-sm font-semibold text-primary">{formatCurrency(estimatedCost)}</span>
                         </div>
                         {spendableBalance !== null && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">Saldo gastable: {formatCurrency(spendableBalance)}</p>
+                          <div className="flex items-center justify-between px-4 py-2.5">
+                            <span className="text-xs text-muted-foreground">Saldo disponible</span>
+                            <span className="text-sm font-semibold">{formatCurrency(spendableBalance)}</span>
+                          </div>
                         )}
                       </div>
                     )}
                     {budgetError && (
-                      <div className="ml-8 mt-3 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                      <div className="mx-4 mb-4 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
                         <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
                         <p className="text-xs font-medium text-destructive">{budgetError}</p>
                       </div>
                     )}
                     {approvalWarning && !budgetError && (
-                      <div className="ml-8 mt-3 flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
+                      <div className="mx-4 mb-4 flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
                         <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                         <p className="text-xs font-medium text-amber-800">{approvalWarning}</p>
                       </div>
@@ -1849,6 +2156,16 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
     <div className="flex gap-2 text-sm">
       <span className="w-28 shrink-0 text-muted-foreground">{label}:</span>
       <span className="min-w-0 break-words font-medium">{value}</span>
+    </div>
+  );
+}
+
+function SummaryRow2({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-center justify-between gap-4 py-2.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="min-w-0 text-right text-sm font-medium">{value}</span>
     </div>
   );
 }

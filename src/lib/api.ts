@@ -736,6 +736,7 @@ export interface ProductListParams {
   sku?: string;
   search?: string;
   brand_name?: string;
+  external_brand_id?: number;
   category?: string;
   industry_sector?: string;
   line_name?: string;
@@ -925,6 +926,7 @@ export interface Promotion {
   audience_scope?: PromotionTargetScope;
   customer_ids?: string[];
   customer_filters?: Record<string, unknown> | null;
+  origin?: string | null;
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;
@@ -1213,6 +1215,7 @@ export interface PromotionPayload {
   target_config: Record<string, unknown>;
   customer_ids?: string[];
   customer_filters?: Record<string, unknown> | null;
+  origin?: string | null;
   flash_card_url?: string | null;
   marketing_copy?: string | null;
   mechanic: PromoMechanicPayload;
@@ -1232,6 +1235,7 @@ export function listProducts(params: ProductListParams = {}): Promise<ProductCat
     sku: params.sku,
     search: params.search,
     brand_name: params.brand_name,
+    external_brand_id: params.external_brand_id,
     category: params.category,
     industry_sector: params.industry_sector,
     line_name: params.line_name,

@@ -174,6 +174,46 @@ function commercialStatus(customer: CustomerRecord) {
   return { label: "Activo comercialmente", variant: "default" as const };
 }
 
+type InsightVariant = "green" | "amber" | "red" | "blue" | "default";
+
+const insightVariantStyles: Record<InsightVariant, { card: string; icon: string; badge: string }> = {
+  green:   { card: "border-green-200 bg-green-50/70",   icon: "text-green-600",  badge: "bg-green-100 text-green-700" },
+  amber:   { card: "border-amber-200 bg-amber-50/70",   icon: "text-amber-600",  badge: "bg-amber-100 text-amber-700" },
+  red:     { card: "border-red-200 bg-red-50/70",       icon: "text-red-600",    badge: "bg-red-100 text-red-700" },
+  blue:    { card: "border-blue-200 bg-blue-50/70",     icon: "text-blue-600",   badge: "bg-blue-100 text-blue-700" },
+  default: { card: "border bg-card",                    icon: "text-primary",    badge: "bg-muted text-muted-foreground" },
+};
+
+function commercialVariant(label: string): InsightVariant {
+  if (label.toLowerCase().includes("activo comercialmente")) return "green";
+  if (label.toLowerCase().includes("riesgo")) return "amber";
+  if (label.toLowerCase().includes("inactivo")) return "red";
+  return "default";
+}
+
+function opportunityVariant(value: string): InsightVariant {
+  if (value === "Mantener") return "green";
+  if (value === "Reactivar") return "amber";
+  return "default";
+}
+
+function clvVariant(value: string): InsightVariant {
+  const v = value.toUpperCase();
+  if (v === "ALTO" || v === "HIGH") return "green";
+  if (v === "MEDIO" || v === "MEDIUM") return "blue";
+  if (v === "BAJO" || v === "LOW") return "red";
+  return "default";
+}
+
+function rfmVariant(value: string): InsightVariant {
+  const v = value.toUpperCase();
+  if (v.includes("CHAMPION") || v.includes("LOYAL")) return "green";
+  if (v.includes("PROMIS") || v.includes("POTENTIAL") || v.includes("NEW")) return "blue";
+  if (v.includes("AT_RISK") || v.includes("AT RISK") || v.includes("RIESGO") || v.includes("CANT LOSE")) return "amber";
+  if (v.includes("HIBERNAT") || v.includes("LOST")) return "red";
+  return "default";
+}
+
 function hasCoordinates(customer: CustomerRecord | null | undefined) {
   return Boolean(customer?.customer_business_latitude && customer?.customer_business_longitude);
 }
@@ -955,6 +995,20 @@ export default function Customers() {
                         <div className="flex flex-wrap gap-1.5">
                           {profileStatus && <Badge variant={profileStatus.variant}>{profileStatus.label}</Badge>}
                           {profileCluster && <Badge variant="outline">{profileCluster}</Badge>}
+                          {(() => {
+                            const commLabel = profileCommercialStatus?.label || "";
+                            const oppLabel = numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener";
+                            const clvLabel = field(currentProfile, "customer_clv_segment", "");
+                            const rfmLabel = field(currentProfile, "customer_rfm_segment", "");
+                            const pills: { label: string; variant: InsightVariant }[] = [];
+                            if (commLabel) pills.push({ label: commLabel, variant: commercialVariant(commLabel) });
+                            pills.push({ label: oppLabel, variant: opportunityVariant(oppLabel) });
+                            if (clvLabel) pills.push({ label: `CLV ${clvLabel}`, variant: clvVariant(clvLabel) });
+                            if (rfmLabel) pills.push({ label: rfmLabel, variant: rfmVariant(rfmLabel) });
+                            return pills.map(({ label, variant }) => (
+                              <span key={label} className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${insightVariantStyles[variant].badge}`}>{label}</span>
+                            ));
+                          })()}
                         </div>
                         <div className="min-w-0">
                           <SheetTitle className="truncate text-xl font-bold sm:text-2xl">{field(currentProfile, "customer_full_name", "Cliente sin nombre")}</SheetTitle>
@@ -1022,10 +1076,34 @@ export default function Customers() {
 
                     <TabsContent value="performance" className="mt-4 space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0">
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <InsightCard title="Estado comercial" value={profileCommercialStatus?.label || "N/A"} note="Basado en dias desde la ultima compra" icon={Activity} />
-                        <InsightCard title="Oportunidad" value={numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener"} note="Prioriza seguimiento segun recencia" icon={TrendingUp} />
-                        <InsightCard title="CLV" value={field(currentProfile, "customer_clv_segment", "Sin segmento")} note={field(currentProfile, "customer_clv_description", "Sin descripcion disponible")} icon={UserRound} />
-                        <InsightCard title="RFM" value={field(currentProfile, "customer_rfm_segment", "Sin segmento")} note={field(currentProfile, "customer_rfm_description", "Sin descripcion disponible")} icon={RefreshCw} />
+                        <InsightCard
+                          title="Estado comercial"
+                          value={profileCommercialStatus?.label || "N/A"}
+                          note="Basado en dias desde la ultima compra"
+                          icon={Activity}
+                          variant={commercialVariant(profileCommercialStatus?.label || "")}
+                        />
+                        <InsightCard
+                          title="Oportunidad"
+                          value={numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener"}
+                          note="Prioriza seguimiento segun recencia"
+                          icon={TrendingUp}
+                          variant={opportunityVariant(numeric(currentProfile?.customer_days_since_last_purchase) > 60 ? "Reactivar" : "Mantener")}
+                        />
+                        <InsightCard
+                          title="CLV"
+                          value={field(currentProfile, "customer_clv_segment", "Sin segmento")}
+                          note={field(currentProfile, "customer_clv_description", "Sin descripcion disponible")}
+                          icon={UserRound}
+                          variant={clvVariant(field(currentProfile, "customer_clv_segment", ""))}
+                        />
+                        <InsightCard
+                          title="RFM"
+                          value={field(currentProfile, "customer_rfm_segment", "Sin segmento")}
+                          note={field(currentProfile, "customer_rfm_description", "Sin descripcion disponible")}
+                          icon={RefreshCw}
+                          variant={rfmVariant(field(currentProfile, "customer_rfm_segment", ""))}
+                        />
                       </div>
                     </TabsContent>
 
@@ -1209,17 +1287,20 @@ function InsightCard({
   title,
   value,
   note,
+  variant = "default",
 }: {
   icon: React.ElementType;
   title: string;
   value: string;
   note: string;
+  variant?: InsightVariant;
 }) {
+  const styles = insightVariantStyles[variant];
   return (
-    <div className="min-h-[7rem] rounded-md border bg-card p-4 shadow-sm">
+    <div className={`min-h-[7rem] rounded-md border p-4 shadow-sm ${styles.card}`}>
       <div className="mb-1.5 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{title}</p>
-        <Icon className="size-4 text-primary" />
+        <Icon className={`size-4 ${styles.icon}`} />
       </div>
       <p className="break-words text-xl font-bold leading-tight">{value}</p>
       <p className="mt-2 text-xs text-muted-foreground">{note}</p>

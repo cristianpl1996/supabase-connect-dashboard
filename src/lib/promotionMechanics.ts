@@ -211,9 +211,9 @@ export function summarizePromotionMechanic(state: PromotionMechanicFormState): s
     const bqty = mechanic.bonus_quantity || 0;
     const bbase = mechanic.base_quantity || 0;
     if (mechanic.bonus_product_type === "different_product") {
-      return `Por cada ${bbase} unidades de el producto seleccionado, el cliente recibe ${bqty} unidad(es) de ${mechanic.bonus_product_name || "producto bonificado"} a precio cero.`;
+      return `Compra ${bbase} uds. → recibe ${bqty} uds. de ${mechanic.bonus_product_name || "producto bonificado"} gratis.`;
     }
-    return `Por cada ${bbase} unidades de el producto seleccionado, el cliente recibe ${bqty} unidad(es) del mismo producto a precio cero.`;
+    return `Compra ${bbase} uds. → recibe ${bqty} uds. del mismo producto gratis.`;
   }
   if (state.promotionType === "precio_especial") {
     return mechanic.minimum_quantity
