@@ -183,10 +183,12 @@ export interface Promotion {
   estimated_cost: number | null;
   max_redemptions: number | null;
   current_redemptions: number;
-  target_segment: Record<string, unknown> | null;
+  product_mode?: string;
   product_skus?: string[];
-  target_scope?: PromotionTargetScope;
-  target_config?: Record<string, unknown>;
+  product_filters?: Record<string, string>;
+  audience_scope?: PromotionTargetScope;
+  customer_ids?: string[];
+  customer_filters?: Record<string, unknown> | null;
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;

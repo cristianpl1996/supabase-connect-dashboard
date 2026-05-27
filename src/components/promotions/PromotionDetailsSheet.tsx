@@ -26,41 +26,38 @@ const ACCOUNTING_LABELS: Record<string, string> = {
   nota_credito_posterior: "Nota credito posterior",
 };
 
-const SCOPE_LABELS: Record<string, string> = {
+const AUDIENCE_SCOPE_LABELS: Record<string, string> = {
   all: "Toda mi base comercial",
-  products: "Productos especificos",
   customers: "Clientes especificos",
-  product_filters: "Linea / categoria / marca / especie",
   customer_segment: "Segmento de clientes",
 };
 
-const SEGMENT_PRESET_LABELS: Record<string, string> = {
-  commercial_base: "Base comercial",
-  with_purchases: "Clientes con compras",
-  without_purchases: "Clientes sin compras",
-  with_representative: "Con representante",
-  without_representative: "Sin representante",
-  active_recent: "Activos 1 a 45 dias",
-  at_risk: "En riesgo 46 a 90 dias",
-  inactive: "Inactivos 91+ dias",
+const PRODUCT_MODE_LABELS: Record<string, string> = {
+  specific: "Productos especificos",
+  filters: "Por filtros (marca / sector / categoria / especie)",
 };
 
-const TARGET_FIELD_LABELS: Record<string, string> = {
-  preset: "Preset",
-  segment_preset: "Segmento",
+const CUSTOMER_FILTER_LABELS: Record<string, string> = {
   business_type: "Tipo de negocio",
   city: "Ciudad",
   state: "Departamento",
-  brand_name: "Marca",
-  category: "Categoria",
-  line_name: "Linea",
-  target_species: "Especie",
+  has_sales_representative: "Con representante",
+  sales_representative_id: "ID Representante",
+  has_location: "Con ubicacion",
   min_purchases: "Min. compras",
   max_purchases: "Max. compras",
-  has_sales_representative: "Con representante",
-  has_location: "Con ubicacion",
   min_days_since_last_purchase: "Min. dias sin compra",
   max_days_since_last_purchase: "Max. dias sin compra",
+  customer_clv_segment: "Segmento CLV",
+  customer_rfm_segment: "Segmento RFM",
+  segment_preset: "Preset de segmento",
+};
+
+const PRODUCT_FILTER_LABELS: Record<string, string> = {
+  brand_name: "Marca",
+  industry_sector: "Sector",
+  category: "Categoria",
+  target_species: "Especie",
 };
 
 const STRIPED_BAR_CLASS = [
@@ -94,33 +91,23 @@ export function PromotionDetailsSheet({
   if (!promotion) return null;
 
   const statusConfig = STATUS_CONFIG[promotion.status] || STATUS_CONFIG.borrador;
-  const targetSegment = promotion.target_segment as {
-    type?: string;
-    scope?: string;
-    product_skus?: string[];
-    customer_ids?: string[];
-    product_filters?: Record<string, string>;
-    customer_filters?: Record<string, string>;
-    target_config?: Record<string, unknown>;
-  } | null;
-  const targetConfig = ((promotion.target_config as Record<string, unknown> | null)
-    || (targetSegment?.target_config as Record<string, unknown> | null)
-    || {}) as Record<string, unknown>;
-  const scope = promotion.target_scope || targetSegment?.scope || (targetSegment?.type && targetSegment.type !== "todo" ? "customer_segment" : "all");
+
+  const productMode = String(promotion.product_mode || "specific");
+  const productSkus = Array.isArray(promotion.product_skus) ? promotion.product_skus : [];
+  const productFilters = (promotion.product_filters || null) as Record<string, string | null> | null;
+  const audienceScope = String(promotion.audience_scope || "all");
+  const customerIds = Array.isArray(promotion.customer_ids) ? promotion.customer_ids : [];
+  const audienceFilters = (promotion.customer_filters || null) as Record<string, unknown> | null;
+
+  const activeProductFilters = productFilters
+    ? Object.entries(productFilters).filter(([, v]) => v != null && v !== "")
+    : [];
+  const activeAudienceFilters = audienceFilters
+    ? Object.entries(audienceFilters).filter(([, v]) => v != null && v !== "")
+    : [];
+
   const maxRedemptions = promotion.max_redemptions || 0;
   const redemptionPercent = maxRedemptions > 0 ? Math.min((promotion.current_redemptions / maxRedemptions) * 100, 100) : 0;
-  const targetFacts = Object.entries(targetConfig)
-    .filter(([key, value]) => key !== "customer_ids" && value !== null && value !== undefined && value !== "")
-    .map(([key, value]) => ({
-      key,
-      label: TARGET_FIELD_LABELS[key] || key,
-      value:
-        key === "preset" || key === "segment_preset"
-          ? (SEGMENT_PRESET_LABELS[String(value)] || String(value))
-          : key === "has_sales_representative"
-            ? (value ? "Si" : "No")
-            : String(value),
-    }));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -171,8 +158,8 @@ export function PromotionDetailsSheet({
             <PromoMetric
               icon={Target}
               label="Audiencia"
-              value={SCOPE_LABELS[scope] || scope}
-              note="Alcance configurado"
+              value={AUDIENCE_SCOPE_LABELS[audienceScope] || audienceScope}
+              note={PRODUCT_MODE_LABELS[productMode] || productMode}
             />
             <PromoMetric
               icon={Megaphone}
@@ -188,27 +175,36 @@ export function PromotionDetailsSheet({
               <h3 className="font-semibold">Segmentacion</h3>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
-              <PromoFact label="Alcance" value={SCOPE_LABELS[scope] || scope} />
+              <PromoFact label="Audiencia" value={AUDIENCE_SCOPE_LABELS[audienceScope] || audienceScope} />
+              <PromoFact label="Productos" value={PRODUCT_MODE_LABELS[productMode] || productMode} />
               <PromoFact label="Laboratorio" value={labName || promotion.laboratory_name} />
-              <PromoFact label="Origen" value={promotion.created_by_responsible || promotion.created_by_identifier || promotion.created_by_role} />
             </div>
-            {targetSegment && (
-              <div className="mt-3 space-y-3">
-                {Array.isArray(targetSegment.product_skus) && targetSegment.product_skus.length > 0 && (
-                  <BadgeList title="SKUs" values={targetSegment.product_skus} />
-                )}
-                {Array.isArray(targetConfig.customer_ids) && targetConfig.customer_ids.length > 0 && (
-                  <BadgeList title="Clientes" values={targetConfig.customer_ids.map((id) => `Cliente ${id}`)} />
-                )}
-                {targetFacts.length > 0 && (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {targetFacts.map((item) => (
-                      <PromoFact key={item.key} label={item.label} value={item.value} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="mt-3 space-y-3">
+              {productSkus.length > 0 && (
+                <BadgeList title="SKUs de productos" values={productSkus} />
+              )}
+              {activeProductFilters.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {activeProductFilters.map(([key, value]) => (
+                    <PromoFact key={key} label={PRODUCT_FILTER_LABELS[key] || key} value={value} />
+                  ))}
+                </div>
+              )}
+              {customerIds.length > 0 && (
+                <BadgeList title="Clientes seleccionados" values={customerIds} />
+              )}
+              {activeAudienceFilters.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {activeAudienceFilters.map(([key, value]) => (
+                    <PromoFact
+                      key={key}
+                      label={CUSTOMER_FILTER_LABELS[key] || key}
+                      value={key === "has_sales_representative" || key === "has_location" ? (value ? "Si" : "No") : String(value)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           {mechanic ? (

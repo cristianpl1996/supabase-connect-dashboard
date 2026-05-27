@@ -919,10 +919,12 @@ export interface Promotion {
   estimated_cost: number | null;
   max_redemptions: number | null;
   current_redemptions: number;
-  target_segment: Record<string, unknown> | null;
+  product_mode?: string;
   product_skus?: string[];
-  target_scope?: PromotionTargetScope;
-  target_config?: Record<string, unknown>;
+  product_filters?: Record<string, string>;
+  audience_scope?: PromotionTargetScope;
+  customer_ids?: string[];
+  customer_filters?: Record<string, unknown> | null;
   flash_card_url: string | null;
   marketing_copy: string | null;
   created_at: string;
@@ -1205,8 +1207,12 @@ export interface PromotionPayload {
   max_redemptions?: number | null;
   target_segment?: Record<string, unknown> | null;
   product_skus: string[];
+  product_application_mode?: string;
+  product_filters?: Record<string, unknown>;
   target_scope: PromotionTargetScope;
   target_config: Record<string, unknown>;
+  customer_ids?: string[];
+  customer_filters?: Record<string, unknown> | null;
   flash_card_url?: string | null;
   marketing_copy?: string | null;
   mechanic: PromoMechanicPayload;
@@ -1719,6 +1725,9 @@ export interface PromotorTransfer {
   promotor_name: string | null;
   sales_representative_id: number;
   sales_representative_name: string | null;
+  sales_representative_brand_id: number | null;
+  sales_representative_brand_name: string | null;
+  brand: string | null;
   distributor_id: number;
   customer_id: number | null;
   customer_name: string | null;

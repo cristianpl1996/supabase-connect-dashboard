@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   createPromotion,
   getAllRepresentatives,
@@ -19,12 +19,12 @@ import {
 import { usePromoter } from '@/contexts/PromoterContext';
 import { Laboratory, Promotion } from '@/types/database';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,14 +36,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, Zap, DollarSign, AlertTriangle, Target, Search, X, Boxes, SlidersHorizontal } from 'lucide-react';
+import {
+  Loader2,
+  FileText,
+  Package,
+  Users,
+  Zap,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Eye,
+  EyeOff,
+  DollarSign,
+  AlertTriangle,
+  Search,
+  X,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { toast } from 'sonner';
 import {
@@ -92,6 +103,11 @@ const PRODUCT_APPLICATION_OPTIONS = [
   { value: 'filters', label: 'Marca / Sector / Categoria / Especie' },
 ];
 
+const ACCOUNTING_TREATMENTS = [
+  { value: 'descuento_pie', label: 'Descuento Pie de Factura' },
+  { value: 'bonificacion_precio_cero', label: 'Bonificacion a Precio Cero' },
+  { value: 'precio_especial', label: 'Precio Especial' },
+];
 const WITHOUT_REPRESENTATIVE_OPTION = 'without_rep';
 
 const formFocusClasses = [
@@ -147,6 +163,22 @@ function representativeOption(representative: Representative): [string, string] 
   const name = String(representative.sales_rep_full_name ?? '');
   return id && name ? [id, name] : null;
 }
+
+const STEPS = [
+  { id: 1, label: 'Datos Generales' },
+  { id: 2, label: 'Productos' },
+  { id: 3, label: 'Alcance' },
+  { id: 4, label: 'Regla Comercial' },
+  { id: 5, label: 'Resumen' },
+] as const;
+
+const STEP_META: Record<number, { icon: React.ElementType; description: string }> = {
+  1: { icon: FileText,     description: 'Laboratorio, titulo y vigencia de la promocion' },
+  2: { icon: Package,      description: 'Productos que aplican a la promocion' },
+  3: { icon: Users,        description: 'Clientes o segmentos objetivo' },
+  4: { icon: Zap,          description: 'Tipo de beneficio y condiciones comerciales' },
+  5: { icon: CheckCircle2, description: 'Revisa los datos y confirma la promocion' },
+};
 
 export function PromotionFormSheet({
   open,
@@ -212,12 +244,15 @@ export function PromotionFormSheet({
   const customerOptionsHasMoreRef = useRef(false);
   const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(() => resetMechanicForPromotionType(''));
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
+  const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [spendableBalance, setSpendableBalance] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+
   const visibleProductOptions = productOptions.filter(
     (product) => !selectedProductSkus.includes(product.product_sku),
   );
@@ -257,6 +292,7 @@ export function PromotionFormSheet({
   useEffect(() => {
     if (open && editingPromo) {
       const fetchPromotion = async () => {
+        setCurrentStep(1);
         setIsLoadingMechanic(true);
         try {
           const details = await getPromotion(editingPromo.id);
@@ -265,48 +301,45 @@ export function PromotionFormSheet({
           setDescription(details.description || '');
           setStartDate(details.start_date);
           setEndDate(details.end_date);
-          const seg = (details.target_segment || {}) as Record<string, unknown>;
-          const products = (seg.products || {}) as Record<string, unknown>;
-          const audience = (seg.audience || {}) as Record<string, unknown>;
-          const pFilters = (products.filters || {}) as Record<string, string>;
-          const cFilters = (audience.filters || {}) as Record<string, unknown>;
-          const audienceScope = String(audience.scope || details.audience_scope || 'all');
-          setScope(audienceScope);
-          setProductApplicationMode(String(products.mode || details.product_mode || 'specific'));
-          setSelectedProductSkus(Array.isArray(products.skus) ? (products.skus as string[]) : (Array.isArray(details.product_skus) ? details.product_skus : []));
-          setSelectedCustomerIds(Array.isArray(audience.customer_ids) ? (audience.customer_ids as string[]).map(String) : (Array.isArray(details.customer_ids) ? details.customer_ids : []));
-          setProductFilterBrand(pFilters.brand_name || '');
-          setProductFilterCategory(pFilters.category || '');
-          setProductFilterSector(pFilters.industry_sector || '');
-          setProductFilterSpecies(pFilters.target_species || '');
-          setSegment(String(cFilters.segment_preset || 'custom'));
-          setCustomerFilterBusinessType(String(cFilters.business_type || ''));
-          setCustomerFilterCity(String(cFilters.city || ''));
-          setCustomerFilterState(String(cFilters.state || ''));
+          const pf = (details.product_filters || {}) as Record<string, string>;
+          const cf = (details.customer_filters || {}) as Record<string, unknown>;
+          setSegment(String(cf.segment_preset || 'custom'));
+          setScope(details.audience_scope || 'all');
+          setProductApplicationMode(details.product_mode || 'specific');
+          setSelectedProductSkus(details.product_skus || []);
+          setSelectedCustomerIds(details.customer_ids || []);
+          setProductFilterBrand(String(pf.brand_name || ''));
+          setProductFilterCategory(String(pf.category || ''));
+          setProductFilterSector(String(pf.industry_sector || ''));
+          setProductFilterSpecies(String(pf.target_species || ''));
+          setCustomerFilterBusinessType(String(cf.business_type || ''));
+          setCustomerFilterCity(String(cf.city || ''));
+          setCustomerFilterState(String(cf.state || ''));
           setCustomerFilterRepresentative(
-            typeof cFilters.sales_representative_id === 'number' || typeof cFilters.sales_representative_id === 'string'
-              ? String(cFilters.sales_representative_id)
-              : cFilters.has_sales_representative === true ? 'with'
-                : cFilters.has_sales_representative === false ? WITHOUT_REPRESENTATIVE_OPTION
+            typeof cf.sales_representative_id === 'number' || typeof cf.sales_representative_id === 'string'
+              ? String(cf.sales_representative_id)
+              : cf.has_sales_representative === true ? 'with'
+                : cf.has_sales_representative === false ? WITHOUT_REPRESENTATIVE_OPTION
                   : 'all',
           );
           setCustomerFilterLocation(
-            cFilters.has_location === true ? 'with'
-              : cFilters.has_location === false ? 'without'
+            cf.has_location === true ? 'with'
+              : cf.has_location === false ? 'without'
                 : 'all',
           );
-          setCustomerFilterMinPurchases(String(cFilters.min_purchases || ''));
-          setCustomerFilterMaxPurchases(String(cFilters.max_purchases || ''));
-          setCustomerFilterMinDays(String(cFilters.min_days_since_last_purchase || ''));
-          setCustomerFilterMaxDays(String(cFilters.max_days_since_last_purchase || ''));
-          setCustomerFilterClv(String(cFilters.customer_clv_segment || ''));
-          setCustomerFilterRfm(String(cFilters.customer_rfm_segment || ''));
+          setCustomerFilterMinPurchases(String(cf.min_purchases || ''));
+          setCustomerFilterMaxPurchases(String(cf.max_purchases || ''));
+          setCustomerFilterMinDays(String(cf.min_days_since_last_purchase || ''));
+          setCustomerFilterMaxDays(String(cf.max_days_since_last_purchase || ''));
+          setCustomerFilterClv(String(cf.customer_clv_segment || ''));
+          setCustomerFilterRfm(String(cf.customer_rfm_segment || ''));
           setEstimatedCost(details.estimated_cost || 0);
           setMaxRedemptions(details.max_redemptions || '');
 
           const mechanic = details.mechanic;
           if (mechanic) {
             setMechanicState(inferMechanicStateFromPromotion(mechanic));
+            setAccountingTreatment(mechanic.accounting_treatment || 'descuento_pie');
           }
         } catch (err) {
           console.error('Error loading promotion:', err);
@@ -591,12 +624,90 @@ export function PromotionFormSheet({
     setCustomerNameMap({});
     setMechanicState(resetMechanicForPromotionType(''));
     setEstimatedCost(0);
+    setAccountingTreatment('descuento_pie');
     setMaxRedemptions('');
     setBudgetError(null);
     setSpendableBalance(null);
     setApprovalWarning(null);
     setSubmitted(false);
+    setCurrentStep(1);
   };
+
+  // Debounced product filter state
+  const [debouncedProdFilters, setDebouncedProdFilters] = useState({ brand: '', sector: '', category: '', species: '' });
+  const [productFilterCount, setProductFilterCount] = useState<number | null>(null);
+  const [productFilterFetching, setProductFilterFetching] = useState(false);
+  const [productFilterResults, setProductFilterResults] = useState<ProductCatalogItem[]>([]);
+  const [showFilteredProducts, setShowFilteredProducts] = useState(false);
+  const [debouncedCustFilters, setDebouncedCustFilters] = useState<Record<string, unknown>>({});
+  const [customerFilterCount, setCustomerFilterCount] = useState<number | null>(null);
+  const [customerFilterFetching, setCustomerFilterFetching] = useState(false);
+  const [customerFilterResults, setCustomerFilterResults] = useState<CustomerRecord[]>([]);
+  const [showFilteredCustomers, setShowFilteredCustomers] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProdFilters({
+      brand: productFilterBrand, sector: productFilterSector,
+      category: productFilterCategory, species: productFilterSpecies,
+    }), 600);
+    return () => clearTimeout(t);
+  }, [productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies]);
+
+  useEffect(() => {
+    const anyFilter = debouncedProdFilters.brand || debouncedProdFilters.sector || debouncedProdFilters.category || debouncedProdFilters.species;
+    if (productApplicationMode !== 'filters' || !anyFilter) { setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); return; }
+    setProductFilterFetching(true);
+    listProducts({
+      brand_name: debouncedProdFilters.brand || undefined,
+      industry_sector: debouncedProdFilters.sector || undefined,
+      category: debouncedProdFilters.category || undefined,
+      target_species: debouncedProdFilters.species || undefined,
+      is_catalog_verified: true,
+      is_discontinued: false,
+    }).then((r) => { setProductFilterCount(r.length); setProductFilterResults(r); }).catch(() => { setProductFilterCount(null); setProductFilterResults([]); }).finally(() => setProductFilterFetching(false));
+  }, [debouncedProdFilters, productApplicationMode]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustFilters({
+      business_type: customerFilterBusinessType || undefined,
+      city: customerFilterCity || undefined,
+      state: customerFilterState || undefined,
+      has_sales_representative: customerFilterRepresentative === 'with' ? true : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false : undefined,
+      sales_representative_id: (customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION && customerFilterRepresentative !== 'all') ? Number(customerFilterRepresentative) : undefined,
+      has_location: customerFilterLocation === 'with' ? true : customerFilterLocation === 'without' ? false : undefined,
+      min_purchases: customerFilterMinPurchases ? Number(customerFilterMinPurchases) : undefined,
+      max_purchases: customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : undefined,
+      min_days_since_last_purchase: customerFilterMinDays ? Number(customerFilterMinDays) : undefined,
+      max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined,
+      customer_clv_segment: customerFilterClv || undefined,
+      customer_rfm_segment: customerFilterRfm || undefined,
+    }), 600);
+    return () => clearTimeout(t);
+  }, [customerFilterBusinessType, customerFilterCity, customerFilterState, customerFilterRepresentative,
+    customerFilterLocation, customerFilterMinPurchases, customerFilterMaxPurchases,
+    customerFilterMinDays, customerFilterMaxDays, customerFilterClv, customerFilterRfm]);
+
+  useEffect(() => {
+    const isManual = scope === 'customer_segment' && segment === 'custom';
+    const anyFilter = Object.values(debouncedCustFilters).some((v) => v != null);
+    if (!isManual || !anyFilter) { setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); return; }
+    setCustomerFilterFetching(true);
+    getCustomersPage({ ...debouncedCustFilters, limit: 50 })
+      .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
+      .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
+      .finally(() => setCustomerFilterFetching(false));
+  }, [debouncedCustFilters, scope, segment]);
+
+  useEffect(() => {
+    if (scope !== 'customer_segment' || segment === 'custom') { return; }
+    const presetFilters = buildSegmentPresetConfig(segment);
+    setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false);
+    setCustomerFilterFetching(true);
+    getCustomersPage({ ...presetFilters, limit: 50 })
+      .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
+      .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
+      .finally(() => setCustomerFilterFetching(false));
+  }, [scope, segment]);
 
   const hasProductFilters = Boolean(productFilterBrand || productFilterSector || productFilterCategory || productFilterSpecies);
   const hasCustomerFilters = Boolean(
@@ -620,15 +731,103 @@ export function PromotionFormSheet({
       errors.products = 'Selecciona al menos un producto';
     if (productApplicationMode === 'filters' && !hasProductFilters)
       errors.products = 'Define al menos un filtro de marca, sector, categoria o especie';
+    if (productApplicationMode === 'filters' && hasProductFilters && productFilterFetching)
+      errors.products = 'Esperando resultados del filtro de productos…';
+    if (productApplicationMode === 'filters' && hasProductFilters && !productFilterFetching && productFilterCount === null)
+      errors.products = 'Aplica el filtro para ver los productos antes de continuar';
+    if (productApplicationMode === 'filters' && hasProductFilters && !productFilterFetching && productFilterCount === 0)
+      errors.products = 'No hay productos que coincidan con estos filtros';
     if (scope === 'customers' && selectedCustomerIds.length === 0)
       errors.scope = 'Selecciona al menos un cliente para este alcance';
     if (scope === 'customer_segment' && segment === 'custom' && !hasCustomerFilters)
       errors.scope = 'Define al menos un filtro para el segmento de clientes';
+    if (scope === 'customer_segment' && segment === 'custom' && hasCustomerFilters && customerFilterCount === 0)
+      errors.scope = 'No hay clientes que coincidan con estos filtros';
     const mechanicError = validatePromotionMechanic(mechanicState);
     if (mechanicError) errors.mechanic = mechanicError;
     return errors;
   }, [labId, title, startDate, endDate, productApplicationMode, selectedProductSkus,
-    hasProductFilters, scope, selectedCustomerIds, segment, hasCustomerFilters, mechanicState]);
+    hasProductFilters, productFilterCount, productFilterFetching, scope, selectedCustomerIds, segment,
+    hasCustomerFilters, customerFilterCount, mechanicState]);
+
+  const buildTargetConfig = useMemo(() => {
+    return () => {
+      const productFilters = productApplicationMode === 'filters'
+        ? {
+          brand_name: productFilterBrand || undefined,
+          industry_sector: productFilterSector || undefined,
+          category: productFilterCategory || undefined,
+          target_species: productFilterSpecies || undefined,
+        }
+        : undefined;
+
+      if (scope === 'all') {
+        return {
+          preset: 'commercial_base',
+          has_sales_representative: true,
+          min_purchases: 1,
+          product_filter_mode: productApplicationMode,
+          product_filters: productFilters,
+        };
+      }
+      const target: Record<string, unknown> = {};
+      target.product_filter_mode = productApplicationMode;
+      target.product_filters = productFilters;
+      if (scope === 'customers') {
+        target.customer_ids = selectedCustomerIds;
+      }
+      if (scope === 'customer_segment') {
+        Object.assign(target, buildSegmentPresetConfig(segment));
+        if (segment !== 'custom') {
+          target.segment_preset = segment;
+        }
+        target.business_type = customerFilterBusinessType === 'all' ? undefined : customerFilterBusinessType || undefined;
+        target.city = customerFilterCity || undefined;
+        target.state = customerFilterState || undefined;
+        target.has_sales_representative =
+          customerFilterRepresentative === 'with' ? true
+            : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false
+              : customerFilterRepresentative !== 'all' ? true
+                : undefined;
+        target.sales_representative_id =
+          customerFilterRepresentative !== 'all' && customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION
+            ? Number(customerFilterRepresentative)
+            : undefined;
+        target.has_location =
+          customerFilterLocation === 'with' ? true
+            : customerFilterLocation === 'without' ? false
+              : undefined;
+        target.min_purchases = customerFilterMinPurchases ? Number(customerFilterMinPurchases) : undefined;
+        target.max_purchases = customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : undefined;
+        target.min_days_since_last_purchase = customerFilterMinDays ? Number(customerFilterMinDays) : undefined;
+        target.max_days_since_last_purchase = customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined;
+        target.customer_clv_segment = customerFilterClv || undefined;
+        target.customer_rfm_segment = customerFilterRfm || undefined;
+      }
+      return target;
+    };
+  }, [
+    buildSegmentPresetConfig,
+    customerFilterBusinessType,
+    customerFilterCity,
+    customerFilterClv,
+    customerFilterLocation,
+    customerFilterMaxDays,
+    customerFilterMaxPurchases,
+    customerFilterMinDays,
+    customerFilterMinPurchases,
+    customerFilterRepresentative,
+    customerFilterRfm,
+    customerFilterState,
+    productApplicationMode,
+    productFilterBrand,
+    productFilterCategory,
+    productFilterSector,
+    productFilterSpecies,
+    scope,
+    segment,
+    selectedCustomerIds,
+  ]);
 
   const productSelectOptions = useMemo(
     () =>
@@ -733,28 +932,37 @@ export function PromotionFormSheet({
           })),
         },
       });
-      const productFilters = productApplicationMode === 'filters' ? {
-        brand_name: productFilterBrand || null,
-        industry_sector: productFilterSector || null,
-        category: productFilterCategory || null,
-        target_species: productFilterSpecies || null,
-      } : null;
+      mechanicPayload.accounting_treatment = accountingTreatment;
 
-      const customerFilters = scope === 'customer_segment' ? {
-        business_type: customerFilterBusinessType || null,
-        city: customerFilterCity || null,
-        state: customerFilterState || null,
-        has_sales_representative: customerFilterRepresentative === 'with' ? true : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false : null,
-        sales_representative_id: (customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION && customerFilterRepresentative !== 'all') ? Number(customerFilterRepresentative) : null,
-        has_location: customerFilterLocation === 'with' ? true : customerFilterLocation === 'without' ? false : null,
-        min_purchases: customerFilterMinPurchases ? Number(customerFilterMinPurchases) : null,
-        max_purchases: customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : null,
-        min_days_since_last_purchase: customerFilterMinDays ? Number(customerFilterMinDays) : null,
-        max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : null,
-        customer_clv_segment: customerFilterClv || null,
-        customer_rfm_segment: customerFilterRfm || null,
-        segment_preset: segment !== 'custom' ? segment : null,
-      } : null;
+      const buildCustomerFilters = () => {
+        if (scope !== 'customer_segment') return null;
+        if (segment !== 'custom') return { ...buildSegmentPresetConfig(segment), segment_preset: segment };
+        const raw: Record<string, unknown> = {
+          business_type: customerFilterBusinessType || undefined,
+          city: customerFilterCity || undefined,
+          state: customerFilterState || undefined,
+          has_sales_representative: customerFilterRepresentative === 'with' ? true : customerFilterRepresentative === WITHOUT_REPRESENTATIVE_OPTION ? false : undefined,
+          sales_representative_id: (customerFilterRepresentative !== 'with' && customerFilterRepresentative !== WITHOUT_REPRESENTATIVE_OPTION && customerFilterRepresentative !== 'all') ? Number(customerFilterRepresentative) : undefined,
+          has_location: customerFilterLocation === 'with' ? true : customerFilterLocation === 'without' ? false : undefined,
+          min_purchases: customerFilterMinPurchases ? Number(customerFilterMinPurchases) : undefined,
+          max_purchases: customerFilterMaxPurchases ? Number(customerFilterMaxPurchases) : undefined,
+          min_days_since_last_purchase: customerFilterMinDays ? Number(customerFilterMinDays) : undefined,
+          max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined,
+          customer_clv_segment: customerFilterClv || undefined,
+          customer_rfm_segment: customerFilterRfm || undefined,
+        };
+        return Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined));
+      };
+      const customerFilters = buildCustomerFilters();
+
+      const productFiltersPayload = productApplicationMode === 'filters'
+        ? {
+          brand_name: productFilterBrand || undefined,
+          industry_sector: productFilterSector || undefined,
+          category: productFilterCategory || undefined,
+          target_species: productFilterSpecies || undefined,
+        }
+        : undefined;
 
       const payload = {
         lab_id: labId,
@@ -763,11 +971,14 @@ export function PromotionFormSheet({
         start_date: startDate,
         end_date: endDate,
         product_application_mode: productApplicationMode,
-        product_skus: productApplicationMode === 'specific' ? selectedProductSkus : [],
-        product_filters: productFilters,
+        product_skus: productApplicationMode === 'specific'
+          ? selectedProductSkus
+          : productFilterResults.map((p) => p.product_sku),
+        product_filters: productFiltersPayload,
         target_scope: scope as 'all' | 'customers' | 'customer_segment',
-        customer_ids: scope === 'customers' ? selectedCustomerIds : [],
+        customer_ids: scope === 'customers' ? selectedCustomerIds : undefined,
         customer_filters: customerFilters,
+        target_config: buildTargetConfig(),
         estimated_cost: estimatedCost || null,
         max_redemptions: maxRedemptions || null,
         created_by_role: isPromoter ? ('laboratorio' as const) : ('distribuidor' as const),
@@ -778,7 +989,11 @@ export function PromotionFormSheet({
         ? await updatePromotion(editingPromo.id, payload)
         : await createPromotion(payload);
 
-      toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
+      if (result.requires_manager_approval) {
+        toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
+      } else {
+        toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
+      }
 
       resetForm();
       onSuccess();
@@ -799,94 +1014,167 @@ export function PromotionFormSheet({
 
   const mechanicSummary = useMemo(() => summarizePromotionMechanic(mechanicState), [mechanicState]);
 
+  const stepHasErrors = (step: number): boolean => {
+    if (step === 1) return !!(formErrors.labId || formErrors.title || formErrors.dates);
+    if (step === 2) return !!formErrors.products;
+    if (step === 3) return !!formErrors.scope;
+    if (step === 4) return !!formErrors.mechanic;
+    return false;
+  };
+
+  const goNext = () => {
+    if (currentStep < 5) {
+      setCurrentStep((s) => s + 1);
+    } else {
+      setSubmitted(true);
+      if (Object.keys(formErrors).length > 0) {
+        toast.error('Revisa los pasos marcados en rojo');
+        return;
+      }
+      handleSubmit();
+    }
+  };
+
+  const goPrev = () => {
+    if (currentStep > 1) setCurrentStep((s) => s - 1);
+    else onOpenChange(false);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className={`w-full overflow-y-auto sm:max-w-2xl ${formFocusClasses}`}>
-        <SheetHeader>
-          <SheetTitle>{isEditing ? 'Editar Promocion' : 'Nueva Promocion'}</SheetTitle>
-          <SheetDescription>
-            {isEditing ? 'Modifica los datos de la promocion' : 'Crea una nueva promocion comercial'}
-          </SheetDescription>
-        </SheetHeader>
-
-        {isLoadingMechanic ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Cargando datos…</span>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={`flex h-[100dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:h-[90dvh] sm:max-h-[900px] sm:max-w-[700px] sm:rounded-xl ${formFocusClasses}`}>
+        {/* HEADER */}
+        <DialogHeader className="shrink-0 border-b px-4 pb-3 pt-4 pr-12 text-left sm:px-6 sm:pb-4 sm:pt-5 sm:pr-14">
+          <div className="pb-2 sm:pb-3">
+            <DialogTitle className="text-base font-semibold sm:text-xl">
+              {isEditing ? 'Editar Promocion' : 'Nueva Promocion'}
+            </DialogTitle>
+            <DialogDescription className="mt-0.5 text-left text-xs text-muted-foreground">
+              {isEditing ? 'Modifica los datos de la promocion' : 'Completa cada paso para crear la promocion'}
+            </DialogDescription>
           </div>
-        ) : (
-          <div className="mt-6">
-            <Accordion type="multiple" defaultValue={['general', 'products', 'scope', 'mechanics', 'financial']} className="space-y-4">
-              <AccordionItem value="general" className="overflow-hidden rounded-lg border border-border bg-background px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <FileText className="size-4 text-primary" />
-                    <span className="font-semibold">Datos Generales</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="laboratory">Laboratorio</Label>
-                    {isPromoter ? (
-                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md border">
-                        <span className="text-sm font-medium">
-                          {laboratories.find((l) => l.id === labId)?.name || 'Laboratorio asignado'}
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-auto">Asignado</span>
-                      </div>
-                    ) : (
-                      <Select value={labId} onValueChange={setLabId}>
-                        <SelectTrigger id="laboratory" className={submitted && formErrors.labId ? 'border-destructive' : ''}>
-                          <SelectValue placeholder="Selecciona un laboratorio" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {laboratories.map((lab) => (
-                            <SelectItem key={lab.id} value={lab.id}>
-                              {lab.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+          <div className="pt-1">
+            <div className="flex items-start">
+              {STEPS.map((step, idx) => {
+                const isActive = step.id === currentStep;
+                const isDone = step.id < currentStep;
+                const hasError = submitted && stepHasErrors(step.id);
+                return (
+                  <Fragment key={step.id}>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(step.id)}
+                        title={step.label}
+                        className={[
+                          'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all cursor-pointer hover:opacity-80 sm:size-9 sm:text-sm',
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30'
+                            : hasError
+                            ? 'bg-destructive/15 text-destructive ring-1 ring-destructive/40'
+                            : isDone
+                            ? 'bg-primary/20 text-primary'
+                            : 'bg-muted text-muted-foreground',
+                        ].join(' ')}
+                      >
+                        {hasError ? '!' : (isDone ? <Check className="size-3 sm:size-3.5" /> : step.id)}
+                      </button>
+                      <span className={[
+                        'hidden text-[9px] font-medium whitespace-nowrap leading-tight sm:block sm:text-[10px]',
+                        isActive ? 'text-primary' : hasError ? 'text-destructive' : isDone ? 'text-primary/70' : 'text-muted-foreground/70',
+                      ].join(' ')}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {idx < STEPS.length - 1 && (
+                      <div className={`mx-1 mt-3.5 h-px flex-1 transition-all sm:mx-1.5 sm:mt-[18px] ${step.id < currentStep ? 'bg-primary/40' : 'bg-muted-foreground/20'}`} />
                     )}
-                    {submitted && <FieldError error={formErrors.labId} />}
-                  </div>
+                  </Fragment>
+                );
+              })}
+            </div>
+            {/* Mobile: show active step name below circles */}
+            <div className="mt-1.5 sm:hidden">
+              <span className="text-[11px] font-semibold text-primary">{STEPS[currentStep - 1].label}</span>
+              <span className="ml-1 text-[11px] text-muted-foreground">· {currentStep}/{STEPS.length}</span>
+            </div>
+          </div>
+        </DialogHeader>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Titulo de la Promocion</Label>
-                    <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7" value={title} onChange={(e) => setTitle(e.target.value)} className={submitted && formErrors.title ? 'border-destructive' : ''} />
-                    {submitted && <FieldError error={formErrors.title} />}
-                  </div>
+        {/* STATIC STEP TITLE — always visible, never scrolls */}
+        <div className="shrink-0 border-b bg-muted/20 px-4 py-3 sm:px-6">
+          <StepHeader step={currentStep} />
+        </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Descripcion (opcional)</Label>
-                    <Textarea id="description" placeholder="Descripcion detallada de la promocion…" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
+        {/* SCROLLABLE CONTENT */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          {isLoadingMechanic ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Cargando datos…</span>
+            </div>
+          ) : (
+            <>
+              {/* STEP 1: Datos Generales */}
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="startDate">Fecha Inicio</Label>
-                      <Input id="startDate" type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setStartDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
+                      <Label htmlFor="laboratory" className="font-medium">Laboratorio <span className="text-destructive">*</span></Label>
+                      {isPromoter ? (
+                        <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-2.5">
+                          <span className="text-sm font-medium">{laboratories.find((l) => l.id === labId)?.name || 'Laboratorio asignado'}</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Asignado</span>
+                        </div>
+                      ) : (
+                        <Select value={labId} onValueChange={setLabId}>
+                          <SelectTrigger id="laboratory" className={submitted && formErrors.labId ? 'border-destructive' : ''}>
+                            <SelectValue placeholder="Selecciona un laboratorio" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {laboratories.map((lab) => (
+                              <SelectItem key={lab.id} value={lab.id}>{lab.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {submitted && <FieldError error={formErrors.labId} />}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="endDate">Fecha Fin</Label>
-                      <Input id="endDate" type="date" value={endDate} min={startDate || new Date().toISOString().split('T')[0]} onChange={(e) => setEndDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
-                      {submitted && <FieldError error={formErrors.dates} />}
+                      <Label htmlFor="title" className="font-medium">Titulo de la Promocion <span className="text-destructive">*</span></Label>
+                      <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7%" value={title} onChange={(e) => setTitle(e.target.value)} className={submitted && formErrors.title ? 'border-destructive' : ''} />
+                      {submitted && <FieldError error={formErrors.title} />}
                     </div>
                   </div>
-
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="products" className="overflow-hidden rounded-lg border border-border bg-background px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <Boxes className="size-4 text-primary" />
-                    <span className="font-semibold">Productos de la Promocion</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Aplica a</Label>
+                    <Label className="font-medium">Vigencia de la Promocion <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Fecha inicio</span>
+                        <Input id="startDate" type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setStartDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Fecha fin</span>
+                        <Input id="endDate" type="date" value={endDate} min={startDate || new Date().toISOString().split('T')[0]} onChange={(e) => setEndDate(e.target.value)} className={submitted && formErrors.dates ? 'border-destructive' : ''} />
+                      </div>
+                    </div>
+                    {submitted && <FieldError error={formErrors.dates} />}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="font-medium">
+                      Descripcion{' '}
+                      <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+                    </Label>
+                    <Textarea id="description" placeholder="Descripcion detallada de la promocion…" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="resize-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Productos */}
+              {currentStep === 2 && (
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <Label className="font-medium">Aplica a <span className="text-destructive">*</span></Label>
                     <Select value={productApplicationMode} onValueChange={setProductApplicationMode}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -896,118 +1184,111 @@ export function PromotionFormSheet({
                   </div>
                   {productApplicationMode === 'specific' ? (
                     <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
-                  </div>
-                  {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos…</p>}
-                  {visibleProductOptions.length > 0 && (
-                    <div
-                      ref={productListRef}
-                      className="max-h-56 overflow-y-auto rounded-md border divide-y"
-                      onScroll={(e) => {
-                        const el = e.currentTarget;
-                        if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreProducts();
-                      }}
-                    >
-                      {visibleProductOptions.map((product) => (
-                        <button
-                          key={product.product_sku}
-                          type="button"
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                          onClick={() => addProductSku(product.product_sku, product.product_commercial_name || product.product_sku)}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input className="pl-9" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar productos por SKU, nombre o marca" />
+                      </div>
+                      {loadingProductOptions && <p className="text-xs text-muted-foreground">Buscando productos…</p>}
+                      {visibleProductOptions.length > 0 && (
+                        <div
+                          ref={productListRef}
+                          className="max-h-56 overflow-y-auto rounded-md border divide-y"
+                          onScroll={(e) => {
+                            const el = e.currentTarget;
+                            if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreProducts();
+                          }}
                         >
-                          <span className="min-w-0 truncate">{product.product_commercial_name || product.product_sku}</span>
-                          <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
-                        </button>
-                      ))}
-                      {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {selectedProductSkus.length === 0 ? (
-                      <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
-                    ) : (
-                      selectedProductSkus.map((sku) => (
-                        <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[180px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
-                          <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="size-3 shrink-0" />
-                        </Button>
-                      ))
-                    )}
-                  </div>
+                          {visibleProductOptions.map((product) => (
+                            <button
+                              key={product.product_sku}
+                              type="button"
+                              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted"
+                              onClick={() => addProductSku(product.product_sku, product.product_commercial_name || product.product_sku)}
+                            >
+                              <span className="min-w-0 truncate">{product.product_commercial_name || product.product_sku}</span>
+                              <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
+                            </button>
+                          ))}
+                          {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProductSkus.length === 0 ? (
+                          <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin productos seleccionados</span>
+                        ) : (
+                          selectedProductSkus.map((sku) => (
+                            <Button key={sku} type="button" variant="secondary" size="sm" className="max-w-[200px] gap-1" onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}>
+                              <span className="truncate">{productNameMap[sku] ?? sku}</span><X className="size-3 shrink-0" />
+                            </Button>
+                          ))
+                        )}
+                      </div>
                     </>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <span className="flex size-7 items-center justify-center rounded-md bg-muted/35 text-primary">
-                          <SlidersHorizontal className="size-4" />
-                        </span>
-                        <span>Filtros</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <SlidersHorizontal className="size-4 text-primary" />
+                        <span className="flex-1">Filtros de productos</span>
+                        {hasProductFilters && (
+                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                            <X className="size-3" />Limpiar
+                          </button>
+                        )}
                       </div>
-                      <div className="rounded-lg border border-border bg-muted/30 p-4 shadow-sm">
-                        <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Marca</Label>
-                          <SearchableSelect
-                            value={productFilterBrand || 'all'}
-                            onValueChange={(value) => setProductFilterBrand(value === 'all' ? '' : value)}
-                            options={productBrandSelectOptions}
-                            allLabel="Todas las marcas"
-                            searchPlaceholder="Buscar marca…"
-                            emptyLabel="No hay marcas"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Sector</Label>
-                          <SearchableSelect
-                            value={productFilterSector || 'all'}
-                            onValueChange={(value) => setProductFilterSector(value === 'all' ? '' : value)}
-                            options={productSectorSelectOptions}
-                            allLabel="Todos los sectores"
-                            searchPlaceholder="Buscar sector…"
-                            emptyLabel="No hay sectores"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Categoria</Label>
-                          <SearchableSelect
-                            value={productFilterCategory || 'all'}
-                            onValueChange={(value) => setProductFilterCategory(value === 'all' ? '' : value)}
-                            options={productCategorySelectOptions}
-                            allLabel="Todas las categorias"
-                            searchPlaceholder="Buscar categoria…"
-                            emptyLabel="No hay categorias"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Especie</Label>
-                          <SearchableSelect
-                            value={productFilterSpecies || 'all'}
-                            onValueChange={(value) => setProductFilterSpecies(value === 'all' ? '' : value)}
-                            options={productSpeciesSelectOptions}
-                            allLabel="Todas las especies"
-                            searchPlaceholder="Buscar especie…"
-                            emptyLabel="No hay especies"
-                          />
+                      <div className="rounded-lg border bg-muted/30 p-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Marca</Label>
+                            <SearchableSelect value={productFilterBrand || 'all'} onValueChange={(value) => setProductFilterBrand(value === 'all' ? '' : value)} options={productBrandSelectOptions} allLabel="Todas las marcas" searchPlaceholder="Buscar marca…" emptyLabel="No hay marcas" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Sector</Label>
+                            <SearchableSelect value={productFilterSector || 'all'} onValueChange={(value) => setProductFilterSector(value === 'all' ? '' : value)} options={productSectorSelectOptions} allLabel="Todos los sectores" searchPlaceholder="Buscar sector…" emptyLabel="No hay sectores" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Categoria</Label>
+                            <SearchableSelect value={productFilterCategory || 'all'} onValueChange={(value) => setProductFilterCategory(value === 'all' ? '' : value)} options={productCategorySelectOptions} allLabel="Todas las categorias" searchPlaceholder="Buscar categoria…" emptyLabel="No hay categorias" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Especie</Label>
+                            <SearchableSelect value={productFilterSpecies || 'all'} onValueChange={(value) => setProductFilterSpecies(value === 'all' ? '' : value)} options={productSpeciesSelectOptions} allLabel="Todas las especies" searchPlaceholder="Buscar especie…" emptyLabel="No hay especies" />
+                          </div>
                         </div>
                       </div>
-                    </div>
+                      {hasProductFilters && (
+                        <div className="flex items-center gap-3">
+                          <p className={`flex-1 text-xs font-medium ${productFilterFetching ? 'text-muted-foreground' : productFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                            {productFilterFetching ? 'Buscando productos...' : productFilterCount === null ? '' : productFilterCount === 0 ? 'Sin productos para estos filtros' : `${productFilterCount} producto(s) encontrado(s)`}
+                          </p>
+                          {!productFilterFetching && productFilterCount != null && productFilterCount > 0 && (
+                            <button type="button" onClick={() => setShowFilteredProducts((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              {showFilteredProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                              {showFilteredProducts ? 'Ocultar' : 'Ver lista'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {showFilteredProducts && productFilterResults.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
+                          {productFilterResults.map((p) => (
+                            <div key={p.product_sku} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
+                              <span className="text-sm">{p.product_commercial_name || p.product_sku}</span>
+                              <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{p.product_sku}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {submitted && <FieldError error={formErrors.products} />}
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+              )}
 
-              <AccordionItem value="scope" className="overflow-hidden rounded-lg border border-border bg-background px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <Target className="size-4 text-primary" />
-                    <span className="font-semibold">Alcance de la Promocion</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-4">
+              {/* STEP 3: Alcance */}
+              {currentStep === 3 && (
+                <div className="space-y-5">
                   <div className="space-y-2">
-                    <Label>Aplica a</Label>
+                    <Label className="font-medium">Alcance <span className="text-destructive">*</span></Label>
                     <Select value={scope} onValueChange={setScope}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1015,7 +1296,6 @@ export function PromotionFormSheet({
                       </SelectContent>
                     </Select>
                   </div>
-
                   {scope === 'customers' && (
                     <div className="space-y-3">
                       <div className="relative">
@@ -1024,23 +1304,12 @@ export function PromotionFormSheet({
                       </div>
                       {loadingCustomerOptions && <p className="text-xs text-muted-foreground">Buscando clientes…</p>}
                       {customerOptions.length > 0 && (
-                        <div
-                          className="max-h-56 overflow-y-auto rounded-md border divide-y"
-                          onScroll={(e) => {
-                            const el = e.currentTarget;
-                            if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreCustomers();
-                          }}
-                        >
+                        <div className="max-h-56 overflow-y-auto rounded-md border divide-y" onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreCustomers(); }}>
                           {customerOptions.map((customer) => {
                             const id = String(customer.id || '');
                             const name = String(customer.customer_full_name || `Cliente ${id}`);
                             return (
-                              <button
-                                key={id}
-                                type="button"
-                                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                                onClick={() => addCustomerId(id, name)}
-                              >
+                              <button key={id} type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted" onClick={() => addCustomerId(id, name)}>
                                 <span className="min-w-0 truncate">{name}</span>
                                 <span className="shrink-0 text-xs text-muted-foreground">{String(customer.customer_government_id || id)}</span>
                               </button>
@@ -1054,7 +1323,7 @@ export function PromotionFormSheet({
                           <span className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">Sin clientes seleccionados</span>
                         ) : (
                           selectedCustomerIds.map((id) => (
-                            <Button key={id} type="button" variant="secondary" size="sm" className="max-w-[200px] gap-1" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}>
+                            <Button key={id} type="button" variant="secondary" size="sm" className="max-w-[220px] gap-1" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}>
                               <span className="truncate">{customerNameMap[id] ?? `Cliente ${id}`}</span><X className="size-3 shrink-0" />
                             </Button>
                           ))
@@ -1063,11 +1332,10 @@ export function PromotionFormSheet({
                       {submitted && <FieldError error={formErrors.scope} />}
                     </div>
                   )}
-
                   {scope === 'customer_segment' && (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Segmento</Label>
+                        <Label className="font-medium">Segmento <span className="text-destructive">*</span></Label>
                         <Select value={segment} onValueChange={setSegment}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -1076,199 +1344,212 @@ export function PromotionFormSheet({
                         </Select>
                       </div>
                       {segment === 'custom' && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            <span className="flex size-7 items-center justify-center rounded-md bg-muted/35 text-primary">
-                              <SlidersHorizontal className="size-4" />
-                            </span>
-                            <span>Filtros</span>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <SlidersHorizontal className="size-4 text-primary" />
+                            <span className="flex-1">Filtros de clientes</span>
+                            {hasCustomerFilters && (
+                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                                <X className="size-3" />Limpiar
+                              </button>
+                            )}
                           </div>
-                          <div className="rounded-lg border border-border bg-muted/30 p-4 shadow-sm">
-                            <div className="grid gap-4 sm:grid-cols-2 sm:p-1">
-                            <div className="space-y-2">
-                              <Label>Tipo de negocio</Label>
-                              <SearchableSelect
-                                value={customerFilterBusinessType || 'all'}
-                                onValueChange={(value) => setCustomerFilterBusinessType(value === 'all' ? '' : value)}
-                                options={businessTypeSelectOptions}
-                                allLabel="Todos los tipos"
-                                searchPlaceholder="Buscar tipo…"
-                                emptyLabel="No hay tipos"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Representante</Label>
-                              <SearchableSelect
-                                value={customerFilterRepresentative}
-                                onValueChange={setCustomerFilterRepresentative}
-                                options={representativeSelectOptions}
-                                allLabel="Todos los representantes"
-                                searchPlaceholder="Buscar representante…"
-                                emptyLabel="No hay representantes"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Segmento CLV</Label>
-                              <SearchableSelect
-                                value={customerFilterClv || 'all'}
-                                onValueChange={(value) => setCustomerFilterClv(value === 'all' ? '' : value)}
-                                options={customerClvSelectOptions}
-                                allLabel="Todos los segmentos"
-                                searchPlaceholder="Buscar CLV…"
-                                emptyLabel="No hay segmentos CLV"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Segmento RFM</Label>
-                              <SearchableSelect
-                                value={customerFilterRfm || 'all'}
-                                onValueChange={(value) => setCustomerFilterRfm(value === 'all' ? '' : value)}
-                                options={customerRfmSelectOptions}
-                                allLabel="Todos los segmentos"
-                                searchPlaceholder="Buscar RFM…"
-                                emptyLabel="No hay segmentos RFM"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Ciudad</Label>
-                              <Input value={customerFilterCity} onChange={(e) => setCustomerFilterCity(e.target.value)} placeholder="Bogota" className="bg-background" />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Departamento</Label>
-                              <Input value={customerFilterState} onChange={(e) => setCustomerFilterState(e.target.value)} placeholder="Cundinamarca" className="bg-background" />
-                            </div>
-                            <div className="space-y-2 sm:col-span-2">
-                              <Label>Ubicacion</Label>
-                              <Select value={customerFilterLocation} onValueChange={setCustomerFilterLocation}>
-                                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">Todos</SelectItem>
-                                  <SelectItem value="with">Con ubicacion</SelectItem>
-                                  <SelectItem value="without">Sin ubicacion</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Compras realizadas</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input type="number" min={0} value={customerFilterMinPurchases} onChange={(e) => setCustomerFilterMinPurchases(e.target.value)} placeholder="Min." className="bg-background" />
-                                <Input type="number" min={0} value={customerFilterMaxPurchases} onChange={(e) => setCustomerFilterMaxPurchases(e.target.value)} placeholder="Max." className="bg-background" />
+                          <div className="rounded-lg border bg-muted/30 p-4">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Tipo de negocio</Label>
+                                <SearchableSelect value={customerFilterBusinessType || 'all'} onValueChange={(value) => setCustomerFilterBusinessType(value === 'all' ? '' : value)} options={businessTypeSelectOptions} allLabel="Todos los tipos" searchPlaceholder="Buscar tipo…" emptyLabel="No hay tipos" />
                               </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Dias sin compra</Label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input type="number" min={0} value={customerFilterMinDays} onChange={(e) => setCustomerFilterMinDays(e.target.value)} placeholder="Min. dias" className="bg-background" />
-                                <Input type="number" min={0} value={customerFilterMaxDays} onChange={(e) => setCustomerFilterMaxDays(e.target.value)} placeholder="Max. dias" className="bg-background" />
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Representante</Label>
+                                <SearchableSelect value={customerFilterRepresentative} onValueChange={setCustomerFilterRepresentative} options={representativeSelectOptions} allLabel="Todos" searchPlaceholder="Buscar representante…" emptyLabel="No hay representantes" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Segmento CLV</Label>
+                                <SearchableSelect value={customerFilterClv || 'all'} onValueChange={(value) => setCustomerFilterClv(value === 'all' ? '' : value)} options={customerClvSelectOptions} allLabel="Todos" searchPlaceholder="Buscar CLV…" emptyLabel="No hay segmentos CLV" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Segmento RFM</Label>
+                                <SearchableSelect value={customerFilterRfm || 'all'} onValueChange={(value) => setCustomerFilterRfm(value === 'all' ? '' : value)} options={customerRfmSelectOptions} allLabel="Todos" searchPlaceholder="Buscar RFM…" emptyLabel="No hay segmentos RFM" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Ciudad</Label>
+                                <Input value={customerFilterCity} onChange={(e) => setCustomerFilterCity(e.target.value)} placeholder="Bogota" className="bg-background" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Departamento</Label>
+                                <Input value={customerFilterState} onChange={(e) => setCustomerFilterState(e.target.value)} placeholder="Cundinamarca" className="bg-background" />
+                              </div>
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <Label className="text-xs font-medium text-muted-foreground">Ubicacion</Label>
+                                <Select value={customerFilterLocation} onValueChange={setCustomerFilterLocation}>
+                                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">Todos</SelectItem>
+                                    <SelectItem value="with">Con ubicacion</SelectItem>
+                                    <SelectItem value="without">Sin ubicacion</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Compras realizadas</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input type="number" min={0} value={customerFilterMinPurchases} onChange={(e) => setCustomerFilterMinPurchases(e.target.value)} placeholder="Min." className="bg-background" />
+                                  <Input type="number" min={0} value={customerFilterMaxPurchases} onChange={(e) => setCustomerFilterMaxPurchases(e.target.value)} placeholder="Max." className="bg-background" />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Dias sin compra</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input type="number" min={0} value={customerFilterMinDays} onChange={(e) => setCustomerFilterMinDays(e.target.value)} placeholder="Min." className="bg-background" />
+                                  <Input type="number" min={0} value={customerFilterMaxDays} onChange={(e) => setCustomerFilterMaxDays(e.target.value)} placeholder="Max." className="bg-background" />
+                                </div>
                               </div>
                             </div>
                           </div>
+                          {hasCustomerFilters && (
+                            <div className="flex items-center gap-3">
+                              <p className={`flex-1 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                                {customerFilterFetching ? 'Buscando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para estos filtros' : `${customerFilterCount} cliente(s) coinciden`}
+                              </p>
+                              {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
+                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                                  {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                                  {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {showFilteredCustomers && customerFilterResults.length > 0 && (
+                            <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
+                              {customerFilterResults.map((c) => (
+                                <div key={String(c.id)} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
+                                  <span className="truncate text-sm">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
+                                  <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
+                                </div>
+                              ))}
+                              {customerFilterCount != null && customerFilterCount > customerFilterResults.length && (
+                                <div className="px-3 py-2 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más</div>
+                              )}
+                            </div>
+                          )}
                         </div>
+                      )}
+                      {segment !== 'custom' && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 rounded-lg border bg-primary/5 px-4 py-3">
+                            <SlidersHorizontal className="size-4 shrink-0 text-primary" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">Filtro predefinido activo</p>
+                              <p className="text-xs text-muted-foreground">{SEGMENT_OPTIONS.find((o) => o.value === segment)?.label}</p>
+                            </div>
+                            <button type="button" onClick={() => { setSegment('custom'); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              <X className="size-3" />Cambiar
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className={`flex-1 text-xs font-medium ${customerFilterFetching ? 'text-muted-foreground' : customerFilterCount === 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+                              {customerFilterFetching ? 'Calculando clientes...' : customerFilterCount === null ? '' : customerFilterCount === 0 ? 'Sin clientes para este segmento' : `${customerFilterCount} cliente(s) en este segmento`}
+                            </p>
+                            {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
+                              <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                                {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                                {showFilteredCustomers ? 'Ocultar' : 'Ver lista'}
+                              </button>
+                            )}
+                          </div>
+                          {showFilteredCustomers && customerFilterResults.length > 0 && (
+                            <div className="max-h-48 overflow-y-auto rounded-lg border bg-background">
+                              {customerFilterResults.map((c) => (
+                                <div key={String(c.id)} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
+                                  <span className="truncate text-sm">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
+                                  <span className="ml-2 shrink-0 font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
+                                </div>
+                              ))}
+                              {customerFilterCount != null && customerFilterCount > customerFilterResults.length && (
+                                <div className="px-3 py-2 text-xs text-muted-foreground">...y {customerFilterCount - customerFilterResults.length} más</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                       {submitted && <FieldError error={formErrors.scope} />}
                     </div>
                   )}
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+              )}
 
-              <AccordionItem value="mechanics" className="overflow-hidden rounded-lg border border-border bg-background px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <Zap className="size-4 text-primary" />
-                    <span className="font-semibold">Regla comercial</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-6 pt-4">
+              {/* STEP 4: Regla Comercial */}
+              {currentStep === 4 && (
+                <div className="space-y-5">
                   <div className="space-y-2">
-                    <Label>¿Que tipo de promocion quieres crear?</Label>
+                    <Label className="font-medium">Tipo de promocion <span className="text-destructive">*</span></Label>
                     <Select value={mechanicState.promotionType} onValueChange={setPromotionType}>
                       <SelectTrigger><SelectValue placeholder="Selecciona el tipo de promocion" /></SelectTrigger>
                       <SelectContent>
                         {PROMOTION_TYPE_OPTIONS.map((option) => {
                           const enabled = option.value === 'descuento_linea' || option.value === 'bonificacion_cantidad';
                           return (
-                            <SelectItem key={option.value} value={option.value} disabled={!enabled}>
-                              {option.label}
-                            </SelectItem>
+                            <SelectItem key={option.value} value={option.value} disabled={!enabled}>{option.label}</SelectItem>
                           );
                         })}
                       </SelectContent>
                     </Select>
                     {mechanicState.promotionType && (
-                      <p className="text-xs text-muted-foreground">
-                        {PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.helpText}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.helpText}</p>
                     )}
                   </div>
 
                   {mechanicState.promotionType && (
-                    <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
-                      {/* 1 — Descuento en Linea */}
+                    <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
                       {mechanicState.promotionType === 'descuento_linea' && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Tipo de descuento</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Tipo de descuento</Label>
                             <Select value={mechanicState.mechanic.discount_type || 'percentage'} onValueChange={(v) => updateMechanic({ discount_type: v as 'percentage' | 'fixed' })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{DISCOUNT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} disabled={item.value === 'fixed'}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-2">
-                            <Label>Porcentaje de descuento (%)</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={100}
-                              placeholder="Ej: 15"
-                              value={mechanicState.mechanic.discount_value || ''}
-                              onChange={(e) => {
-                                let v = e.target.value ? Number(e.target.value) : null;
-                                if (v !== null && mechanicState.mechanic.discount_type === 'percentage') v = Math.min(100, Math.max(1, v));
-                                else if (v !== null) v = Math.max(1, v);
-                                updateMechanic({ discount_value: v });
-                              }}
-                            />
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Porcentaje (%)</Label>
+                            <Input type="number" min={1} max={100} placeholder="Ej: 15" value={mechanicState.mechanic.discount_value || ''} onChange={(e) => { let v = e.target.value ? Number(e.target.value) : null; if (v !== null && mechanicState.mechanic.discount_type === 'percentage') v = Math.min(100, Math.max(1, v)); else if (v !== null) v = Math.max(1, v); updateMechanic({ discount_value: v }); }} />
                           </div>
                         </div>
                       )}
-
-                      {/* 2 — Bonificacion X+N */}
                       {mechanicState.promotionType === 'bonificacion_cantidad' && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Cantidad a comprar (X)</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Cantidad a comprar (X)</Label>
                             <Input type="number" min={1} step={1} placeholder="Ej: 10" value={mechanicState.mechanic.base_quantity || ''} onChange={(e) => updateMechanic({ base_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                           </div>
-                          <div className="space-y-2">
-                            <Label>Unidades bonificadas (N)</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Unidades bonificadas (N)</Label>
                             <Input type="number" min={1} step={1} placeholder="Ej: 2" value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                           </div>
-                          <div className="space-y-2 sm:col-span-2">
-                            <Label>Tipo de producto bonificado</Label>
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <Label className="text-xs font-medium text-muted-foreground">Tipo de producto bonificado</Label>
                             <Select value={mechanicState.mechanic.bonus_product_type || 'same_product'} onValueChange={(v) => updateMechanic({ bonus_product_type: v as 'same_product' | 'different_product', bonus_product_id: null, bonus_product_name: null })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{BONUS_PRODUCT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           {mechanicState.mechanic.bonus_product_type === 'different_product' && (
-                            <div className="space-y-2 sm:col-span-2">
-                              <Label>Selecciona el producto bonificado</Label>
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-xs font-medium text-muted-foreground">Producto bonificado</Label>
                               <SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" emptyLabel="No hay productos" />
                             </div>
                           )}
                         </div>
                       )}
-
-                      {/* 3 — Precio Especial */}
                       {mechanicState.promotionType === 'precio_especial' && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Precio especial ($)</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Precio especial ($)</Label>
                             <Input type="number" min={1} placeholder="Ej: 45000" value={mechanicState.mechanic.special_price || ''} onChange={(e) => updateMechanic({ special_price: e.target.value ? Math.max(1, Number(e.target.value)) : null })} />
                           </div>
-                          <div className="space-y-2">
-                            <Label>¿Requiere cantidad minima?</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">¿Requiere cantidad minima?</Label>
                             <Select value={mechanicState.conditionType || 'none'} onValueChange={(v) => setMechanicState((prev) => ({ ...prev, conditionType: v as PromotionMechanicFormState['conditionType'] }))}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
@@ -1278,219 +1559,245 @@ export function PromotionFormSheet({
                             </Select>
                           </div>
                           {mechanicState.conditionType === 'minimum_quantity' && (
-                            <div className="space-y-2">
-                              <Label>Cantidad minima (uds)</Label>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-muted-foreground">Cantidad minima (uds)</Label>
                               <Input type="number" min={1} step={1} placeholder="Ej: 5" value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                             </div>
                           )}
                         </div>
                       )}
-
-                      {/* 4 — Descuento por Volumen */}
                       {mechanicState.promotionType === 'descuento_volumen' && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Condicion de compra</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Condicion de compra</Label>
                             <Select value={mechanicState.conditionType || 'minimum_amount'} onValueChange={(v) => setMechanicState((prev) => ({ ...prev, conditionType: v as PromotionMechanicFormState['conditionType'] }))}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{MINIMUM_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           {mechanicState.conditionType === 'minimum_amount' && (
-                            <div className="space-y-2">
-                              <Label>Monto minimo ($)</Label>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-muted-foreground">Monto minimo ($)</Label>
                               <Input type="number" min={1} placeholder="Ej: 500000" value={mechanicState.mechanic.minimum_amount || ''} onChange={(e) => updateMechanic({ minimum_amount: e.target.value ? Math.max(1, Number(e.target.value)) : null, minimum_quantity: null })} />
                             </div>
                           )}
                           {mechanicState.conditionType === 'minimum_quantity' && (
-                            <div className="space-y-2">
-                              <Label>Cantidad minima (uds)</Label>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-muted-foreground">Cantidad minima (uds)</Label>
                               <Input type="number" min={1} step={1} placeholder="Ej: 20" value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null, minimum_amount: null })} />
                             </div>
                           )}
-                          <div className="space-y-2">
-                            <Label>Tipo de descuento</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Tipo de descuento</Label>
                             <Select value={mechanicState.mechanic.discount_type || 'percentage'} onValueChange={(v) => updateMechanic({ discount_type: v as 'percentage' | 'fixed', discount_value: null })}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{DISCOUNT_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-2">
-                            <Label>{mechanicState.mechanic.discount_type === 'fixed' ? 'Valor del descuento ($)' : 'Porcentaje de descuento (%)'}</Label>
-                            <Input
-                              type="number" min={1} max={mechanicState.mechanic.discount_type === 'percentage' ? 100 : undefined}
-                              placeholder={mechanicState.mechanic.discount_type === 'fixed' ? 'Ej: 5000' : 'Ej: 15'}
-                              value={mechanicState.mechanic.discount_value || ''}
-                              onChange={(e) => {
-                                let v = e.target.value ? Number(e.target.value) : null;
-                                if (v !== null && mechanicState.mechanic.discount_type === 'percentage') v = Math.min(100, Math.max(1, v));
-                                else if (v !== null) v = Math.max(1, v);
-                                updateMechanic({ discount_value: v });
-                              }}
-                            />
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">{mechanicState.mechanic.discount_type === 'fixed' ? 'Valor ($)' : 'Porcentaje (%)'}</Label>
+                            <Input type="number" min={1} max={mechanicState.mechanic.discount_type === 'percentage' ? 100 : undefined} placeholder={mechanicState.mechanic.discount_type === 'fixed' ? 'Ej: 5000' : 'Ej: 15'} value={mechanicState.mechanic.discount_value || ''} onChange={(e) => { let v = e.target.value ? Number(e.target.value) : null; if (v !== null && mechanicState.mechanic.discount_type === 'percentage') v = Math.min(100, Math.max(1, v)); else if (v !== null) v = Math.max(1, v); updateMechanic({ discount_value: v }); }} />
                           </div>
                         </div>
                       )}
-
-                      {/* 5 — Bonificacion por Volumen */}
                       {mechanicState.promotionType === 'bonificacion_volumen' && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Condicion de compra</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Condicion de compra</Label>
                             <Select value={mechanicState.conditionType || 'minimum_amount'} onValueChange={(v) => setMechanicState((prev) => ({ ...prev, conditionType: v as PromotionMechanicFormState['conditionType'] }))}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>{MINIMUM_TYPE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           {mechanicState.conditionType === 'minimum_amount' && (
-                            <div className="space-y-2">
-                              <Label>Monto minimo ($)</Label>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-muted-foreground">Monto minimo ($)</Label>
                               <Input type="number" min={1} placeholder="Ej: 500000" value={mechanicState.mechanic.minimum_amount || ''} onChange={(e) => updateMechanic({ minimum_amount: e.target.value ? Math.max(1, Number(e.target.value)) : null, minimum_quantity: null })} />
                             </div>
                           )}
                           {mechanicState.conditionType === 'minimum_quantity' && (
-                            <div className="space-y-2">
-                              <Label>Cantidad minima (uds)</Label>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-muted-foreground">Cantidad minima (uds)</Label>
                               <Input type="number" min={1} step={1} placeholder="Ej: 20" value={mechanicState.mechanic.minimum_quantity || ''} onChange={(e) => updateMechanic({ minimum_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null, minimum_amount: null })} />
                             </div>
                           )}
-                          <div className="space-y-2">
-                            <Label>Producto bonificado</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Producto bonificado</Label>
                             <SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" />
                           </div>
-                          <div className="space-y-2">
-                            <Label>Cantidad bonificada (uds)</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-muted-foreground">Cantidad bonificada (uds)</Label>
                             <Input type="number" min={1} step={1} placeholder="Ej: 3" value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
                           </div>
                         </div>
                       )}
-
-                      {/* 6 — Combo de Productos */}
                       {mechanicState.promotionType === 'combo' && (
                         <div className="space-y-4">
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <Label>Productos requeridos en el combo (min. 2)</Label>
-                              <Button type="button" variant="outline" size="sm" onClick={addRequiredProduct}>Agregar producto</Button>
+                              <Label className="font-medium">Productos del combo (min. 2)</Label>
+                              <Button type="button" variant="outline" size="sm" onClick={addRequiredProduct}>Agregar</Button>
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                               {(mechanicState.mechanic.required_products || []).map((item, index) => (
-                                <div key={requiredProductKey(item)} className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
+                                <div key={requiredProductKey(item)} className="grid gap-2 rounded-md border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
                                   <SearchableSelect value={item.product_id || 'all'} onValueChange={(v) => updateRequiredProduct(index, { product_id: v === 'all' ? '' : v, product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" />
                                   <Input type="number" min={1} step={1} placeholder="Cant. min." value={item.minimum_quantity || ''} onChange={(e) => updateRequiredProduct(index, { minimum_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
-                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeRequiredProduct(index)}>Eliminar</Button>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeRequiredProduct(index)}><X className="size-4" /></Button>
                                 </div>
                               ))}
                             </div>
                           </div>
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2"><Label>Regla del combo</Label><Select value={mechanicState.mechanic.bundle_rule || 'all_required'} onValueChange={(v) => updateMechanic({ bundle_rule: v as 'all_required' | 'any_required' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BUNDLE_RULE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-                            <div className="space-y-2"><Label>Beneficio del combo</Label><Select value={mechanicState.benefitType || 'percentage_discount'} onValueChange={(v) => setMechanicState((prev) => ({ ...prev, benefitType: v as PromotionMechanicFormState['benefitType'], mechanic: { ...prev.mechanic, discount_value: null } }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMBO_BENEFIT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                            <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Regla del combo</Label><Select value={mechanicState.mechanic.bundle_rule || 'all_required'} onValueChange={(v) => updateMechanic({ bundle_rule: v as 'all_required' | 'any_required' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BUNDLE_RULE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                            <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Beneficio</Label><Select value={mechanicState.benefitType || 'percentage_discount'} onValueChange={(v) => setMechanicState((prev) => ({ ...prev, benefitType: v as PromotionMechanicFormState['benefitType'], mechanic: { ...prev.mechanic, discount_value: null } }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMBO_BENEFIT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
                             {mechanicState.benefitType === 'percentage_discount' && (
-                              <div className="space-y-2">
-                                <Label>Porcentaje de descuento (%)</Label>
-                                <Input type="number" min={1} max={100} placeholder="Ej: 20" value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'percentage', discount_value: e.target.value ? Math.min(100, Math.max(1, Number(e.target.value))) : null })} />
-                              </div>
+                              <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Porcentaje (%)</Label><Input type="number" min={1} max={100} placeholder="Ej: 20" value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'percentage', discount_value: e.target.value ? Math.min(100, Math.max(1, Number(e.target.value))) : null })} /></div>
                             )}
                             {mechanicState.benefitType === 'fixed_discount' && (
-                              <div className="space-y-2">
-                                <Label>Valor del descuento ($)</Label>
-                                <Input type="number" min={1} placeholder="Ej: 5000" value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'fixed', discount_value: e.target.value ? Math.max(1, Number(e.target.value)) : null })} />
-                              </div>
+                              <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Valor ($)</Label><Input type="number" min={1} placeholder="Ej: 5000" value={mechanicState.mechanic.discount_value || ''} onChange={(e) => updateMechanic({ discount_type: 'fixed', discount_value: e.target.value ? Math.max(1, Number(e.target.value)) : null })} /></div>
                             )}
                             {mechanicState.benefitType === 'bonus_product' && (
                               <>
-                                <div className="space-y-2"><Label>Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" /></div>
-                                <div className="space-y-2">
-                                  <Label>Cantidad bonificada (uds)</Label>
-                                  <Input type="number" min={1} step={1} placeholder="Ej: 1" value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} />
-                                </div>
+                                <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Producto bonificado</Label><SearchableSelect value={mechanicState.mechanic.bonus_product_id || 'all'} onValueChange={(v) => updateMechanic({ bonus_product_id: v === 'all' ? null : v, bonus_product_name: v === 'all' ? null : productLabelBySku(v) })} options={productSelectOptions} allLabel="Selecciona producto" searchPlaceholder="Buscar producto…" /></div>
+                                <div className="space-y-1.5"><Label className="text-xs font-medium text-muted-foreground">Cantidad bonificada</Label><Input type="number" min={1} step={1} placeholder="Ej: 1" value={mechanicState.mechanic.bonus_quantity || ''} onChange={(e) => updateMechanic({ bonus_quantity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : null })} /></div>
                               </>
                             )}
                           </div>
                         </div>
                       )}
-
                       {submitted && <FieldError error={formErrors.mechanic} />}
                       <div className="rounded-md border border-dashed bg-background p-3">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resumen dinamico</p>
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Resumen dinamico</p>
                         <p className="mt-1 text-sm text-foreground">{mechanicSummary}</p>
                       </div>
                     </div>
                   )}
                   {!mechanicState.promotionType && submitted && <FieldError error={formErrors.mechanic} />}
-                </AccordionContent>
-              </AccordionItem>
+                </div>
+              )}
 
-              <AccordionItem value="financial" className="overflow-hidden rounded-lg border border-border bg-background px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="size-4 text-primary" />
-                    <span className="font-semibold">Control Financiero</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="estimatedCost">Costo Estimado ($)</Label>
-                      <Input id="estimatedCost" type="number" min={0} value={estimatedCost || ''} onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)} placeholder="1000000" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="maxRedemptions">Max. Redenciones (opcional)</Label>
-                      <Input id="maxRedemptions" type="number" min={0} value={maxRedemptions} onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value, 10) : '')} placeholder="500" />
-                    </div>
-                  </div>
-
-                  {estimatedCost > 0 && !budgetError && (
-                    <div className="p-3 bg-primary/10 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Costo Estimado</span>
-                        <span className="text-lg font-bold text-primary">{formatCurrency(estimatedCost)}</span>
+              {/* STEP 5: Resumen */}
+              {currentStep === 5 && (
+                <div className="space-y-4">
+                  {submitted && [1, 2, 3, 4].some((s) => stepHasErrors(s)) && (
+                    <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15">
+                        <AlertTriangle className="size-3.5 text-destructive" />
                       </div>
-                      {spendableBalance !== null && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Saldo gastable disponible: {formatCurrency(spendableBalance)}
-                        </p>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-destructive">Revisa estos pasos antes de guardar</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {[1, 2, 3, 4].filter((s) => stepHasErrors(s)).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setCurrentStep(s)}
+                              className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+                            >
+                              {STEPS[s - 1].label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
+                  <div className="grid gap-3">
+                    <StepSummary title="Datos Generales" step={1} onEdit={() => setCurrentStep(1)}>
+                      <SummaryRow label="Laboratorio" value={laboratories.find((l) => l.id === labId)?.name || labId} />
+                      <SummaryRow label="Titulo" value={title} />
+                      {description && <SummaryRow label="Descripcion" value={description} />}
+                      <SummaryRow label="Vigencia" value={startDate && endDate ? `${startDate} → ${endDate}` : undefined} />
+                    </StepSummary>
+                    <StepSummary title="Productos" step={2} onEdit={() => setCurrentStep(2)}>
+                      <SummaryRow label="Modo" value={productApplicationMode === 'specific' ? 'Productos especificos' : 'Por filtros'} />
+                      {productApplicationMode === 'specific'
+                        ? <SummaryRow label="Seleccionados" value={selectedProductSkus.length > 0 ? `${selectedProductSkus.length} producto(s)` : undefined} />
+                        : <SummaryRow label="Filtros" value={[productFilterBrand, productFilterSector, productFilterCategory, productFilterSpecies].filter(Boolean).join(' / ') || undefined} />
+                      }
+                      {productApplicationMode === 'filters' && productFilterCount != null && (
+                        <SummaryRow label="Coincidencias" value={`${productFilterCount} producto(s)`} />
+                      )}
+                    </StepSummary>
+                    <StepSummary title="Alcance" step={3} onEdit={() => setCurrentStep(3)}>
+                      <SummaryRow label="Aplica a" value={SCOPE_OPTIONS.find((o) => o.value === scope)?.label || scope} />
+                      {scope === 'customers' && <SummaryRow label="Clientes" value={`${selectedCustomerIds.length} seleccionado(s)`} />}
+                      {scope === 'customer_segment' && <SummaryRow label="Segmento" value={SEGMENT_OPTIONS.find((o) => o.value === segment)?.label || segment} />}
+                      {scope === 'customer_segment' && customerFilterCount != null && (
+                        <SummaryRow label="Coincidencias" value={`${customerFilterCount} cliente(s)`} />
+                      )}
+                    </StepSummary>
+                    <StepSummary title="Regla Comercial" step={4} onEdit={() => setCurrentStep(4)}>
+                      <SummaryRow label="Tipo" value={PROMOTION_TYPE_OPTIONS.find((o) => o.value === mechanicState.promotionType)?.label || (mechanicState.promotionType || 'Sin configurar')} />
+                      {mechanicSummary !== 'Selecciona el tipo de promocion para ver el resumen.' && (
+                        <SummaryRow label="Resumen" value={mechanicSummary} />
+                      )}
+                    </StepSummary>
+                  </div>
+                  <div className="rounded-lg border bg-card p-3">
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <DollarSign className="size-3.5" />
+                      </div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Control Financiero</p>
+                    </div>
+                    <div className="grid gap-3 pl-8 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="estimatedCost" className="text-xs font-medium text-muted-foreground">Costo Estimado ($) <span className="font-normal">(opcional)</span></Label>
+                        <Input id="estimatedCost" type="number" min={0} value={estimatedCost || ''} onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)} placeholder="1000000" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="maxRedemptions" className="text-xs font-medium text-muted-foreground">Max. Redenciones (opcional)</Label>
+                        <Input id="maxRedemptions" type="number" min={0} value={maxRedemptions} onChange={(e) => setMaxRedemptions(e.target.value ? parseInt(e.target.value, 10) : '')} placeholder="500" />
+                      </div>
+                    </div>
+                    {estimatedCost > 0 && !budgetError && (
+                      <div className="ml-8 mt-3 rounded-lg bg-primary/8 px-3 py-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">Costo estimado</span>
+                          <span className="text-base font-bold text-primary">{formatCurrency(estimatedCost)}</span>
+                        </div>
+                        {spendableBalance !== null && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">Saldo gastable: {formatCurrency(spendableBalance)}</p>
+                        )}
+                      </div>
+                    )}
+                    {budgetError && (
+                      <div className="ml-8 mt-3 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                        <p className="text-xs font-medium text-destructive">{budgetError}</p>
+                      </div>
+                    )}
+                    {approvalWarning && !budgetError && (
+                      <div className="ml-8 mt-3 flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                        <p className="text-xs font-medium text-amber-800">{approvalWarning}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-                  {budgetError && (
-                    <Alert variant="destructive" className="border-destructive">
-                      <AlertTriangle className="size-4" />
-                      <AlertDescription className="font-medium">{budgetError}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {approvalWarning && !budgetError && (
-                    <Alert className="border-amber-300 bg-amber-50">
-                      <AlertTriangle className="size-4 text-amber-600" />
-                      <AlertDescription className="font-medium text-amber-800">{approvalWarning}</AlertDescription>
-                    </Alert>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-
-            <div className="grid gap-2 pt-6 mt-6 border-t sm:grid-cols-2">
-              <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-                Cancelar
-              </Button>
-              <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting || !!budgetError}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="size-4 mr-2 animate-spin" />
-                    {isEditing ? 'Actualizando…' : 'Guardando…'}
-                  </>
-                ) : (
-                  isEditing ? 'Actualizar Promocion' : 'Guardar Promocion'
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+        {/* FOOTER */}
+        <div className="flex shrink-0 items-center justify-between border-t bg-muted/10 px-6 py-4">
+          <Button variant="outline" onClick={goPrev} disabled={isSubmitting}>
+            {currentStep === 1
+              ? 'Cancelar'
+              : <span className="flex items-center gap-1.5"><ChevronLeft className="size-4" />Anterior</span>}
+          </Button>
+          <Button onClick={goNext} disabled={isSubmitting || (currentStep === 5 && !!budgetError)}>
+            {currentStep === 5
+              ? (isSubmitting
+                ? <span className="flex items-center gap-1.5"><Loader2 className="size-4 animate-spin" />{isEditing ? 'Actualizando…' : 'Guardando…'}</span>
+                : (isEditing ? 'Actualizar Promocion' : 'Guardar Promocion'))
+              : <span className="flex items-center gap-1.5">Siguiente<ChevronRight className="size-4" /></span>}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1499,3 +1806,46 @@ function FieldError({ error }: { error?: string }) {
   return <p className="mt-1 text-xs text-destructive">{error}</p>;
 }
 
+function StepHeader({ step }: { step: number }) {
+  const stepDef = STEPS.find((s) => s.id === step)!;
+  const meta = STEP_META[step];
+  const Icon = meta.icon;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold leading-tight">{stepDef.label}</h3>
+        <p className="text-xs text-muted-foreground">{meta.description}</p>
+      </div>
+    </div>
+  );
+}
+
+function StepSummary({ title, step, onEdit, children }: { title: string; step: number; onEdit: () => void; children: React.ReactNode }) {
+  const meta = STEP_META[step];
+  const Icon = meta.icon;
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="size-3.5" />
+        </div>
+        <p className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        <button type="button" onClick={onEdit} className="text-xs text-primary hover:underline">Editar</button>
+      </div>
+      <div className="space-y-1 pl-8">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="w-28 shrink-0 text-muted-foreground">{label}:</span>
+      <span className="min-w-0 break-words font-medium">{value}</span>
+    </div>
+  );
+}

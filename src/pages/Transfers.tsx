@@ -57,6 +57,7 @@ import {
   Search,
   SendHorizonal,
   SlidersHorizontal,
+  Tag,
   UserRound,
   X,
   XCircle,
@@ -74,6 +75,25 @@ type TransferStatus = "all" | "borrador" | "enviada" | "cancelada";
 
 function statusLabel(status: PromotorTransfer["status"]): string {
   return { borrador: "Borrador", enviada: "Enviada", cancelada: "Cancelada" }[status] ?? status;
+}
+
+type EncargadoRole = "promotor" | "rep_marca";
+
+function getEncargado(t: PromotorTransfer): { name: string; role: EncargadoRole } {
+  if (t.promotor_name) return { name: t.promotor_name, role: "promotor" };
+  return { name: t.sales_representative_brand_name ?? "—", role: "rep_marca" };
+}
+
+function RoleBadge({ role, className }: { role: EncargadoRole; className?: string }) {
+  return role === "promotor" ? (
+    <Badge variant="outline" className={cn("h-5 w-fit px-1.5 text-[10px] font-medium border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400", className)}>
+      Promotor
+    </Badge>
+  ) : (
+    <Badge variant="outline" className={cn("h-5 w-fit px-1.5 text-[10px] font-medium border-green-600 text-green-700 dark:border-green-500 dark:text-green-400", className)}>
+      Rep. de Marca
+    </Badge>
+  );
 }
 
 function StatusBadge({ status }: { status: PromotorTransfer["status"] }) {
@@ -180,27 +200,48 @@ function TransferDetailSheet({
 
             {/* Body */}
             <div className="space-y-5 px-4 py-4 sm:px-6">
-              {/* Info panels */}
+              {/* Info panels — 4 cards iguales en grilla 2x2 */}
               <div className="grid gap-3 sm:grid-cols-2">
-                {/* Promotor */}
+                {/* 1. Responsable */}
                 <section className="rounded-md border bg-card p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
                     <UserRound className="size-4 text-primary" />
-                    <h3 className="font-semibold">Promotor</h3>
+                    <h3 className="font-semibold">Responsable</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Nombre</p>
-                      <p className="text-sm font-medium">{transfer.promotor_name ?? "—"}</p>
+                      <p className="text-sm font-medium">{getEncargado(transfer).name}</p>
+                      <RoleBadge role={getEncargado(transfer).role} />
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Identificador</p>
-                      <p className="font-mono text-sm">{transfer.promotor_id}</p>
+                      <p className="font-mono text-sm">
+                        {getEncargado(transfer).role === "promotor" ? transfer.promotor_id : transfer.sales_representative_brand_id ?? "—"}
+                      </p>
                     </div>
                   </div>
                 </section>
 
-                {/* Representante */}
+                {/* 2. Marca */}
+                <section className="rounded-md border bg-card p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Tag className="size-4 text-primary" />
+                    <h3 className="font-semibold">Marca</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Nombre</p>
+                      <p className="text-sm font-medium">{transfer.sales_representative_brand_name ?? transfer.brand ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Identificador</p>
+                      <p className="font-mono text-sm">{transfer.sales_representative_brand_id ?? "—"}</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 3. Representante de Venta */}
                 <section className="rounded-md border bg-card p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
                     <UserRound className="size-4 text-primary" />
@@ -217,29 +258,25 @@ function TransferDetailSheet({
                     </div>
                   </div>
                 </section>
-              </div>
 
-              {/* Cliente */}
-              {(transfer.customer_name || transfer.customer_id) && (
+                {/* 4. Cliente */}
                 <section className="rounded-md border bg-card p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
                     <UserRound className="size-4 text-primary" />
                     <h3 className="font-semibold">Cliente</h3>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Nombre</p>
                       <p className="text-sm font-medium">{transfer.customer_name ?? "—"}</p>
                     </div>
-                    {transfer.customer_id && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Identificador</p>
-                        <p className="font-mono text-sm">{transfer.customer_id}</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Identificador</p>
+                      <p className="font-mono text-sm">{transfer.customer_id ?? "—"}</p>
+                    </div>
                   </div>
                 </section>
-              )}
+              </div>
 
               {/* Items */}
               <section>
@@ -327,7 +364,9 @@ function SalesRepView() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [filterPromotor, setFilterPromotor] = useState("all");
+  const [filterEncargado, setFilterEncargado] = useState("all");
+  const [filterRolResponsable, setFilterRolResponsable] = useState<"all" | "promotor" | "rep_marca">("all");
+  const [filterBrand, setFilterBrand] = useState("all");
   const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE);
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<PromotorTransfer | null>(null);
@@ -367,9 +406,16 @@ function SalesRepView() {
 
   const isMutating = submitMutation.isPending || cancelMutation.isPending;
 
-  const promotorOptions = useMemo(() => {
+  const encargadoOptions = useMemo(() => {
     const names = Array.from(new Set(
-      transfers.map((t) => t.promotor_name).filter((n): n is string => !!n)
+      transfers.map((t) => getEncargado(t).name).filter((n) => n !== "—")
+    )).sort((a, b) => a.localeCompare(b, "es-CO"));
+    return names.map((n) => ({ value: n, label: n }));
+  }, [transfers]);
+
+  const brandOptions = useMemo(() => {
+    const names = Array.from(new Set(
+      transfers.map((t) => t.brand).filter((n): n is string => !!n)
     )).sort((a, b) => a.localeCompare(b, "es-CO"));
     return names.map((n) => ({ value: n, label: n }));
   }, [transfers]);
@@ -377,17 +423,21 @@ function SalesRepView() {
   const filtered = useMemo(() => transfers.filter((t) => {
     if (search) {
       const q = search.toLowerCase();
+      const enc = getEncargado(t);
       const match =
         t.reference.toLowerCase().includes(q) ||
-        (t.promotor_name ?? "").toLowerCase().includes(q) ||
-        (t.customer_name ?? "").toLowerCase().includes(q);
+        enc.name.toLowerCase().includes(q) ||
+        (t.customer_name ?? "").toLowerCase().includes(q) ||
+        (t.brand ?? "").toLowerCase().includes(q);
       if (!match) return false;
     }
-    if (filterPromotor !== "all" && t.promotor_name !== filterPromotor) return false;
+    if (filterEncargado !== "all" && getEncargado(t).name !== filterEncargado) return false;
+    if (filterRolResponsable !== "all" && getEncargado(t).role !== filterRolResponsable) return false;
+    if (filterBrand !== "all" && (t.brand ?? "") !== filterBrand) return false;
     if (dateFrom && new Date(t.created_at) < new Date(dateFrom)) return false;
     if (dateTo && new Date(t.created_at) > new Date(dateTo + "T23:59:59")) return false;
     return true;
-  }), [transfers, search, filterPromotor, dateFrom, dateTo]);
+  }), [transfers, search, filterEncargado, filterRolResponsable, filterBrand, dateFrom, dateTo]);
 
   const displayed = filtered.slice(0, displayCount);
   const hasMoreDisplay = displayCount < filtered.length;
@@ -406,9 +456,14 @@ function SalesRepView() {
 
   const commitSearch = () => setSearch(searchInput.trim());
 
-  const advancedFilterCount = [dateFrom, dateTo, filterPromotor !== "all" ? filterPromotor : ""].filter(Boolean).length;
+  const advancedFilterCount = [
+    dateFrom, dateTo,
+    filterEncargado !== "all" ? filterEncargado : "",
+    filterRolResponsable !== "all" ? filterRolResponsable : "",
+    filterBrand !== "all" ? filterBrand : "",
+  ].filter(Boolean).length;
 
-  const clearAdvancedFilters = () => { setDateFrom(""); setDateTo(""); setFilterPromotor("all"); };
+  const clearAdvancedFilters = () => { setDateFrom(""); setDateTo(""); setFilterEncargado("all"); setFilterRolResponsable("all"); setFilterBrand("all"); };
 
   const clearAllFilters = () => {
     setSearchInput(""); setSearch("");
@@ -416,10 +471,14 @@ function SalesRepView() {
     clearAdvancedFilters();
   };
 
+  const rolLabel = (r: "promotor" | "rep_marca") => r === "promotor" ? "Promotor" : "Rep. de Marca";
+
   const activeFilters = [
     search.trim() && { key: "search", label: `Búsqueda: ${search}`, clear: () => { setSearch(""); setSearchInput(""); } },
     filterStatus !== "all" && { key: "status", label: `Estado: ${statusLabel(filterStatus as PromotorTransfer["status"])}`, clear: () => setFilterStatus("all") },
-    filterPromotor !== "all" && { key: "promotor", label: `Promotor: ${filterPromotor}`, clear: () => setFilterPromotor("all") },
+    filterEncargado !== "all" && { key: "encargado", label: `Responsable: ${filterEncargado}`, clear: () => setFilterEncargado("all") },
+    filterRolResponsable !== "all" && { key: "rol", label: `Tipo: ${rolLabel(filterRolResponsable)}`, clear: () => setFilterRolResponsable("all") },
+    filterBrand !== "all" && { key: "brand", label: `Marca: ${filterBrand}`, clear: () => setFilterBrand("all") },
     dateFrom && { key: "dateFrom", label: `Desde: ${dateFrom}`, clear: () => setDateFrom("") },
     dateTo && { key: "dateTo", label: `Hasta: ${dateTo}`, clear: () => setDateTo("") },
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
@@ -433,7 +492,9 @@ function SalesRepView() {
         transfers,
         [
           { header: "Referencia", value: (t) => t.reference },
-          { header: "Promotor", value: (t) => t.promotor_name ?? "" },
+          { header: "Responsable", value: (t) => getEncargado(t).name },
+          { header: "Rol", value: (t) => getEncargado(t).role === "promotor" ? "Promotor" : "Rep. de Marca" },
+          { header: "Marca", value: (t) => t.brand ?? "" },
           { header: "Cliente", value: (t) => t.customer_name ?? "" },
           { header: "Cant. items", value: (t) => t.items.length },
           { header: "Productos", value: (t) => t.items.map((i) => `${i.product_sku} x${i.quantity}`).join(" | ") },
@@ -515,7 +576,7 @@ function SalesRepView() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && commitSearch()}
                   disabled={isLoading}
-                  placeholder="Buscar por referencia, promotor o cliente"
+                  placeholder="Buscar por referencia, promotor, marca o cliente"
                   className="h-10 pl-9 pr-9 text-sm"
                 />
                 {search && (
@@ -557,7 +618,7 @@ function SalesRepView() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="font-semibold">Filtros avanzados</p>
-                        <p className="text-sm text-muted-foreground">Filtra tus transferencias por promotor y rango de fechas.</p>
+                        <p className="text-sm text-muted-foreground">Filtra tus transferencias por responsable, marca y rango de fechas.</p>
                       </div>
                       {advancedFilterCount > 0 && (
                         <Button variant="ghost" size="sm" onClick={clearAdvancedFilters} className="w-full gap-2 sm:w-auto">
@@ -567,15 +628,39 @@ function SalesRepView() {
                     </div>
                   </div>
                   <div className="space-y-5 p-4">
-                    <FilterSection icon={UserRound} title="Promotor">
-                      <FilterField label="Promotor">
+                    <FilterSection icon={UserRound} title="Responsable">
+                      <FilterField label="Responsable">
                         <SearchableSelect
-                          value={filterPromotor}
-                          onValueChange={setFilterPromotor}
-                          options={promotorOptions}
-                          allLabel="Todos los promotores"
-                          searchPlaceholder="Buscar promotor…"
-                          emptyLabel="No hay promotores"
+                          value={filterEncargado}
+                          onValueChange={setFilterEncargado}
+                          options={encargadoOptions}
+                          allLabel="Todos los responsables"
+                          searchPlaceholder="Buscar responsable…"
+                          emptyLabel="No hay responsables"
+                          disabled={isLoading}
+                        />
+                      </FilterField>
+                      <FilterField label="Tipo">
+                        <Select value={filterRolResponsable} onValueChange={(v) => setFilterRolResponsable(v as "all" | "promotor" | "rep_marca")} disabled={isLoading}>
+                          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los tipos</SelectItem>
+                            <SelectItem value="promotor">Promotor</SelectItem>
+                            <SelectItem value="rep_marca">Rep. de Marca</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+                    </FilterSection>
+                    <Separator />
+                    <FilterSection icon={Tag} title="Marca">
+                      <FilterField label="Marca">
+                        <SearchableSelect
+                          value={filterBrand}
+                          onValueChange={setFilterBrand}
+                          options={brandOptions}
+                          allLabel="Todas las marcas"
+                          searchPlaceholder="Buscar marca…"
+                          emptyLabel="No hay marcas"
                           disabled={isLoading}
                         />
                       </FilterField>
@@ -641,30 +726,48 @@ function SalesRepView() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Referencia</TableHead>
-                        <TableHead className="hidden sm:table-cell">Promotor</TableHead>
-                        <TableHead>Cliente</TableHead>
+                        <TableHead>Transferencia</TableHead>
+                        <TableHead className="hidden sm:table-cell">Responsable</TableHead>
+                        <TableHead className="hidden md:table-cell">Marca</TableHead>
+                        <TableHead className="hidden sm:table-cell">Cliente</TableHead>
                         <TableHead className="hidden md:table-cell">Items</TableHead>
                         <TableHead className="hidden md:table-cell">Fecha</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Acciones</TableHead>
+                        <TableHead className="hidden sm:table-cell">Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {displayed.map((t) => (
                         <TableRow key={t.id}>
+                          {/* Mobile: info + status stacked; sm+: just reference */}
                           <TableCell className="text-sm">
-                            <p className="font-mono font-medium leading-snug">{t.reference}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">{t.promotor_name ?? "—"}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground md:hidden">{formatDate(t.created_at)}</p>
+                            <p className="font-mono text-xs font-semibold leading-snug text-muted-foreground sm:text-sm sm:font-medium sm:text-foreground">{t.reference}</p>
+                            {/* Mobile-only info block */}
+                            <div className="mt-1.5 sm:hidden space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-medium text-sm leading-none">{getEncargado(t).name}</p>
+                                <RoleBadge role={getEncargado(t).role} className="mt-0" />
+                              </div>
+                              {t.brand && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Marca:</span> {t.brand}</p>}
+                              {t.customer_name && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Cliente:</span> {t.customer_name}</p>}
+                              <div className="pt-0.5">
+                                <StatusBadge status={t.status} />
+                              </div>
+                            </div>
+                            {/* sm-md only: show brand inline */}
+                            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block md:hidden">{t.brand ?? "—"}</p>
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell text-sm">{t.promotor_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{t.customer_name ?? "—"}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">
+                            <p>{getEncargado(t).name}</p>
+                            <RoleBadge role={getEncargado(t).role} />
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{t.brand ?? "—"}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{t.customer_name ?? "—"}</TableCell>
                           <TableCell className="hidden md:table-cell text-sm">{t.items.length}</TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDate(t.created_at)}</TableCell>
-                          <TableCell><StatusBadge status={t.status} /></TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-0.5">
+                          <TableCell className="hidden sm:table-cell"><StatusBadge status={t.status} /></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-0.5">
                               {t.status === "borrador" && (
                                 <>
                                   <Button
@@ -775,7 +878,9 @@ function SuperadminView() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterRep, setFilterRep] = useState("all");
-  const [filterPromotor, setFilterPromotor] = useState("");
+  const [filterBrand, setFilterBrand] = useState("all");
+  const [filterEncargado, setFilterEncargado] = useState("all");
+  const [filterRolResponsable, setFilterRolResponsable] = useState<"all" | "promotor" | "rep_marca">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE);
@@ -831,9 +936,16 @@ function SuperadminView() {
     [transfers],
   );
 
-  const promotorOptions = useMemo(() => {
+  const superAdminBrandOptions = useMemo(() => {
     const names = Array.from(new Set(
-      transfers.map((t) => t.promotor_name).filter((n): n is string => !!n)
+      transfers.map((t) => t.brand).filter((n): n is string => !!n)
+    )).sort((a, b) => a.localeCompare(b, "es-CO"));
+    return names.map((n) => ({ value: n, label: n }));
+  }, [transfers]);
+
+  const superAdminEncargadoOptions = useMemo(() => {
+    const names = Array.from(new Set(
+      transfers.map((t) => getEncargado(t).name).filter((n) => n !== "—")
     )).sort((a, b) => a.localeCompare(b, "es-CO"));
     return names.map((n) => ({ value: n, label: n }));
   }, [transfers]);
@@ -841,19 +953,23 @@ function SuperadminView() {
   const filtered = useMemo(() => transfers.filter((t) => {
     if (search) {
       const q = search.toLowerCase();
+      const enc = getEncargado(t);
       const match =
         t.reference.toLowerCase().includes(q) ||
-        (t.promotor_name ?? "").toLowerCase().includes(q) ||
+        enc.name.toLowerCase().includes(q) ||
         (t.customer_name ?? "").toLowerCase().includes(q) ||
-        (t.sales_representative_name ?? "").toLowerCase().includes(q);
+        (t.sales_representative_name ?? "").toLowerCase().includes(q) ||
+        (t.brand ?? "").toLowerCase().includes(q);
       if (!match) return false;
     }
     if (filterRep !== "all" && t.sales_representative_name !== filterRep) return false;
+    if (filterBrand !== "all" && (t.brand ?? "") !== filterBrand) return false;
+    if (filterEncargado !== "all" && getEncargado(t).name !== filterEncargado) return false;
+    if (filterRolResponsable !== "all" && getEncargado(t).role !== filterRolResponsable) return false;
     if (dateFrom && new Date(t.created_at) < new Date(dateFrom)) return false;
     if (dateTo && new Date(t.created_at) > new Date(dateTo + "T23:59:59")) return false;
-    if (filterPromotor && !(t.promotor_name ?? "").toLowerCase().includes(filterPromotor.toLowerCase())) return false;
     return true;
-  }), [transfers, search, filterRep, dateFrom, dateTo, filterPromotor]);
+  }), [transfers, search, filterRep, filterBrand, filterEncargado, filterRolResponsable, dateFrom, dateTo]);
 
   const displayed = filtered.slice(0, displayCount);
   const hasMoreDisplay = displayCount < filtered.length;
@@ -872,9 +988,14 @@ function SuperadminView() {
 
   const commitSearch = () => setSearch(searchInput.trim());
 
-  const advancedFilterCount = [dateFrom, dateTo, filterPromotor].filter(Boolean).length;
+  const advancedFilterCount = [
+    dateFrom, dateTo,
+    filterEncargado !== "all" ? filterEncargado : "",
+    filterRolResponsable !== "all" ? filterRolResponsable : "",
+    filterBrand !== "all" ? filterBrand : "",
+  ].filter(Boolean).length;
 
-  const clearAdvancedFilters = () => { setDateFrom(""); setDateTo(""); setFilterPromotor(""); };
+  const clearAdvancedFilters = () => { setDateFrom(""); setDateTo(""); setFilterEncargado("all"); setFilterRolResponsable("all"); setFilterBrand("all"); };
 
   const clearAllFilters = () => {
     setSearchInput(""); setSearch("");
@@ -882,13 +1003,17 @@ function SuperadminView() {
     clearAdvancedFilters();
   };
 
+  const rolLabel = (r: "promotor" | "rep_marca") => r === "promotor" ? "Promotor" : "Rep. de Marca";
+
   const activeFilters = [
     search.trim() && { key: "search", label: `Búsqueda: ${search}`, clear: () => { setSearch(""); setSearchInput(""); } },
     filterRep !== "all" && { key: "rep", label: `Rep: ${filterRep}`, clear: () => setFilterRep("all") },
+    filterEncargado !== "all" && { key: "encargado", label: `Responsable: ${filterEncargado}`, clear: () => setFilterEncargado("all") },
+    filterRolResponsable !== "all" && { key: "rol", label: `Tipo: ${rolLabel(filterRolResponsable)}`, clear: () => setFilterRolResponsable("all") },
+    filterBrand !== "all" && { key: "brand", label: `Marca: ${filterBrand}`, clear: () => setFilterBrand("all") },
     filterStatus !== "all" && { key: "status", label: `Estado: ${statusLabel(filterStatus as PromotorTransfer["status"])}`, clear: () => setFilterStatus("all") },
     dateFrom && { key: "dateFrom", label: `Desde: ${dateFrom}`, clear: () => setDateFrom("") },
     dateTo && { key: "dateTo", label: `Hasta: ${dateTo}`, clear: () => setDateTo("") },
-    filterPromotor && { key: "promotor", label: `Promotor: ${filterPromotor}`, clear: () => setFilterPromotor("") },
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
 
   const borrador = transfers.filter((t) => t.status === "borrador").length;
@@ -904,7 +1029,9 @@ function SuperadminView() {
         transfers,
         [
           { header: "Referencia", value: (t) => t.reference },
-          { header: "Promotor", value: (t) => t.promotor_name ?? "" },
+          { header: "Responsable", value: (t) => getEncargado(t).name },
+          { header: "Rol", value: (t) => getEncargado(t).role === "promotor" ? "Promotor" : "Rep. de Marca" },
+          { header: "Marca", value: (t) => t.brand ?? "" },
           { header: "Rep. de Venta", value: (t) => t.sales_representative_name ?? "" },
           { header: "Cliente", value: (t) => t.customer_name ?? "" },
           { header: "Cant. items", value: (t) => t.items.length },
@@ -1039,7 +1166,7 @@ function SuperadminView() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="font-semibold">Filtros avanzados</p>
-                        <p className="text-sm text-muted-foreground">Filtra transferencias por promotor y rango de fechas.</p>
+                        <p className="text-sm text-muted-foreground">Filtra transferencias por responsable, marca y rango de fechas.</p>
                       </div>
                       {advancedFilterCount > 0 && (
                         <Button variant="ghost" size="sm" onClick={clearAdvancedFilters} className="w-full gap-2 sm:w-auto">
@@ -1049,15 +1176,39 @@ function SuperadminView() {
                     </div>
                   </div>
                   <div className="space-y-5 p-4">
-                    <FilterSection icon={UserRound} title="Promotor">
-                      <FilterField label="Promotor">
+                    <FilterSection icon={UserRound} title="Responsable">
+                      <FilterField label="Responsable">
                         <SearchableSelect
-                          value={filterPromotor}
-                          onValueChange={setFilterPromotor}
-                          options={promotorOptions}
-                          allLabel="Todos los promotores"
-                          searchPlaceholder="Buscar promotor…"
-                          emptyLabel="No hay promotores"
+                          value={filterEncargado}
+                          onValueChange={setFilterEncargado}
+                          options={superAdminEncargadoOptions}
+                          allLabel="Todos los responsables"
+                          searchPlaceholder="Buscar responsable…"
+                          emptyLabel="No hay responsables"
+                          disabled={isLoading}
+                        />
+                      </FilterField>
+                      <FilterField label="Tipo">
+                        <Select value={filterRolResponsable} onValueChange={(v) => setFilterRolResponsable(v as "all" | "promotor" | "rep_marca")} disabled={isLoading}>
+                          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los tipos</SelectItem>
+                            <SelectItem value="promotor">Promotor</SelectItem>
+                            <SelectItem value="rep_marca">Rep. de Marca</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FilterField>
+                    </FilterSection>
+                    <Separator />
+                    <FilterSection icon={Tag} title="Marca">
+                      <FilterField label="Marca">
+                        <SearchableSelect
+                          value={filterBrand}
+                          onValueChange={setFilterBrand}
+                          options={superAdminBrandOptions}
+                          allLabel="Todas las marcas"
+                          searchPlaceholder="Buscar marca…"
+                          emptyLabel="No hay marcas"
                           disabled={isLoading}
                         />
                       </FilterField>
@@ -1125,33 +1276,50 @@ function SuperadminView() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Referencia</TableHead>
-                        <TableHead className="hidden sm:table-cell">Promotor</TableHead>
-                        <TableHead className="hidden md:table-cell">Rep. de Venta</TableHead>
-                        <TableHead>Cliente</TableHead>
+                        <TableHead>Transferencia</TableHead>
+                        <TableHead className="hidden sm:table-cell">Responsable</TableHead>
+                        <TableHead className="hidden md:table-cell">Marca</TableHead>
+                        <TableHead className="hidden lg:table-cell">Rep. de Venta</TableHead>
+                        <TableHead className="hidden sm:table-cell">Cliente</TableHead>
                         <TableHead className="hidden md:table-cell">Items</TableHead>
                         <TableHead className="hidden md:table-cell">Fecha</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Acciones</TableHead>
+                        <TableHead className="hidden sm:table-cell">Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {displayed.map((t) => (
                         <TableRow key={t.id}>
+                          {/* Mobile: info + status stacked; sm+: just reference */}
                           <TableCell className="text-sm">
-                            <p className="font-mono font-medium leading-snug">{t.reference}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground sm:hidden">{t.promotor_name ?? "—"}</p>
-                            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block md:hidden">{t.sales_representative_name ?? "—"}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground md:hidden">{formatDate(t.created_at)}</p>
+                            <p className="font-mono text-xs font-semibold leading-snug text-muted-foreground sm:text-sm sm:font-medium sm:text-foreground">{t.reference}</p>
+                            {/* Mobile-only info block */}
+                            <div className="mt-1.5 sm:hidden space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-medium text-sm leading-none">{getEncargado(t).name}</p>
+                                <RoleBadge role={getEncargado(t).role} className="mt-0" />
+                              </div>
+                              {t.brand && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Marca:</span> {t.brand}</p>}
+                              {t.customer_name && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Cliente:</span> {t.customer_name}</p>}
+                              <div className="pt-0.5">
+                                <StatusBadge status={t.status} />
+                              </div>
+                            </div>
+                            {/* sm-md only: show brand inline */}
+                            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block md:hidden">{t.brand ?? "—"}</p>
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell text-sm">{t.promotor_name ?? "—"}</TableCell>
-                          <TableCell className="hidden md:table-cell text-sm">{t.sales_representative_name ?? "—"}</TableCell>
-                          <TableCell className="text-sm">{t.customer_name ?? "—"}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">
+                            <p>{getEncargado(t).name}</p>
+                            <RoleBadge role={getEncargado(t).role} />
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{t.brand ?? "—"}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-sm">{t.sales_representative_name ?? "—"}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{t.customer_name ?? "—"}</TableCell>
                           <TableCell className="hidden md:table-cell text-sm">{t.items.length}</TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDate(t.created_at)}</TableCell>
-                          <TableCell><StatusBadge status={t.status} /></TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-0.5">
+                          <TableCell className="hidden sm:table-cell"><StatusBadge status={t.status} /></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-0.5">
                               {t.status === "borrador" && (
                                 <>
                                   <Button
