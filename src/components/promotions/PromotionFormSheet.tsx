@@ -309,7 +309,7 @@ export function PromotionFormSheet({
           const pf = (details.product_filters || {}) as Record<string, string>;
           const cf = (details.customer_filters || {}) as Record<string, unknown>;
           setSegment(String(cf.segment_preset || 'custom'));
-          setScope(details.audience_scope || 'all');
+          setScope(details.audience_scope || 'customers');
           setProductApplicationMode(details.product_mode || 'specific');
           setSelectedProductSkus(details.product_skus || []);
           const customerIds = details.customer_ids || [];
@@ -612,7 +612,7 @@ export function PromotionFormSheet({
     setStartDate('');
     setEndDate('');
     setSegment('custom');
-    setScope('all');
+    setScope('customers');
     setSelectedProductSkus([]);
     setProductApplicationMode('specific');
     setSelectedCustomerIds([]);

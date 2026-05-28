@@ -1,8 +1,7 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   clonePromotion,
   deletePromotion,
-  importPromotions,
   listLaboratories,
   listPromotions,
   updatePromotionStatus,
@@ -17,10 +16,11 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Search, Eye, EyeOff, Pencil, Trash2,
-  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check
+  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2
 } from 'lucide-react';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
+import { ImportPromotionsModal } from '@/components/promotions/ImportPromotionsModal';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -44,7 +44,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import * as XLSX from 'xlsx';
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   borrador: { label: 'Borrador', variant: 'outline' },
@@ -78,8 +77,8 @@ const Promotions = () => {
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
   const [isCloning, setIsCloning] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [laboratoryFilter, setLaboratoryFilter] = useState('all');
@@ -230,63 +229,6 @@ const Promotions = () => {
     }
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsImporting(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('El archivo esta vacio');
-        return;
-      }
-
-      const expectedColumns = ['Laboratorio', 'Titulo', 'SKU_Condicion', 'Cantidad_Condicion', 'Tipo_Beneficio', 'Valor_Beneficio'];
-      const firstRow = jsonData[0];
-      const missingColumns = expectedColumns.filter((col) => !(col in firstRow));
-      if (missingColumns.length > 0) {
-        toast.error(`Columnas faltantes: ${missingColumns.join(', ')}`);
-        return;
-      }
-
-      const rows = jsonData.map((row) => ({
-        laboratory: String(row['Laboratorio'] || ''),
-        title: String(row['Titulo'] || 'Sin titulo'),
-        sku_condition: String(row['SKU_Condicion'] || ''),
-        quantity_condition: Number(row['Cantidad_Condicion']) || 1,
-        benefit_type: String(row['Tipo_Beneficio'] || ''),
-        benefit_value: Number(row['Valor_Beneficio']) || 0,
-      }));
-
-      const result = await importPromotions(rows);
-      if (result.imported_count > 0) {
-        toast.success(`Se importaron ${result.imported_count} promociones correctamente`);
-        fetchData();
-      }
-      if (result.skipped_count > 0) {
-        toast.warning(`Se omitieron ${result.skipped_count} filas. ${(result.errors || []).slice(0, 3).join('; ')}`);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      toast.error(`Error al importar: ${errorMessage}`);
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
@@ -313,16 +255,9 @@ const Promotions = () => {
           description="Crea y administra promociones comerciales"
           actions={(
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".xlsx,.xls"
-                className="hidden"
-              />
-              <Button variant="outline" onClick={handleImportClick} disabled={loading || isImporting} className="w-full gap-2">
-                <Upload className="size-4" />
-                {isImporting ? 'Importando…' : 'Importar Excel'}
+              <Button variant="outline" onClick={() => setShowImportModal(true)} disabled={loading} className="w-full gap-2">
+                {downloadingTemplate ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                Importar Excel
               </Button>
               <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading} className="w-full gap-2">
                 <Plus className="size-4" />
@@ -645,6 +580,14 @@ const Promotions = () => {
             )}
           </CardContent>
         </Card>
+
+        <ImportPromotionsModal
+          open={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onSuccess={fetchData}
+          onDownloadingChange={setDownloadingTemplate}
+          laboratories={laboratories}
+        />
 
         <PromotionFormSheet
           open={sheetOpen}

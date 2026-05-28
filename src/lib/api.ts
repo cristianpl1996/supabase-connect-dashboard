@@ -1224,10 +1224,16 @@ export interface PromotionPayload {
 export interface PromotionImportRowPayload {
   laboratory: string;
   title: string;
-  sku_condition?: string | null;
-  quantity_condition?: number | null;
-  benefit_type?: string | null;
-  benefit_value?: number | null;
+  origin?: string | null;
+  start_date: string;
+  end_date: string;
+  sku: string;
+  tipo_mecanica: string;
+  base_cantidad?: number | null;
+  bonus_cantidad?: number | null;
+  porcentaje_descuento?: number | null;
+  alcance?: string | null;
+  clientes?: string | null;
 }
 
 export function listProducts(params: ProductListParams = {}): Promise<ProductCatalogItem[]> {
@@ -1277,6 +1283,40 @@ export function getProductsPage(params: ProductListParams = {}): Promise<ApiList
 
 export function getProductFilterOptions(): Promise<ProductFilterOptions> {
   return apiDetail<ProductFilterOptions>("/api/v1/products/filter-options");
+}
+
+export async function getAllProducts(): Promise<ProductCatalogItem[]> {
+  const PAGE = 1000;
+  const first = await getProductsPage({ limit: PAGE, offset: 0, sort_by: 'sku', sort_dir: 'asc' });
+  const total = first.meta?.count ?? first.data.length;
+  const results: ProductCatalogItem[] = [...first.data];
+  const pages = Math.ceil(total / PAGE);
+  if (pages > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: pages - 1 }, (_, i) =>
+        getProductsPage({ limit: PAGE, offset: (i + 1) * PAGE, sort_by: 'sku', sort_dir: 'asc' })
+      )
+    );
+    for (const res of rest) results.push(...res.data);
+  }
+  return results;
+}
+
+export async function getAllCustomers(): Promise<CustomerRecord[]> {
+  const PAGE = 1000;
+  const first = await getCustomersPage({ limit: PAGE, offset: 0 });
+  const total = first.meta?.count ?? first.data.length;
+  const results: CustomerRecord[] = [...first.data];
+  const pages = Math.ceil(total / PAGE);
+  if (pages > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: pages - 1 }, (_, i) =>
+        getCustomersPage({ limit: PAGE, offset: (i + 1) * PAGE })
+      )
+    );
+    for (const res of rest) results.push(...res.data);
+  }
+  return results;
 }
 
 export interface ProductLightItem {
