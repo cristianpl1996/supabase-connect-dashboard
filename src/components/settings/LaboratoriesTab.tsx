@@ -41,8 +41,8 @@ export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
   const [sortFilter, setSortFilter] = useState('name_asc');
 
   const filtered = laboratories
-    .filter((l) => !search || l.name.toLowerCase().includes(search.toLowerCase()))
     .filter((l) => {
+      if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (brandFilter === 'linked') return l.external_brand_id != null;
       if (brandFilter === 'unlinked') return l.external_brand_id == null;
       return true;
@@ -254,7 +254,7 @@ export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
                             {lab.erp_code}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+                          <span className="text-muted-foreground text-sm">–</span>
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -280,7 +280,7 @@ export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+                          <span className="text-muted-foreground text-sm">–</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

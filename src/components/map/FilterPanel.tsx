@@ -367,7 +367,7 @@ function RangeInputs({
           disabled={disabled}
           onChange={(e) => onFilter(minKey, e.target.value as CustomerFilters[typeof minKey])}
         />
-        <span className="text-gray-300 text-xs shrink-0">—</span>
+        <span className="text-gray-300 text-xs shrink-0">–</span>
         <Input
           type="number"
           className="h-8 text-sm"

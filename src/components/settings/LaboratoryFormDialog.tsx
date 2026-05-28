@@ -50,15 +50,14 @@ export function LaboratoryFormDialog({
     usedExternalBrandIds.filter((id) => id !== laboratory?.external_brand_id),
   );
   const selectedBrand = brands.find((brand) => brand.id === externalBrandId);
-  const filteredBrands = brands
-    .filter((brand) => !unavailableBrandIds.has(brand.id))
-    .filter((brand) => {
-      const term = brandSearch.trim().toLowerCase();
-      if (!term) return true;
-      return [brand.name, brand.code, brand.type]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term));
-    });
+  const filteredBrands = brands.filter((brand) => {
+    if (unavailableBrandIds.has(brand.id)) return false;
+    const term = brandSearch.trim().toLowerCase();
+    if (!term) return true;
+    return [brand.name, brand.code, brand.type]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(term));
+  });
 
   useEffect(() => {
     if (!open) return;

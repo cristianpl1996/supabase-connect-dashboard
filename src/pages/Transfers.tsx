@@ -299,7 +299,7 @@ function TransferDetailSheet({
                     {transfer.items.map((item, index) => (
                       <div
                         key={item.id ?? index}
-                        className="grid gap-2 border-t px-3 py-3 text-sm sm:grid-cols-[3rem_minmax(0,1fr)_8rem_1rem] sm:items-center sm:gap-0"
+                        className="grid gap-2 border-t p-3 text-sm sm:grid-cols-[3rem_minmax(0,1fr)_8rem_1rem] sm:items-center sm:gap-0"
                       >
                         <span className="flex size-6 items-center justify-center rounded bg-primary/10 font-mono text-xs font-bold text-primary">
                           {item.line_number}
@@ -408,7 +408,7 @@ function SalesRepView() {
 
   const encargadoOptions = useMemo(() => {
     const names = Array.from(new Set(
-      transfers.map((t) => getEncargado(t).name).filter((n) => n !== "—")
+      transfers.reduce<string[]>((acc, t) => { const n = getEncargado(t).name; if (n !== "—") acc.push(n); return acc; }, [])
     )).sort((a, b) => a.localeCompare(b, "es-CO"));
     return names.map((n) => ({ value: n, label: n }));
   }, [transfers]);
@@ -945,7 +945,7 @@ function SuperadminView() {
 
   const superAdminEncargadoOptions = useMemo(() => {
     const names = Array.from(new Set(
-      transfers.map((t) => getEncargado(t).name).filter((n) => n !== "—")
+      transfers.reduce<string[]>((acc, t) => { const n = getEncargado(t).name; if (n !== "—") acc.push(n); return acc; }, [])
     )).sort((a, b) => a.localeCompare(b, "es-CO"));
     return names.map((n) => ({ value: n, label: n }));
   }, [transfers]);

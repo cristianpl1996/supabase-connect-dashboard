@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface ExternalPromoter {
@@ -44,8 +44,10 @@ export function PromoterProvider({ children }: PromoterProviderProps) {
       }
     : undefined;
 
+  const value = useMemo(() => ({ promoter, isPromoter, isLoading }), [promoter, isPromoter, isLoading]);
+
   return (
-    <PromoterContext.Provider value={{ promoter, isPromoter, isLoading }}>
+    <PromoterContext.Provider value={value}>
       {children}
     </PromoterContext.Provider>
   );

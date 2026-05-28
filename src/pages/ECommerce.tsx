@@ -176,13 +176,10 @@ export type CheckoutFormState = {
   observations: string;
 };
 
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 function money(value: unknown) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
+  return COP_FORMATTER.format(Number(value || 0));
 }
 
 function text(value: unknown, fallback = "N/A") {
@@ -1539,7 +1536,7 @@ export default function ECommerce() {
                 <div className="w-px self-stretch bg-border/40" />
 
                 {/* Info */}
-                <div className="flex flex-1 flex-col justify-between gap-2 px-3 py-3">
+                <div className="flex flex-1 flex-col justify-between gap-2 p-3">
                   <div className="grid grid-cols-2 gap-1.5">
                     <Fact label="Marca" value={selectedProduct.product_brand_name} />
                     <Fact label="Categoría" value={selectedProduct.product_category} />
@@ -1556,7 +1553,7 @@ export default function ECommerce() {
               </div>
 
               {/* Footer CTA */}
-              <div className="border-t border-border/40 px-4 py-4">
+              <div className="border-t border-border/40 p-4">
                 <Button
                   className="w-full gap-2 font-semibold"
                   disabled={!selectedProduct.can_add_to_cart}
@@ -1834,14 +1831,14 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
           </div>
           <RadioGroup value={brand} onValueChange={onBrandChange} className="pt-0.5 space-y-0.5">
             {!brandSearch.trim() && (
-              <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+              <div className="flex items-center gap-2 rounded p-1 hover:bg-muted/50 cursor-pointer">
                 <RadioGroupItem value="all" id="brand-all" className="shrink-0" />
                 <Label htmlFor="brand-all" className="cursor-pointer truncate text-sm font-normal">Todas las marcas</Label>
               </div>
             )}
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
               {filteredBrands.map((b) => (
-                <div key={b} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                <div key={b} className="flex items-center gap-2 rounded p-1 hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value={b} id={`brand-${b}`} className="shrink-0" />
                   <Label htmlFor={`brand-${b}`} className="cursor-pointer truncate text-sm font-normal">{b}</Label>
                 </div>
@@ -1880,14 +1877,14 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
           </div>
           <RadioGroup value={category} onValueChange={onCategoryChange} className="pt-0.5 space-y-0.5">
             {!categorySearch.trim() && (
-              <div className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+              <div className="flex items-center gap-2 rounded p-1 hover:bg-muted/50 cursor-pointer">
                 <RadioGroupItem value="all" id="cat-all" className="shrink-0" />
                 <Label htmlFor="cat-all" className="cursor-pointer truncate text-sm font-normal">Todas las categorías</Label>
               </div>
             )}
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
               {filteredCategories.map((c) => (
-                <div key={c} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50 cursor-pointer">
+                <div key={c} className="flex items-center gap-2 rounded p-1 hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value={c} id={`cat-${c}`} className="shrink-0" />
                   <Label htmlFor={`cat-${c}`} className="cursor-pointer truncate text-sm font-normal">{c}</Label>
                 </div>

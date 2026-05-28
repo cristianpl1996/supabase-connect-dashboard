@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { createPlan, getPlan, updatePlan, uploadPlanContract, BASE_URL } from '@/lib/api';
 import { Laboratory, AnnualPlan, PlanFund } from '@/types/database';
 import {
@@ -273,14 +275,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -359,7 +354,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
             {contractFile && (
               <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2">
                 <FileText className="size-4 text-green-600 shrink-0" />
-                <p className="text-xs text-green-700 font-medium truncate">{contractFile.name} — se subirá al guardar</p>
+                <p className="text-xs text-green-700 font-medium truncate">{contractFile.name}, se subirá al guardar</p>
               </div>
             )}
           </div>

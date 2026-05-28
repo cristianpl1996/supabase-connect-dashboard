@@ -22,7 +22,7 @@ export function ModuleErrorCard({
   return (
     <Card className="overflow-hidden border-destructive/30 bg-card shadow-sm dark:border-red-500/30">
       <CardContent className="p-0">
-        <div className="border-l-4 border-destructive bg-destructive/5 p-4 dark:border-red-500 dark:bg-red-500/10 sm:p-5">
+        <div className="border-l-2 border-destructive/70 bg-destructive/5 p-4 dark:border-red-500/70 dark:bg-red-500/10 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive dark:bg-red-500/10 dark:text-red-300">

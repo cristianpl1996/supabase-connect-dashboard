@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { Laboratory, LaboratoryWalletView, createWalletAdjustment, getLaboratoryWallet, listLaboratories } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -235,14 +237,7 @@ export default function WalletPage() {
     }
   }
 
-  function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
+  const formatCurrency = (amount: number) => COP_FORMATTER.format(amount);
 
   const summary = walletView?.summary;
   const ledgerEntries = walletView?.ledger_entries ?? [];

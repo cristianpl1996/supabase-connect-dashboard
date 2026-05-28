@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 import { login as apiLogin, setToken, clearToken, getToken, type AuthUser, type LoginRequest, type LoginResponse } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -130,8 +130,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     doLogout();
   }, [doLogout]);
 
+  const value = useMemo(
+    () => ({ user, isAuthenticated: !!user, isLoading, login, finalizeOtpLogin, logout }),
+    [user, isLoading, login, finalizeOtpLogin, logout],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, finalizeOtpLogin, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

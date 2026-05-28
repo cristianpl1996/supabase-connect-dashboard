@@ -724,7 +724,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
         {modalState === 'parsing' && (
           <div className="flex flex-col items-center justify-center gap-3 py-12">
             <Loader2 className="size-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Analizando archivo y validando datos...</p>
+            <p className="text-sm text-muted-foreground">Analizando archivo y validando datos…</p>
           </div>
         )}
 
@@ -739,7 +739,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                   {totalRows} {totalRows === 1 ? 'promocion' : 'promociones'}
                 </p>
               </div>
-              <button className="shrink-0 text-muted-foreground hover:text-foreground" onClick={reset}>
+              <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={reset}>
                 <X className="size-4" />
               </button>
             </div>
@@ -795,7 +795,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                       </div>
                     </div>
                     {!g.isValid && (
-                      <button className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => toggleGroupErrors(g.key)}>
+                      <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => toggleGroupErrors(g.key)}>
                         {expandedErrors.has(g.key) ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                       </button>
                     )}
@@ -803,7 +803,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                   {!g.isValid && expandedErrors.has(g.key) && (
                     <ul className="mt-2 space-y-0.5 border-t border-red-200 pt-2 dark:border-red-800/40">
                       {g.errors.map((err, i) => (
-                        <li key={i} className="text-xs text-red-600 dark:text-red-400">• {err}</li>
+                        <li key={`${g.key}-err-${i}`} className="text-xs text-red-600 dark:text-red-400">• {err}</li>
                       ))}
                     </ul>
                   )}
@@ -852,6 +852,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
             {result.errors.length > 0 && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5">
                 <button
+                  type="button"
                   className="flex w-full items-center justify-between px-4 py-2.5 text-sm"
                   onClick={() => setErrorsExpanded((v) => !v)}
                 >
@@ -864,7 +865,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                 {errorsExpanded && (
                   <ul className="max-h-40 overflow-y-auto border-t px-4 py-2 text-xs text-destructive">
                     {result.errors.map((err, i) => (
-                      <li key={i} className="py-0.5">• {err}</li>
+                      <li key={`server-err-${i}`} className="py-0.5">• {err}</li>
                     ))}
                   </ul>
                 )}

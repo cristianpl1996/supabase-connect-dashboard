@@ -146,7 +146,7 @@ export function getBounds(customers: Customer[]): LatLngBoundsExpression | null 
 }
 
 export function uniqueSorted(values: (string | number)[]): string[] {
-  return [...new Set(values.map(String))].sort((a, b) =>
+  return [...new Set(values.map(String))].toSorted((a, b) =>
     a.localeCompare(b, "es", { numeric: true })
   );
 }
@@ -178,7 +178,7 @@ export const REP_PALETTE = [
 
 /** Builds a stable repName → hex color map sorted alphabetically */
 export function buildRepColorMap(customers: Customer[]): Map<string, string> {
-  const names = [...new Set(customers.map((c) => c.sales_rep_full_name))].sort();
+  const names = [...new Set(customers.map((c) => c.sales_rep_full_name))].toSorted();
   return new Map(names.map((name, i) => [name, REP_PALETTE[i % REP_PALETTE.length]]));
 }
 

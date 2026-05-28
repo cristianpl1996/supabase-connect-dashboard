@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, Fragment } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, Fragment, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -43,7 +43,9 @@ import { toast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
-import { AgotadosDashboardModal } from "@/components/agotados/AgotadosDashboardModal";
+const AgotadosDashboardModal = lazy(() =>
+  import("@/components/agotados/AgotadosDashboardModal").then((m) => ({ default: m.AgotadosDashboardModal }))
+);
 
 const DISPLAY_PAGE = 50;
 
@@ -1016,11 +1018,13 @@ function SuperadminView() {
         </Card>
       </ErrorDisabledContent>
 
-      <AgotadosDashboardModal
-        open={dashOpen}
-        onOpenChange={setDashOpen}
-        reports={reports}
-      />
+      <Suspense fallback={null}>
+        <AgotadosDashboardModal
+          open={dashOpen}
+          onOpenChange={setDashOpen}
+          reports={reports}
+        />
+      </Suspense>
 
     </div>
   );

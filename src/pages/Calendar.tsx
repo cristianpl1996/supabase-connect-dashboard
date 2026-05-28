@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { CalendarPromotion, listCalendarPromotions, Promotion } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -138,12 +140,7 @@ const Calendar = () => {
   const allCategories = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.category))).sort(), [ganttItems.items]);
   const conflictCount = useMemo(() => ganttItems.items.filter((item) => item.hasConflict).length, [ganttItems.items]);
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const ganttRows = useMemo(
     () =>

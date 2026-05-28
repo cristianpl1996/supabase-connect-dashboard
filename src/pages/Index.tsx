@@ -1,4 +1,6 @@
 import { useNavigate } from "react-router-dom";
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { useQuery } from "@tanstack/react-query";
 import { DashboardSummary, getDashboardSummary } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,12 +42,7 @@ const Index = () => {
     refetchOnWindowFocus: false,
   });
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const dashboardDate = new Date().toLocaleDateString("es-CO", {
     weekday: "long",

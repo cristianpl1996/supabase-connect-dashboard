@@ -237,21 +237,21 @@ export default function LoginPage() {
           position: "absolute", top: "-80px", left: "-80px",
           width: "420px", height: "420px", borderRadius: "50%",
           background: "radial-gradient(circle at 40% 40%, rgba(74,222,128,0.25), rgba(21,128,61,0.08))",
-          filter: "blur(48px)",
+          filter: "blur(24px)",
           animation: "float-slow 9s ease-in-out infinite",
         }} />
         <div style={{
           position: "absolute", top: "30%", right: "-100px",
           width: "360px", height: "360px", borderRadius: "50%",
           background: "radial-gradient(circle at 60% 60%, rgba(167,243,208,0.20), rgba(6,78,59,0.06))",
-          filter: "blur(56px)",
+          filter: "blur(28px)",
           animation: "float-medium 7s ease-in-out infinite, drift-x 11s ease-in-out infinite",
         }} />
         <div style={{
           position: "absolute", bottom: "-60px", left: "35%",
           width: "280px", height: "280px", borderRadius: "50%",
           background: "radial-gradient(circle, rgba(52,211,153,0.22), transparent 70%)",
-          filter: "blur(40px)",
+          filter: "blur(20px)",
           animation: "float-fast 6s ease-in-out infinite",
         }} />
         <div style={{

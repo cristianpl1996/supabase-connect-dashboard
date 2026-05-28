@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import {
   clonePromotion,
   deletePromotion,
@@ -229,12 +231,7 @@ const Promotions = () => {
     }
   };
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const formatDateRange = (start: string, end: string) => {
     try {

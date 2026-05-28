@@ -7,6 +7,9 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { listProducts, getCustomersPage } from "@/lib/api";
 
+const EMPTY_STRING_ARRAY: string[] = [];
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 interface PromotionDetailsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -122,8 +125,7 @@ export function PromotionDetailsSheet({
     Promise.all([fetchProducts, fetchCustomers]).finally(() => setLoadingNames(false));
   }, [open, promotion?.id]);
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const formatDate = (date: string) => {
     try { return format(new Date(date), "dd MMM yyyy", { locale: es }); }
@@ -355,7 +357,7 @@ function SectionCard({
 }
 
 function FilterPills({
-  filters, labels, exclude = [], booleanKeys = [],
+  filters, labels, exclude = EMPTY_STRING_ARRAY, booleanKeys = EMPTY_STRING_ARRAY,
 }: {
   filters: Record<string, unknown>;
   labels: Record<string, string>;

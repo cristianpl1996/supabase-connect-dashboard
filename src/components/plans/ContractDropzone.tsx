@@ -114,7 +114,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
 
         {state === 'dragover' && (
           <>
-            <Upload className="size-8 animate-bounce text-primary" />
+            <Upload className="size-8 transition-transform duration-300 hover:-translate-y-1 text-primary" />
             <p className="text-sm font-medium text-primary">Suelta el archivo aqui</p>
           </>
         )}

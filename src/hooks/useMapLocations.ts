@@ -59,7 +59,7 @@ export function useMapLocations(rawData: unknown[]): UseMapLocationsReturn {
         });
       }
     }
-    const salesReps = [...repMap.values()].sort((a, b) =>
+    const salesReps = [...repMap.values()].toSorted((a, b) =>
       a.name.localeCompare(b.name, "es")
     );
     return {

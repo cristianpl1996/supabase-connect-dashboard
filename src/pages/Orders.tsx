@@ -109,13 +109,10 @@ function optionalNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 function money(value: unknown) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(numberValue(value));
+  return COP_FORMATTER.format(numberValue(value));
 }
 
 function formatCount(value: unknown) {
@@ -389,7 +386,7 @@ export default function Orders() {
   );
 
   const statusFilterOptions = useMemo(() => {
-    const keys: Set<string> = new Set(filterOptions.statuses.map((status) => orderStatusKey(status)).filter((key) => key === "open" || key === "closed"));
+    const keys: Set<string> = new Set(filterOptions.statuses.reduce<string[]>((acc, status) => { const k = orderStatusKey(status); if (k === "open" || k === "closed") acc.push(k); return acc; }, []));
     const options = [
       { key: "open", label: "Abierto" },
       { key: "closed", label: "Cerrado" },
@@ -828,7 +825,7 @@ export default function Orders() {
                             <span className="text-right">Total</span>
                           </div>
                           {lineItems.map((item, index) => (
-                            <div key={`${item.id ?? index}`} className="grid gap-3 border-t px-3 py-3 text-sm lg:grid-cols-[4rem_minmax(0,1fr)_6rem_7rem_7rem_6rem] lg:items-center lg:gap-0">
+                            <div key={`${item.id ?? index}`} className="grid gap-3 border-t p-3 text-sm lg:grid-cols-[4rem_minmax(0,1fr)_6rem_7rem_7rem_6rem] lg:items-center lg:gap-0">
                               <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 font-mono text-xs font-bold text-primary">{text(item.line_num ?? index + 1)}</span>
                               <div className="min-w-0">
                                 <p className="truncate font-medium">{text(item.sold_product_name_at_order ?? item.sold_service_name, "Producto sin nombre")}</p>

@@ -77,7 +77,7 @@ export function OtpBoxes({ value, onChange, onComplete }: {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "clamp(4px, 1.5vw, 8px)", width: "100%", justifyContent: "center" }}>
       {[0, 1, 2].map(box)}
-      <span style={{ color: "#d1d5db", fontSize: "1.2rem", fontWeight: 300, userSelect: "none", flexShrink: 0 }}>—</span>
+      <span style={{ color: "#d1d5db", fontSize: "1.2rem", fontWeight: 300, userSelect: "none", flexShrink: 0 }}>–</span>
       {[3, 4, 5].map(box)}
     </div>
   );

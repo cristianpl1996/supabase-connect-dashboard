@@ -1,4 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import {
   createPromotion,
   getAllRepresentatives,
@@ -247,7 +249,7 @@ export function PromotionFormSheet({
   const customerOptionsHasMoreRef = useRef(false);
   const [mechanicState, setMechanicState] = useState<PromotionMechanicFormState>(() => resetMechanicForPromotionType(''));
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
-  const [accountingTreatment, setAccountingTreatment] = useState('descuento_pie');
+  const accountingTreatmentRef = useRef('descuento_pie');
   const [maxRedemptions, setMaxRedemptions] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
@@ -371,7 +373,7 @@ export function PromotionFormSheet({
           const mechanic = details.mechanic;
           if (mechanic) {
             setMechanicState(inferMechanicStateFromPromotion(mechanic));
-            setAccountingTreatment(mechanic.accounting_treatment || 'descuento_pie');
+            accountingTreatmentRef.current = mechanic.accounting_treatment || 'descuento_pie';
           }
         } catch (err) {
           console.error('Error loading promotion:', err);
@@ -658,7 +660,7 @@ export function PromotionFormSheet({
     setCustomerNameMap({});
     setMechanicState(resetMechanicForPromotionType(''));
     setEstimatedCost(0);
-    setAccountingTreatment('descuento_pie');
+    accountingTreatmentRef.current = 'descuento_pie';
     setMaxRedemptions('');
     setBudgetError(null);
     setSpendableBalance(null);
@@ -975,7 +977,7 @@ export function PromotionFormSheet({
           })),
         },
       });
-      mechanicPayload.accounting_treatment = accountingTreatment;
+      mechanicPayload.accounting_treatment = accountingTreatmentRef.current;
 
       const buildCustomerFilters = () => {
         if (scope !== 'customer_segment') return null;
@@ -1065,12 +1067,7 @@ export function PromotionFormSheet({
     }
   };
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const mechanicSummary = useMemo(() => summarizePromotionMechanic(mechanicState), [mechanicState]);
 
@@ -1296,7 +1293,7 @@ export function PromotionFormSheet({
                               <span className="shrink-0 font-mono text-xs text-muted-foreground">{product.product_sku}</span>
                             </button>
                           ))}
-                          {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
+                          {loadingMoreProducts && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más…</div>}
                         </div>
                       )}
 
@@ -1508,7 +1505,7 @@ export function PromotionFormSheet({
                               </button>
                             );
                           })}
-                          {loadingMoreCustomers && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más...</div>}
+                          {loadingMoreCustomers && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más…</div>}
                         </div>
                       )}
                       <div className={cn("rounded-lg border", selectedCustomerIds.length === 0 && "border-dashed")}>

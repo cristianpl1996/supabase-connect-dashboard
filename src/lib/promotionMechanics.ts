@@ -239,11 +239,8 @@ export function summarizePromotionMechanic(state: PromotionMechanicFormState): s
   return "Promocion comercial configurada.";
 }
 
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value || 0);
+  return COP_FORMATTER.format(value || 0);
 }

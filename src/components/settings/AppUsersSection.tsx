@@ -600,10 +600,10 @@ export function AppUsersSection({ onError }: AppUsersSectionProps) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
-                        {linkedRep?.sales_rep_full_name ?? <span className="opacity-40">—</span>}
+                        {linkedRep?.sales_rep_full_name ?? <span className="opacity-40">–</span>}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground font-mono hidden lg:table-cell">
-                        {u.phone ?? <span className="opacity-40">—</span>}
+                        {u.phone ?? <span className="opacity-40">–</span>}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {u.requires_otp ? (

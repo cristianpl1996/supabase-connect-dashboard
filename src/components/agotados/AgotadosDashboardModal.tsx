@@ -578,7 +578,8 @@ export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
                         <LabelList
                           dataKey="count"
                           position="top"
-                          style={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--foreground))" }}
+                          className="text-xs font-bold"
+                          style={{ fontWeight: 700, fill: "hsl(var(--foreground))" }}
                         />
                       </Area>
                     </AreaChart>

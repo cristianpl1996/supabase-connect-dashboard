@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { deletePlan, listLaboratories, listPlans, updatePlanStatus } from "@/lib/api";
 import { AnnualPlan, Laboratory } from "@/types/database";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -211,14 +213,7 @@ const Plans = () => {
   const totalPurchaseGoal = plans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
   const totalBudget = plans.reduce((sum, plan) => sum + (plan.total_budget_allocated || 0), 0);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const commitSearch = () => setSearchQuery(searchInput.trim());
 

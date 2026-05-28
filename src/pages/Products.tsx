@@ -103,15 +103,12 @@ function formatCount(value: number | null | undefined) {
   return Number(value ?? 0).toLocaleString("es-CO");
 }
 
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
 function money(value: unknown) {
   const amount = numberValue(value);
   if (amount <= 0) return "N/A";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return COP_FORMATTER.format(amount);
 }
 
 function uniqueValues(items: ProductCatalogItem[], key: keyof ProductCatalogItem) {
@@ -401,7 +398,7 @@ export default function Products() {
   const selectedInventories = normalizeInventories(currentProduct);
   const selectedPriceLists = normalizePriceLists(currentProduct);
   const selectedSapPrices = useMemo(
-    () => selectedPriceLists.map((row) => numberValue(row.sap_price)).filter((price) => price > 0),
+    () => selectedPriceLists.reduce<number[]>((acc, row) => { const p = numberValue(row.sap_price); if (p > 0) acc.push(p); return acc; }, []),
     [selectedPriceLists],
   );
   const averageReferencePrice =
@@ -964,7 +961,7 @@ export default function Products() {
                             </TableBody>
                           </Table>
                           {(() => {
-                            const prices = selectedPriceLists.map((r) => numberValue(r.sap_price)).filter((price) => price > 0);
+                            const prices = selectedPriceLists.reduce<number[]>((acc, r) => { const p = numberValue(r.sap_price); if (p > 0) acc.push(p); return acc; }, []);
                             const min = prices.length > 0 ? Math.min(...prices) : 0;
                             const max = prices.length > 0 ? Math.max(...prices) : 0;
                             return (
@@ -974,7 +971,7 @@ export default function Products() {
                                   <span>
                                     Rango:{" "}
                                     <span>{money(min)}</span>
-                                    {min !== max && <> — <span>{money(max)}</span></>}
+                                    {min !== max && <> – <span>{money(max)}</span></>}
                                   </span>
                                 )}
                               </div>
@@ -1215,15 +1212,16 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <button
+        type="button"
         className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
         onClick={onClose}
       >
         <X className="size-5" />
       </button>
       <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/50 px-4 py-1.5 text-xs text-white select-none">
-        <button onClick={() => setScale((s) => Math.max(0.5, s - 0.5))} className="px-1 text-base hover:text-white/70">−</button>
+        <button type="button" onClick={() => setScale((s) => Math.max(0.5, s - 0.5))} className="px-1 text-base hover:text-white/70">−</button>
         <span onClick={reset} className="w-12 cursor-pointer text-center">{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale((s) => Math.min(8, s + 0.5))} className="px-1 text-base hover:text-white/70">+</button>
+        <button type="button" onClick={() => setScale((s) => Math.min(8, s + 0.5))} className="px-1 text-base hover:text-white/70">+</button>
       </div>
       <div
         className="overflow-hidden"

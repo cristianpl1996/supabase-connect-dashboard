@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { getPlan, BASE_URL } from "@/lib/api";
 import { AnnualPlan, PlanFund } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -75,12 +77,7 @@ export function PlanDetailsSheet({ open, onOpenChange, plan, labName }: PlanDeta
 
   if (!plan) return null;
 
-  const formatCurrency = (value: number) => new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const resolvedFunds = funds.map((fund) => {
     const resolvedAmount = fund.amount_type === "porcentaje"
