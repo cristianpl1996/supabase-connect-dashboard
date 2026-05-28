@@ -23,6 +23,8 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { UserRole } from '@/hooks/useUsers';
 
+const INITIAL_FORM = { email: '', role: 'sales_rep' as UserRole, labId: '', approvalLimit: '0' };
+
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   sales_rep: 'Sales Rep',
@@ -44,21 +46,14 @@ export function UserFormDialog({
 }: UserFormDialogProps) {
   const { laboratories, isLoading: labsLoading } = useLaboratories();
 
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('sales_rep');
-  const [labId, setLabId] = useState('');
-  const [approvalLimit, setApprovalLimit] = useState<string>('0');
+  const [form, setForm] = useState(INITIAL_FORM);
+  const { email, role, labId, approvalLimit } = form;
   const [isSaving, setIsSaving] = useState(false);
 
   const isPromotor = role === 'promotor';
 
   useEffect(() => {
-    if (open) {
-      setEmail('');
-      setRole('sales_rep');
-      setLabId('');
-      setApprovalLimit('0');
-    }
+    if (open) setForm(INITIAL_FORM);
   }, [open]);
 
   const validate = (): string | null => {
@@ -168,7 +163,7 @@ export function UserFormDialog({
               type="email"
               placeholder="usuario@empresa.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               disabled={isSaving}
             />
           </div>
@@ -178,7 +173,7 @@ export function UserFormDialog({
             <Label>Rol</Label>
             <Select
               value={role}
-              onValueChange={(v) => setRole(v as UserRole)}
+              onValueChange={(v) => setForm((f) => ({ ...f, role: v as UserRole }))}
               disabled={isSaving}
             >
               <SelectTrigger>
@@ -229,7 +224,7 @@ export function UserFormDialog({
                 ) : (
                   <Select
                     value={labId}
-                    onValueChange={setLabId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, labId: v }))}
                     disabled={isSaving}
                   >
                     <SelectTrigger id="promotor-lab">
@@ -269,7 +264,7 @@ export function UserFormDialog({
                   step={100}
                   placeholder="0"
                   value={approvalLimit}
-                  onChange={(e) => setApprovalLimit(e.target.value)}
+                  onChange={(e) => setForm((f) => ({ ...f, approvalLimit: e.target.value }))}
                   disabled={isSaving}
                 />
                 <p className="text-xs text-muted-foreground">

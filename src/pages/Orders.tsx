@@ -110,6 +110,7 @@ function optionalNumber(value: string) {
 }
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const DATE_FORMATTER = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
 
 function money(value: unknown) {
   return COP_FORMATTER.format(numberValue(value));
@@ -123,7 +124,7 @@ function formatDate(value: unknown) {
   if (!value) return "N/A";
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return text(value);
-  return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }).format(date);
+  return DATE_FORMATTER.format(date);
 }
 
 function orderDate(order: Order | null | undefined) {
@@ -244,9 +245,8 @@ export default function Orders() {
   const [sortOrder, setSortOrder] = useState("date_desc");
 
   const [selectedSummary, setSelectedSummary] = useState<Order | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ order: Order | null; loading: boolean; error: string | null }>({ order: null, loading: false, error: null });
+  const { order: selectedOrder, loading: detailLoading, error: detailError } = detail;
 
   const buildParams = useCallback((offset: number): OrderListParams => ({
     search: search.trim() || undefined,
@@ -346,25 +346,21 @@ export default function Orders() {
 
   useEffect(() => {
     if (!selectedSummary) {
-      setSelectedOrder(null);
-      setDetailError(null);
-      setDetailLoading(false);
+      setDetail({ order: null, loading: false, error: null });
       return;
     }
 
     let cancelled = false;
-    setSelectedOrder(selectedSummary);
-    setDetailError(null);
-    setDetailLoading(true);
+    setDetail({ order: selectedSummary, loading: true, error: null });
     getOrder(selectedSummary.id)
       .then((order) => {
-        if (!cancelled) setSelectedOrder(order);
+        if (!cancelled) setDetail((prev) => ({ ...prev, order }));
       })
       .catch((err) => {
-        if (!cancelled) setDetailError(formatApiErrorMessage(err));
+        if (!cancelled) setDetail((prev) => ({ ...prev, error: formatApiErrorMessage(err) }));
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false);
+        if (!cancelled) setDetail((prev) => ({ ...prev, loading: false }));
       });
     return () => {
       cancelled = true;
@@ -377,7 +373,7 @@ export default function Orders() {
   const totalItems = orders.reduce((sum, item) => sum + numberValue(item.line_items_count), 0);
   const averageTicket = orders.length > 0 ? totalValue / orders.length : 0;
   const visibleStatuses = useMemo(
-    () => new Set(orders.map((item) => orderStatusKey(item.order_status_code)).filter(Boolean)).size,
+    () => new Set(orders.flatMap((item) => { const k = orderStatusKey(item.order_status_code); return k ? [k] : []; })).size,
     [orders],
   );
   const representativeOptions = useMemo(
@@ -747,7 +743,7 @@ export default function Orders() {
                 </div>
 
                 <div className="space-y-5 px-4 py-4 sm:px-6">
-                  {detailError && <ModuleErrorCard message={detailError} onRetry={() => selectedSummary && getOrder(selectedSummary.id).then(setSelectedOrder).catch((err) => setDetailError(formatApiErrorMessage(err)))} loading={detailLoading} />}
+                  {detailError && <ModuleErrorCard message={detailError} onRetry={() => selectedSummary && getOrder(selectedSummary.id).then((order) => setDetail((prev) => ({ ...prev, order }))).catch((err) => setDetail((prev) => ({ ...prev, error: formatApiErrorMessage(err) })))} loading={detailLoading} />}
 
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <OrderMetric icon={CreditCard} label="Total orden" value={money(currentOrder.doc_total)} note={`${formatCount(currentOrder.line_items_count ?? lineItems.length)} items`} />

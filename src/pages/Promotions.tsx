@@ -81,6 +81,7 @@ const Promotions = () => {
   const [isCloning, setIsCloning] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [parsingFile, setParsingFile] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [laboratoryFilter, setLaboratoryFilter] = useState('all');
@@ -253,7 +254,7 @@ const Promotions = () => {
           actions={(
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
               <Button variant="outline" onClick={() => setShowImportModal(true)} disabled={loading} className="w-full gap-2">
-                {downloadingTemplate ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                {(downloadingTemplate || parsingFile) ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                 Importar Excel
               </Button>
               <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading} className="w-full gap-2">
@@ -583,6 +584,7 @@ const Promotions = () => {
           onClose={() => setShowImportModal(false)}
           onSuccess={fetchData}
           onDownloadingChange={setDownloadingTemplate}
+          onBusyChange={setParsingFile}
           laboratories={laboratories}
         />
 

@@ -25,8 +25,7 @@ function parseEmails(v: unknown): string[] {
   if (!raw) return [];
   return raw
     .split(";")
-    .map((e) => e.trim())
-    .filter(Boolean);
+    .flatMap((e) => { const t = e.trim(); return t ? [t] : []; });
 }
 
 function parseProductSnapshots(v: unknown): ProductSnapshot[] {

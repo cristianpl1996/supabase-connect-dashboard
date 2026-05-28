@@ -162,7 +162,7 @@ const SuccessState = ({ email, onHome }: { email: string; onHome: () => void }) 
       El correo <strong>{email}</strong> ha sido eliminado de nuestra lista. Ya
       no recibirás más correos de nuestras campañas.
     </p>
-    <button className="unsubscribe-btn-primary" onClick={onHome}>
+    <button type="button" className="unsubscribe-btn-primary" onClick={onHome}>
       Volver al inicio
     </button>
   </>
@@ -175,7 +175,7 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
     </div>
     <h1 className="unsubscribe-title">Algo salió mal</h1>
     <p className="unsubscribe-desc">{message}</p>
-    <button className="unsubscribe-btn-primary" onClick={onRetry}>
+    <button type="button" className="unsubscribe-btn-primary" onClick={onRetry}>
       Intentar de nuevo
     </button>
   </>

@@ -118,20 +118,15 @@ export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
   const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
 
   // ── Filters ──
-  const [filterRep, setFilterRep] = useState("all");
-  const [filterChartStatus, setFilterChartStatus] = useState("all");
-  const [filterDateRange, setFilterDateRange] = useState("all");
+  const [chartFilters, setChartFilters] = useState({ rep: "all", chartStatus: "all", dateRange: "all" });
+  const { rep: filterRep, chartStatus: filterChartStatus, dateRange: filterDateRange } = chartFilters;
 
   useEffect(() => {
-    if (open) {
-      setFilterRep("all");
-      setFilterChartStatus("all");
-      setFilterDateRange("all");
-    }
+    if (open) setChartFilters({ rep: "all", chartStatus: "all", dateRange: "all" });
   }, [open]);
 
   const repOptions = useMemo(() => {
-    const reps = [...new Set(reports.map((r) => r.sales_rep_name).filter(Boolean))] as string[];
+    const reps = [...new Set(reports.flatMap((r) => r.sales_rep_name ? [r.sales_rep_name] : []))] as string[];
     return reps.sort();
   }, [reports]);
 
@@ -369,7 +364,7 @@ export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
               <p className="text-xs font-semibold text-muted-foreground  tracking-wide mb-2 sm:mb-3">Filtros</p>
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                 {repOptions.length > 1 && (
-                  <Select value={filterRep} onValueChange={setFilterRep}>
+                  <Select value={filterRep} onValueChange={(v) => setChartFilters((f) => ({ ...f, rep: v }))}>
                     <SelectTrigger className="h-9 text-sm w-60 w-full sm:w-60 sm:min-w-48">
                       <SelectValue />
                     </SelectTrigger>
@@ -382,7 +377,7 @@ export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
                   </Select>
                 )}
 
-                <Select value={filterChartStatus} onValueChange={setFilterChartStatus}>
+                <Select value={filterChartStatus} onValueChange={(v) => setChartFilters((f) => ({ ...f, chartStatus: v }))}>
                   <SelectTrigger className="h-9 text-sm w-full sm:w-auto sm:min-w-32">
                     <SelectValue />
                   </SelectTrigger>
@@ -393,7 +388,7 @@ export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
                   </SelectContent>
                 </Select>
 
-                <Select value={filterDateRange} onValueChange={setFilterDateRange}>
+                <Select value={filterDateRange} onValueChange={(v) => setChartFilters((f) => ({ ...f, dateRange: v }))}>
                   <SelectTrigger className="h-9 text-sm w-full sm:w-auto sm:min-w-40">
                     <SelectValue />
                   </SelectTrigger>

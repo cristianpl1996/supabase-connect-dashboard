@@ -95,6 +95,7 @@ export default function Marketing() {
     void fetchPromotions();
   }, []);
 
+  // eslint-disable-next-line react-doctor/no-cascading-set-state -- intentional: animation timer; setStates run at different moments across interval ticks
   useEffect(() => {
     if (!isTypingCopy) return;
 
@@ -115,6 +116,7 @@ export default function Marketing() {
   useEffect(() => {
     if (!selectedPromoId) {
       previousSelectedPromoIdRef.current = "";
+      // React 18 batches these synchronous resets into a single re-render
       setSelectedPromo(null);
       setGeneratedCopy("");
       setDisplayedCopy("");
@@ -143,6 +145,7 @@ export default function Marketing() {
       setGeneratedCopy(promo?.marketing_copy ?? "");
       setDisplayedCopy(promo?.marketing_copy ?? "");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: promo is derived from existing deps; handleGenerateCopy is not useCallback
   }, [selectedPromoId, promotions, isGenerating, isTypingCopy]);
 
   async function fetchPromotions() {

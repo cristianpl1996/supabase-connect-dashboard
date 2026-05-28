@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import {
-  Upload, Download, FileSpreadsheet, X,
+  Upload, Download, FileSpreadsheet, X, Tag,
   CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
   Loader2, CheckCheck, Users, Globe,
 } from 'lucide-react';
@@ -20,6 +20,7 @@ interface ImportPromotionsModalProps {
   onClose: () => void;
   onSuccess: () => void;
   onDownloadingChange?: (downloading: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   laboratories: Laboratory[];
 }
 
@@ -151,7 +152,7 @@ function resolveNames(
   const n = parsed.rowNumber;
   const errors: string[] = [];
 
-  const productNames = parsed.productos_raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const productNames = parsed.productos_raw.split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : []; });
   if (productNames.length === 0) errors.push(`Fila ${n}: Productos requerido`);
 
   const skus: string[] = [];
@@ -164,7 +165,7 @@ function resolveNames(
   const scope = resolveScope(parsed.alcance);
   const customerIds: string[] = [];
   if (scope === 'customers') {
-    const names = parsed.clientes_raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const names = parsed.clientes_raw.split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : []; });
     for (const name of names) {
       const id = customerMap.get(normalizeForLookup(name));
       if (id) customerIds.push(id);
@@ -258,9 +259,9 @@ function validateAndGroup(
 
     const scope = resolveScope(row.alcance);
     const scopeLabel = scope === 'customers' ? 'Clientes especificos' : 'Toda la base';
-    const productNames = row.productos_raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const productNames = row.productos_raw.split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : []; });
     const customerNames = scope === 'customers'
-      ? row.clientes_raw.split(',').map((s) => s.trim()).filter(Boolean)
+      ? row.clientes_raw.split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : []; })
       : [];
 
     const allErrors = [...new Set(errs)];
@@ -271,13 +272,13 @@ function validateAndGroup(
       startDate: row.start_date ?? '',
       endDate: row.end_date ?? '',
       productNames,
-      skus: expandedRows.map((r) => r.sku).filter(Boolean),
+      skus: expandedRows.flatMap((r) => r.sku ? [r.sku] : []),
       tipoMecanica: mecanica,
       mechanicSummary,
       scopeLabel,
       customerNames,
       customerIds: scope === 'customers'
-        ? (expandedRows[0]?.clientes ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+        ? (expandedRows[0]?.clientes ?? '').split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : []; })
         : [],
       rows: expandedRows,
       errors: allErrors,
@@ -293,7 +294,7 @@ async function buildAndDownloadTemplate(
   products: ProductCatalogItem[],
   customers: CustomerRecord[],
 ) {
-  const labNames = laboratories.map((l) => l.name.trim()).filter(Boolean);
+  const labNames = laboratories.flatMap((l) => { const n = l.name.trim(); return n ? [n] : []; });
   const productRows = products
     .filter((p) => p.product_sku)
     .map((p) => [p.product_commercial_name ?? '', p.product_sku, p.product_brand_name ?? ''] as const);
@@ -359,9 +360,9 @@ async function buildAndDownloadTemplate(
   const today = todayStr();
   const nextMonth = nextMonthStr();
   const ex1Lab = labNames[0] ?? 'Nombre del Laboratorio';
-  const ex1Products = productRows.slice(0, 2).map((r) => r[0]).filter(Boolean).join(', ') || 'Producto A, Producto B';
+  const ex1Products = productRows.slice(0, 2).flatMap((r) => r[0] ? [r[0]] : []).join(', ') || 'Producto A, Producto B';
   const ex2Products = productRows[2]?.[0] || 'Producto C';
-  const exCustNames = custRows.slice(0, 2).map((r) => r[0]).filter(Boolean).join(', ') || 'Cliente Uno, Cliente Dos';
+  const exCustNames = custRows.slice(0, 2).flatMap((r) => r[0] ? [r[0]] : []).join(', ') || 'Cliente Uno, Cliente Dos';
 
   wsMain.addRow([ex1Lab, 'BONIFICADO 10+1 JUNIO',     'Dinamica comercial', today, nextMonth, ex1Products, 'bonificacion', 10, 1, '',  'Toda la base',         '']);
   wsMain.addRow([ex1Lab, 'DESCUENTO 3% CLIENTES VIP', 'Recurso propio',     today, nextMonth, ex2Products, 'descuento',    '',  '', 3,   'Clientes especificos', exCustNames]);
@@ -520,12 +521,13 @@ function parseFile(file: File): Promise<ParsedImportRow[]> {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingChange, laboratories }: ImportPromotionsModalProps) {
+export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingChange, onBusyChange, laboratories }: ImportPromotionsModalProps) {
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [groups, setGroups] = useState<CampaignGroup[]>([]);
   const [fileName, setFileName] = useState('');
-  const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
+  const [parsingStep, setParsingStep] = useState(0);
+  const [parsingProgress, setParsingProgress] = useState(0);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadLabel, setDownloadLabel] = useState('');
@@ -535,11 +537,23 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const PARSING_STEPS = ['Leyendo archivo Excel…', 'Descargando catálogo de productos…', 'Descargando datos de clientes…', 'Validando y agrupando campañas…'];
+
+  useEffect(() => {
+    if (modalState !== 'parsing') { setParsingStep(0); setParsingProgress(0); return; }
+    setParsingStep(0); setParsingProgress(5);
+    const stepMs = [900, 1800, 2700];
+    const timers = stepMs.map((ms, i) => window.setTimeout(() => setParsingStep(i + 1), ms));
+    let p = 5;
+    const ticker = setInterval(() => { p = Math.min(p + 1.2, 92); setParsingProgress(Math.round(p)); }, 120);
+    return () => { timers.forEach(clearTimeout); clearInterval(ticker); };
+  }, [modalState]);
+
   const reset = useCallback(() => {
     setModalState('idle');
     setGroups([]);
     setFileName('');
-    setTotalRows(0);
+
     setResult(null);
     setErrorsExpanded(false);
     setExpandedErrors(new Set());
@@ -547,7 +561,13 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
-  const handleClose = () => { reset(); onClose(); };
+  const isBusy = modalState === 'parsing' || downloadingTemplate;
+
+  const handleClose = () => {
+    if (isBusy) { onClose(); return; }  // cerrar sin resetear si hay trabajo en curso
+    reset();
+    onClose();
+  };
 
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true);
@@ -590,6 +610,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
       return;
     }
     setModalState('parsing');
+    onBusyChange?.(true);
     try {
       const [parsedRows, products, customers] = await Promise.all([
         parseFile(file),
@@ -601,11 +622,12 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
       const validated = validateAndGroup(parsedRows, laboratories, productMap, customerMap);
       setGroups(validated);
       setFileName(file.name);
-      setTotalRows(parsedRows.length);
       setModalState('preview');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al leer el archivo');
       setModalState('idle');
+    } finally {
+      onBusyChange?.(false);
     }
   };
 
@@ -670,22 +692,22 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
       `}</style>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Importar Promociones desde Excel</DialogTitle>
+          <DialogTitle className="text-foreground">Importar Promociones desde Excel</DialogTitle>
         </DialogHeader>
 
         {/* ── idle ── */}
         {modalState === 'idle' && (
           <div className="space-y-4">
             <div
-              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${isDragging ? 'border-primary bg-green-50 scale-[1.01]' : 'border-primary/40 hover:border-primary hover:bg-green-50/60'}`}
-              onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${isBusy ? 'cursor-not-allowed border-muted-foreground/35 bg-muted/35 shadow-[inset_0_0_0_1px_hsl(var(--border))]' : isDragging ? 'cursor-pointer border-primary bg-green-50 scale-[1.01]' : 'cursor-pointer border-primary/40 hover:border-primary hover:bg-green-50/60'}`}
+              onClick={() => { if (!isBusy) fileInputRef.current?.click(); }}
               onDrop={handleDrop}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
+              onDragOver={(e) => { e.preventDefault(); if (!isBusy) setIsDragging(true); }}
+              onDragLeave={() => { if (!isBusy) setIsDragging(false); }}
             >
-              <Upload className={`size-8 transition-colors ${isDragging ? 'text-primary' : 'text-primary/50'}`} />
+              <Upload className={`size-8 transition-colors ${isBusy ? 'text-muted-foreground/45' : isDragging ? 'text-primary' : 'text-primary/50'}`} />
               <div>
-                <p className="text-sm font-medium text-foreground/80">Arrastra tu archivo aqui</p>
+                <p className={`text-sm font-medium ${isBusy ? 'text-muted-foreground' : 'text-foreground/80'}`}>Arrastra tu archivo aqui</p>
                 <p className="text-xs text-muted-foreground">o haz clic para seleccionar &nbsp;·&nbsp; Solo archivos .xlsx</p>
               </div>
             </div>
@@ -722,105 +744,191 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
         {/* ── parsing ── */}
         {modalState === 'parsing' && (
-          <div className="flex flex-col items-center justify-center gap-3 py-12">
-            <Loader2 className="size-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Analizando archivo y validando datos…</p>
+          <div className="space-y-5 py-1">
+            {/* Barra de progreso striped */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">{PARSING_STEPS[parsingStep]}</span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">{parsingProgress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-muted/60">
+                <div
+                  className="progress-striped h-full rounded-full transition-[width] duration-300 ease-out"
+                  style={{ width: `${parsingProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-0">
+              {PARSING_STEPS.map((step, i) => {
+                const done   = i < parsingStep;
+                const active = i === parsingStep;
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    {/* Indicator */}
+                    {done ? (
+                      <CheckCircle2 className="size-6 shrink-0 text-primary" />
+                    ) : active ? (
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-muted-foreground/20 text-[11px] font-bold text-muted-foreground/30">
+                        {i + 1}
+                      </div>
+                    )}
+
+                    <span className={`text-sm transition-all ${
+                      done   ? 'font-medium text-foreground' :
+                      active ? 'font-semibold text-foreground' :
+                               'text-muted-foreground/45'
+                    }`}>{step}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* ── preview ── */}
         {modalState === 'preview' && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-2.5">
-              <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
+          <div className="flex flex-col gap-3">
+
+            {/* Archivo + resumen */}
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+              <FileSpreadsheet className="size-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{fileName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {totalRows} {totalRows === 1 ? 'promocion' : 'promociones'}
-                </p>
+                <div className="mt-0.5 flex flex-wrap gap-1.5">
+                  {validCount > 0 && (
+                    <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      <Tag className="size-3 text-muted-foreground" />{validCount} promocion{validCount !== 1 ? 'es' : ''}
+                    </span>
+                  )}
+                  {invalidCount > 0 && (
+                    <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400">
+                      <AlertCircle className="size-3" />{invalidCount} con error
+                    </span>
+                  )}
+                </div>
               </div>
-              <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={reset}>
+              <button type="button" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={reset}>
                 <X className="size-4" />
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {validCount > 0 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-400">
-                  <CheckCircle2 className="size-3.5" />
-                  {validCount} {validCount === 1 ? 'campana lista' : 'campanas listas'}
-                </span>
-              )}
-              {invalidCount > 0 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-400">
-                  <AlertCircle className="size-3.5" />
-                  {invalidCount} {invalidCount === 1 ? 'campana con error' : 'campanas con error'} (se omitira{invalidCount > 1 ? 'n' : ''})
-                </span>
-              )}
-            </div>
-
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {/* Lista de campañas */}
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
               {groups.map((g) => (
                 <div
                   key={g.key}
-                  className={`rounded-lg border px-4 py-3 ${g.isValid ? 'border-green-200 bg-green-50/50 dark:border-green-800/40 dark:bg-green-950/10' : 'border-red-200 bg-red-50/50 dark:border-red-800/40 dark:bg-red-950/10'}`}
+                  className="rounded-lg border border-border bg-muted/30"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-start gap-2">
-                      {g.isValid
-                        ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
-                        : <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500" />}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium leading-tight">{g.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {g.labName}&nbsp;·&nbsp;{displayDate(g.startDate)} – {displayDate(g.endDate)}&nbsp;·&nbsp;{g.mechanicSummary}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          <p className="text-xs text-muted-foreground">
-                            {g.productNames.length > 0
-                              ? g.productNames.join(', ')
-                              : <span className="italic">sin productos</span>}
-                          </p>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            {g.scopeLabel === 'Clientes especificos'
-                              ? <><Users className="size-3" /> {g.scopeLabel}{g.customerNames.length > 0 ? ` (${g.customerNames.length})` : ''}</>
-                              : <><Globe className="size-3" /> {g.scopeLabel}</>}
-                          </span>
-                        </div>
-                        {g.scopeLabel === 'Clientes especificos' && g.customerNames.length > 0 && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {g.customerNames.slice(0, 3).join(', ')}{g.customerNames.length > 3 ? ` +${g.customerNames.length - 3} mas` : ''}
-                          </p>
-                        )}
+                  {/* Cabecera de la campaña */}
+                  <div className="flex items-start gap-2.5 px-3 pt-3">
+                    {g.isValid
+                      ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                      : <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold leading-tight text-foreground">{g.title}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground/70">{g.labName}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground/70">{displayDate(g.startDate)} – {displayDate(g.endDate)}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground/70">{g.mechanicSummary}</span>
                       </div>
                     </div>
                     {!g.isValid && (
-                      <button type="button" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => toggleGroupErrors(g.key)}>
+                      <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground" onClick={() => toggleGroupErrors(g.key)}>
                         {expandedErrors.has(g.key) ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                       </button>
                     )}
                   </div>
+
+                  {/* Productos */}
+                  <div className="mt-2.5 border-t px-3 py-2">
+                    <div className="flex items-start gap-1.5">
+                      <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-foreground">Productos</span>
+                      <div className="flex min-w-0 flex-wrap gap-1">
+                        {g.productNames.length === 0
+                          ? <span className="text-xs italic text-muted-foreground">sin productos</span>
+                          : <>
+                              {g.productNames.slice(0, 3).map((name, i) => (
+                                <span key={i} className="truncate rounded-full bg-muted px-2 py-0.5 text-[11px] max-w-[140px] text-foreground/80 sm:max-w-[200px]">{name}</span>
+                              ))}
+                              {g.productNames.length > 3 && (
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/70">
+                                  +{g.productNames.length - 3} más
+                                </span>
+                              )}
+                            </>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Alcance */}
+                  <div className="border-t px-3 pb-3 pt-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-foreground">Alcance</span>
+                      {g.scopeLabel === 'Clientes especificos' ? (
+                        <>
+                          <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground/70">
+                            <Users className="size-3 text-muted-foreground" /> {g.scopeLabel}
+                          </span>
+                          {g.customerNames.length > 0 && (
+                            <>
+                              {g.customerNames.slice(0, 2).map((name, i) => (
+                                <span key={i} className="truncate rounded-full bg-muted px-2 py-0.5 text-[11px] max-w-[130px] text-foreground/80 sm:max-w-[180px]">{name}</span>
+                              ))}
+                              {g.customerNames.length > 2 && (
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/70">
+                                  +{g.customerNames.length - 2} más
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground/70">
+                          <Globe className="size-3 text-muted-foreground" /> {g.scopeLabel}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Errores */}
                   {!g.isValid && expandedErrors.has(g.key) && (
-                    <ul className="mt-2 space-y-0.5 border-t border-red-200 pt-2 dark:border-red-800/40">
+                    <ul className="border-t px-3 py-2 space-y-0.5">
                       {g.errors.map((err, i) => (
                         <li key={`${g.key}-err-${i}`} className="text-xs text-red-600 dark:text-red-400">• {err}</li>
                       ))}
                     </ul>
                   )}
                   {!g.isValid && !expandedErrors.has(g.key) && g.errors.length > 0 && (
-                    <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
-                      {g.errors[0]}{g.errors.length > 1 ? ` (+${g.errors.length - 1} mas)` : ''}
-                    </p>
+                    <div className="border-t px-3 py-2">
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {g.errors[0]}{g.errors.length > 1 ? ` (+${g.errors.length - 1} más)` : ''}
+                      </p>
+                    </div>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={reset}>Cambiar archivo</Button>
-              <Button className="flex-1 gap-2" onClick={handleImport} disabled={validCount === 0 || importing}>
+            {/* Botones */}
+            <div className="flex gap-2">
+              <Button
+                className="w-full gap-2 sm:flex-1"
+                onClick={handleImport}
+                disabled={validCount === 0 || importing}
+              >
                 <CheckCheck className="size-4" />
-                Importar {validCount > 0 ? `${validCount} campana${validCount !== 1 ? 's' : ''} valida${validCount !== 1 ? 's' : ''}` : ''}
+                {importing
+                  ? 'Importando...'
+                  : validCount > 0
+                    ? `Importar ${validCount} campaña${validCount !== 1 ? 's' : ''}`
+                    : 'Sin campañas válidas'}
               </Button>
             </div>
           </div>

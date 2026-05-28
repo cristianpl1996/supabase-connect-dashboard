@@ -341,7 +341,7 @@ export function PromotionFormSheet({
           setProductFilterSector(String(pf.industry_sector || ''));
           setProductFilterSpecies(String(pf.target_species || ''));
           if (Array.isArray(pf.excluded_product_skus)) {
-            setFilterExcludedSkus(pf.excluded_product_skus.map(String));
+            setProdFilterState((s) => ({ ...s, filterExcludedSkus: pf.excluded_product_skus.map(String) }));
           }
           setCustomerFilterBusinessType(String(cf.business_type || ''));
           setCustomerFilterCity(String(cf.city || ''));
@@ -365,7 +365,7 @@ export function PromotionFormSheet({
           setCustomerFilterClv(String(cf.customer_clv_segment || ''));
           setCustomerFilterRfm(String(cf.customer_rfm_segment || ''));
           if (Array.isArray(cf.excluded_customer_ids)) {
-            setCustomerExcludedIds(cf.excluded_customer_ids.map(String));
+            setCustFilterState((s) => ({ ...s, customerExcludedIds: cf.excluded_customer_ids.map(String) }));
           }
           setEstimatedCost(details.estimated_cost || 0);
           setMaxRedemptions(details.max_redemptions || '');
@@ -453,11 +453,11 @@ export function PromotionFormSheet({
       if (productListResult.status === 'fulfilled') {
         setCatalogProducts(productListResult.value);
         if (productFilterResult.status !== 'fulfilled' || !Array.isArray(productFilterResult.value.sectors)) {
-          const sectors = Array.from(new Set(productListResult.value.map((item) => String(item.product_industry_sector || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+          const sectors = Array.from(new Set(productListResult.value.flatMap((item) => { const s = String(item.product_industry_sector || '').trim(); return s ? [s] : []; }))).sort((a, b) => a.localeCompare(b));
           setProductSectorOptions(sectors);
         }
         if (productFilterResult.status !== 'fulfilled' || !Array.isArray(productFilterResult.value.species)) {
-          const species = Array.from(new Set(productListResult.value.map((item) => String(item.product_target_animal_species || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+          const species = Array.from(new Set(productListResult.value.flatMap((item) => { const s = String(item.product_target_animal_species || '').trim(); return s ? [s] : []; }))).sort((a, b) => a.localeCompare(b));
           setProductSpeciesOptions(species);
         }
       } else if (productFilterResult.status !== 'fulfilled') {
@@ -671,21 +671,15 @@ export function PromotionFormSheet({
 
   // Debounced product filter state
   const [debouncedProdFilters, setDebouncedProdFilters] = useState({ brand: '', sector: '', category: '', species: '', external_brand_id: '' });
-  const [productFilterCount, setProductFilterCount] = useState<number | null>(null);
-  const [productFilterFetching, setProductFilterFetching] = useState(false);
-  const [productFilterResults, setProductFilterResults] = useState<ProductCatalogItem[]>([]);
-  const [showFilteredProducts, setShowFilteredProducts] = useState(false);
-  const [filterExcludedSkus, setFilterExcludedSkus] = useState<string[]>([]);
+  const [prodFilterState, setProdFilterState] = useState<{ productFilterCount: number | null; productFilterFetching: boolean; productFilterResults: ProductCatalogItem[]; showFilteredProducts: boolean; filterExcludedSkus: string[]; }>({ productFilterCount: null, productFilterFetching: false, productFilterResults: [], showFilteredProducts: false, filterExcludedSkus: [] });
+  const { productFilterCount, productFilterFetching, productFilterResults, showFilteredProducts, filterExcludedSkus } = prodFilterState;
   const [filterResultsSearch, setFilterResultsSearch] = useState('');
   const [customerResultsSearch, setCustomerResultsSearch] = useState('');
   const [showSelectedProducts, setShowSelectedProducts] = useState(false);
   const [debouncedCustFilters, setDebouncedCustFilters] = useState<Record<string, unknown>>({});
-  const [customerFilterCount, setCustomerFilterCount] = useState<number | null>(null);
-  const [customerFilterFetching, setCustomerFilterFetching] = useState(false);
-  const [customerFilterResults, setCustomerFilterResults] = useState<CustomerRecord[]>([]);
-  const [showFilteredCustomers, setShowFilteredCustomers] = useState(false);
+  const [custFilterState, setCustFilterState] = useState<{ customerFilterCount: number | null; customerFilterFetching: boolean; customerFilterResults: CustomerRecord[]; showFilteredCustomers: boolean; customerExcludedIds: string[]; }>({ customerFilterCount: null, customerFilterFetching: false, customerFilterResults: [], showFilteredCustomers: false, customerExcludedIds: [] });
+  const { customerFilterCount, customerFilterFetching, customerFilterResults, showFilteredCustomers, customerExcludedIds } = custFilterState;
   const [showSelectedCustomers, setShowSelectedCustomers] = useState(false);
-  const [customerExcludedIds, setCustomerExcludedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedProdFilters({
@@ -698,9 +692,8 @@ export function PromotionFormSheet({
 
   useEffect(() => {
     const anyFilter = debouncedProdFilters.brand || debouncedProdFilters.sector || debouncedProdFilters.category || debouncedProdFilters.species || debouncedProdFilters.external_brand_id;
-    if (productApplicationMode !== 'filters' || !anyFilter) { setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); setFilterExcludedSkus([]); return; }
-    setProductFilterFetching(true);
-    setFilterExcludedSkus([]);
+    if (productApplicationMode !== 'filters' || !anyFilter) { setProdFilterState((s) => ({ ...s, productFilterCount: null, productFilterResults: [], showFilteredProducts: false, filterExcludedSkus: [] })); return; }
+    setProdFilterState((s) => ({ ...s, productFilterFetching: true, filterExcludedSkus: [] }));
     listProducts({
       brand_name: debouncedProdFilters.brand || undefined,
       external_brand_id: debouncedProdFilters.external_brand_id ? Number(debouncedProdFilters.external_brand_id) : undefined,
@@ -710,7 +703,7 @@ export function PromotionFormSheet({
       is_catalog_verified: true,
       is_discontinued: false,
       limit: 2000,
-    }).then((r) => { const valid = r.filter((p) => !!p.product_sku); setProductFilterCount(valid.length); setProductFilterResults(valid); }).catch(() => { setProductFilterCount(null); setProductFilterResults([]); }).finally(() => setProductFilterFetching(false));
+    }).then((r) => { const valid = r.filter((p) => !!p.product_sku); setProdFilterState((s) => ({ ...s, productFilterCount: valid.length, productFilterResults: valid })); }).catch(() => { setProdFilterState((s) => ({ ...s, productFilterCount: null, productFilterResults: [] })); }).finally(() => setProdFilterState((s) => ({ ...s, productFilterFetching: false })));
   }, [debouncedProdFilters, productApplicationMode]);
 
   useEffect(() => {
@@ -736,24 +729,22 @@ export function PromotionFormSheet({
   useEffect(() => {
     const isManual = scope === 'customer_segment' && segment === 'custom';
     const anyFilter = Object.values(debouncedCustFilters).some((v) => v != null);
-    if (!isManual || !anyFilter) { setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); setCustomerExcludedIds([]); return; }
-    setCustomerFilterFetching(true);
-    setCustomerExcludedIds([]);
+    if (!isManual || !anyFilter) { setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [], showFilteredCustomers: false, customerExcludedIds: [] })); return; }
+    setCustFilterState((s) => ({ ...s, customerFilterFetching: true, customerExcludedIds: [] }));
     getCustomersPage({ ...debouncedCustFilters, limit: 2000 })
-      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustomerFilterCount(valid.length); setCustomerFilterResults(valid); })
-      .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
-      .finally(() => setCustomerFilterFetching(false));
+      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustFilterState((s) => ({ ...s, customerFilterCount: valid.length, customerFilterResults: valid })); })
+      .catch(() => { setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [] })); })
+      .finally(() => setCustFilterState((s) => ({ ...s, customerFilterFetching: false })));
   }, [debouncedCustFilters, scope, segment]);
 
   useEffect(() => {
     if (scope !== 'customer_segment' || segment === 'custom') { return; }
     const presetFilters = buildSegmentPresetConfig(segment);
-    setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false);
-    setCustomerFilterFetching(true);
+    setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [], showFilteredCustomers: false, customerFilterFetching: true }));
     getCustomersPage({ ...presetFilters, limit: 2000 })
-      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustomerFilterCount(valid.length); setCustomerFilterResults(valid); })
-      .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
-      .finally(() => setCustomerFilterFetching(false));
+      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustFilterState((s) => ({ ...s, customerFilterCount: valid.length, customerFilterResults: valid })); })
+      .catch(() => { setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [] })); })
+      .finally(() => setCustFilterState((s) => ({ ...s, customerFilterFetching: false })));
   }, [scope, segment]);
 
   const hasProductFilters = Boolean(productFilterBrand || productFilterExternalBrandId || productFilterSector || productFilterCategory || productFilterSpecies);
@@ -871,6 +862,7 @@ export function PromotionFormSheet({
     productApplicationMode,
     productFilterBrand,
     productFilterCategory,
+    productFilterExternalBrandId,
     productFilterSector,
     productFilterSpecies,
     scope,
@@ -1346,7 +1338,7 @@ export function PromotionFormSheet({
                         <SlidersHorizontal className="size-4 text-primary" />
                         <span className="flex-1">Filtros de productos</span>
                         {hasProductFilters && (
-                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterExternalBrandId(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProductFilterCount(null); setProductFilterResults([]); setShowFilteredProducts(false); setFilterExcludedSkus([]); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                          <button type="button" onClick={() => { setProductFilterBrand(''); setProductFilterExternalBrandId(''); setProductFilterSector(''); setProductFilterCategory(''); setProductFilterSpecies(''); setProdFilterState((s) => ({ ...s, productFilterCount: null, productFilterResults: [], showFilteredProducts: false, filterExcludedSkus: [] })); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                             <X className="size-3" />Limpiar
                           </button>
                         )}
@@ -1407,7 +1399,7 @@ export function PromotionFormSheet({
                               {!productFilterFetching && hasProductFilters && productFilterCount !== null && productFilterResults.length > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => { setShowFilteredProducts((v) => !v); setFilterResultsSearch(''); }}
+                                  onClick={() => { setProdFilterState((s) => ({ ...s, showFilteredProducts: !s.showFilteredProducts })); setFilterResultsSearch(''); }}
                                   className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground"
                                 >
                                   {showFilteredProducts ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
@@ -1438,11 +1430,11 @@ export function PromotionFormSheet({
                                         <div className="flex shrink-0 items-center gap-2">
                                           <span className="font-mono text-xs text-muted-foreground">{p.product_sku}</span>
                                           {isExcluded ? (
-                                            <button type="button" title="Volver a incluir" onClick={() => setFilterExcludedSkus((prev) => prev.filter((s) => s !== p.product_sku))} className="text-muted-foreground hover:text-primary">
+                                            <button type="button" title="Volver a incluir" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: st.filterExcludedSkus.filter((s) => s !== p.product_sku) }))} className="text-muted-foreground hover:text-primary">
                                               <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                                             </button>
                                           ) : (
-                                            <button type="button" onClick={() => setFilterExcludedSkus((prev) => [...prev, p.product_sku])} className="text-muted-foreground transition-colors hover:text-destructive">
+                                            <button type="button" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: [...st.filterExcludedSkus, p.product_sku] }))} className="text-muted-foreground transition-colors hover:text-destructive">
                                               <X className="size-3.5" />
                                             </button>
                                           )}
@@ -1557,7 +1549,7 @@ export function PromotionFormSheet({
                             <SlidersHorizontal className="size-4 text-primary" />
                             <span className="flex-1">Filtros de clientes</span>
                             {hasCustomerFilters && (
-                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); setCustomerExcludedIds([]); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                              <button type="button" onClick={() => { setCustomerFilterBusinessType(''); setCustomerFilterCity(''); setCustomerFilterState(''); setCustomerFilterRepresentative('all'); setCustomerFilterLocation('all'); setCustomerFilterMinPurchases(''); setCustomerFilterMaxPurchases(''); setCustomerFilterMinDays(''); setCustomerFilterMaxDays(''); setCustomerFilterClv(''); setCustomerFilterRfm(''); setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [], showFilteredCustomers: false, customerExcludedIds: [] })); }} className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground">
                                 <X className="size-3" />Limpiar
                               </button>
                             )}
@@ -1639,7 +1631,7 @@ export function PromotionFormSheet({
                                     </span>
                                   </div>
                                   {!customerFilterFetching && hasCustomerFilters && customerFilterCount !== null && customerFilterResults.length > 0 && (
-                                    <button type="button" onClick={() => { setShowFilteredCustomers((v) => !v); setCustomerResultsSearch(''); }} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                                    <button type="button" onClick={() => { setCustFilterState((s) => ({ ...s, showFilteredCustomers: !s.showFilteredCustomers })); setCustomerResultsSearch(''); }} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                                       {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                                       {showFilteredCustomers ? 'Ocultar' : 'Ver'}
                                     </button>
@@ -1669,11 +1661,11 @@ export function PromotionFormSheet({
                                             <div className="flex shrink-0 items-center gap-2">
                                               <span className="font-mono text-xs text-muted-foreground">{nit}</span>
                                               {isExcluded ? (
-                                                <button type="button" title="Volver a incluir" onClick={() => setCustomerExcludedIds((prev) => prev.filter((id) => id !== nit))} className="text-muted-foreground hover:text-primary">
+                                                <button type="button" title="Volver a incluir" onClick={() => setCustFilterState((s) => ({ ...s, customerExcludedIds: s.customerExcludedIds.filter((id) => id !== nit) }))} className="text-muted-foreground hover:text-primary">
                                                   <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                                                 </button>
                                               ) : (
-                                                <button type="button" title="Excluir" onClick={() => { if (nit) setCustomerExcludedIds((prev) => [...prev, nit]); }}><X className="size-3.5 text-muted-foreground hover:text-destructive" /></button>
+                                                <button type="button" title="Excluir" onClick={() => { if (nit) setCustFilterState((s) => ({ ...s, customerExcludedIds: [...s.customerExcludedIds, nit] })); }}><X className="size-3.5 text-muted-foreground hover:text-destructive" /></button>
                                               )}
                                             </div>
                                           </div>
@@ -1701,7 +1693,7 @@ export function PromotionFormSheet({
                               <p className="text-sm font-medium">Filtro predefinido activo</p>
                               <p className="text-xs text-muted-foreground">{SEGMENT_OPTIONS.find((o) => o.value === segment)?.label}</p>
                             </div>
-                            <button type="button" onClick={() => { setSegment('custom'); setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false); }} className="flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                            <button type="button" onClick={() => { setSegment('custom'); setCustFilterState((s) => ({ ...s, customerFilterCount: null, customerFilterResults: [], showFilteredCustomers: false })); }} className="flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                               <X className="size-3" />Limpiar
                             </button>
                           </div>
@@ -1714,7 +1706,7 @@ export function PromotionFormSheet({
                                 </span>
                               </div>
                               {!customerFilterFetching && customerFilterCount != null && customerFilterCount > 0 && (
-                                <button type="button" onClick={() => setShowFilteredCustomers((v) => !v)} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
+                                <button type="button" onClick={() => setCustFilterState((s) => ({ ...s, showFilteredCustomers: !s.showFilteredCustomers }))} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                                   {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                                   {showFilteredCustomers ? 'Ocultar' : 'Ver'}
                                 </button>

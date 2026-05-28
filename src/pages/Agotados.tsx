@@ -431,7 +431,7 @@ function SalesRepView() {
                               <p className="truncate font-medium">{p.product_commercial_name ?? p.product_sku}</p>
                               <p className="text-xs text-muted-foreground font-mono">{p.product_sku}</p>
                             </div>
-                            <button onClick={() => toggleSelect(p)} className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors" disabled={submitting}>
+                            <button type="button" onClick={() => toggleSelect(p)} className="ml-2 shrink-0 text-muted-foreground hover:text-destructive transition-colors" disabled={submitting}>
                               <X className="size-4" />
                             </button>
                           </div>

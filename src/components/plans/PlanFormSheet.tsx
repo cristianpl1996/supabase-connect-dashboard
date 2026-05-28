@@ -108,6 +108,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     } else if (open && !editingPlan) {
       resetForm();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: resetForm is not useCallback; effect must run only on open/editingPlan change
   }, [open, editingPlan]);
 
   const totalBudget = funds.reduce((sum, fund) => {

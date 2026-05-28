@@ -78,15 +78,12 @@ export function PromotionDetailsSheet({
   mechanic,
   labName,
 }: PromotionDetailsSheetProps) {
-  const [productNameMap, setProductNameMap] = useState<Record<string, string>>({});
-  const [customerNameMap, setCustomerNameMap] = useState<Record<string, string>>({});
-  const [loadingNames, setLoadingNames] = useState(false);
+  const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
+  const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
 
   useEffect(() => {
     if (!open || !promotion) return;
-    setProductNameMap({});
-    setCustomerNameMap({});
-    setLoadingNames(true);
+    setNameState({ productMap: {}, customerMap: {}, loading: true });
 
     const skus = Array.isArray(promotion.product_skus) ? promotion.product_skus : [];
     const nits = Array.isArray(promotion.customer_ids) ? promotion.customer_ids : [];
@@ -102,7 +99,7 @@ export function PromotionDetailsSheet({
                 map[p.product_sku] = p.product_commercial_name;
               }
             }
-            setProductNameMap(map);
+            setNameState((s) => ({ ...s, productMap: map }));
           })
           .catch(() => {})
       : Promise.resolve();
@@ -117,12 +114,13 @@ export function PromotionDetailsSheet({
               const name = String(c['customer_full_name'] ?? c['customer_commercial_name'] ?? c['customer_name'] ?? '');
               if (nit && name) map[nit] = name;
             }
-            setCustomerNameMap(map);
+            setNameState((s) => ({ ...s, customerMap: map }));
           })
           .catch(() => {})
       : Promise.resolve();
 
-    Promise.all([fetchProducts, fetchCustomers]).finally(() => setLoadingNames(false));
+    Promise.all([fetchProducts, fetchCustomers]).finally(() => setNameState((s) => ({ ...s, loading: false })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-fetch when promotion id changes, not on every prop update
   }, [open, promotion?.id]);
 
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);

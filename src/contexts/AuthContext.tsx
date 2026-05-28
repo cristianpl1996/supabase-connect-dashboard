@@ -81,8 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setIsLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scheduleExpiryLogout]);
 
   // Auto-logout when token expires or session is invalidated (API returns 401)
   useEffect(() => {

@@ -48,6 +48,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     void fetchLaboratories();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: mount-only fetch; fetchLaboratories is not useCallback
   }, []);
 
   useEffect(() => {

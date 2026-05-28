@@ -32,19 +32,21 @@ interface PromoterProviderProps {
 
 export function PromoterProvider({ children }: PromoterProviderProps) {
   const { user, isLoading } = useAuth();
-  const isPromoter = user?.role === 'promotor' && !!user.laboratory_id;
-  const promoter = isPromoter
-    ? {
-        id: String(user?.id ?? ''),
-        user_id: String(user?.id ?? ''),
-        laboratory_id: user?.laboratory_id ?? '',
-        approval_limit: user?.approval_limit ?? null,
-        is_active: true,
-        created_at: '',
-      }
-    : undefined;
 
-  const value = useMemo(() => ({ promoter, isPromoter, isLoading }), [promoter, isPromoter, isLoading]);
+  const value = useMemo(() => {
+    const isPromoter = user?.role === 'promotor' && !!user.laboratory_id;
+    const promoter = isPromoter
+      ? {
+          id: String(user?.id ?? ''),
+          user_id: String(user?.id ?? ''),
+          laboratory_id: user?.laboratory_id ?? '',
+          approval_limit: user?.approval_limit ?? null,
+          is_active: true,
+          created_at: '',
+        }
+      : undefined;
+    return { promoter, isPromoter, isLoading };
+  }, [user?.id, user?.role, user?.laboratory_id, user?.approval_limit, isLoading]);
 
   return (
     <PromoterContext.Provider value={value}>

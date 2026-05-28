@@ -623,8 +623,8 @@ export default function ECommerce() {
 
   const [cart, setCart] = useState<EcommerceCartItemInput[]>(() => loadStoredCart());
   const [cartOpen, setCartOpen] = useState(false);
-  const [quote, setQuote] = useState<EcommerceCartQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteState, setQuoteState] = useState<{ quote: EcommerceCartQuote | null; loading: boolean }>({ quote: null, loading: false });
+  const { quote, loading: quoteLoading } = quoteState;
   const [selectedProduct, setSelectedProduct] = useState<EcommerceProduct | null>(null);
   const [productDetailOpen, setProductDetailOpen] = useState(false);
 
@@ -681,11 +681,11 @@ export default function ECommerce() {
     hydrateCheckoutForm();
   }, [hydrateCheckoutForm]);
   const brandOptions = useMemo(
-    () => filters.brands.map((item) => String(item ?? "").trim()).filter(Boolean),
+    () => filters.brands.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
     [filters.brands],
   );
   const categoryOptions = useMemo(
-    () => filters.categories.map((item) => String(item ?? "").trim()).filter(Boolean),
+    () => filters.categories.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
     [filters.categories],
   );
   const productsBySku = useMemo(
@@ -764,20 +764,20 @@ export default function ECommerce() {
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
     if (!token || cart.length === 0) {
-      setQuote(null);
+      setQuoteState({ quote: null, loading: false });
       return;
     }
     let cancelled = false;
-    setQuoteLoading(true);
+    setQuoteState((s) => ({ ...s, loading: true }));
     quoteEcommerceCart(token, cart)
       .then((data) => {
-        if (!cancelled) setQuote(data);
+        if (!cancelled) setQuoteState((s) => ({ ...s, quote: data }));
       })
       .catch(() => {
-        if (!cancelled) setQuote(null);
+        if (!cancelled) setQuoteState((s) => ({ ...s, quote: null }));
       })
       .finally(() => {
-        if (!cancelled) setQuoteLoading(false);
+        if (!cancelled) setQuoteState((s) => ({ ...s, loading: false }));
       });
     return () => {
       cancelled = true;
@@ -896,7 +896,7 @@ export default function ECommerce() {
     localStorage.removeItem(CART_KEY);
     setSession(null);
     setCart([]);
-    setQuote(null);
+    setQuoteState({ quote: null, loading: false });
     setOrderReference(null);
   };
 
@@ -1011,7 +1011,7 @@ export default function ECommerce() {
       });
       setOrderReference(order.reference);
       setCart([]);
-      setQuote(null);
+      setQuoteState({ quote: null, loading: false });
       setCheckoutOpen(false);
       setCartOpen(false);
     } catch (error) {
@@ -1182,6 +1182,7 @@ export default function ECommerce() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => handleVerifyEcommerceOtp()}
                       disabled={otpCode.length !== 6 || otpLoading}
                       className="h-12 w-full rounded-xl text-sm font-semibold text-white shadow-md disabled:opacity-60 flex items-center justify-center gap-2 mb-3"
@@ -1263,6 +1264,7 @@ export default function ECommerce() {
           </div>
 
           <button
+            type="button"
             className="relative flex size-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
             title="Abrir carrito"
             onClick={() => setCartOpen(true)}
@@ -1277,7 +1279,7 @@ export default function ECommerce() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Cuenta de cliente">
+              <button type="button" className="rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Cuenta de cliente">
                 <Avatar className="size-9 cursor-pointer ring-2 ring-border/40 shadow-sm">
                   <AvatarFallback className="bg-primary/10 text-base font-bold text-primary">
                     {initials(session.customer.name)}
@@ -1822,6 +1824,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
             />
             {brandSearch && (
               <button
+                type="button"
                 onClick={() => setBrandSearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
@@ -1868,6 +1871,7 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
             />
             {categorySearch && (
               <button
+                type="button"
                 onClick={() => setCategorySearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
@@ -1995,10 +1999,10 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
             </SelectContent>
           </Select>
           <div className={cn("hidden sm:flex rounded-md border bg-background overflow-hidden", disabled && "pointer-events-none opacity-50")}>
-            <button onClick={() => onViewModeChange("grid")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista cuadrícula" disabled={disabled}>
+            <button type="button" onClick={() => onViewModeChange("grid")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista cuadrícula" disabled={disabled}>
               <LayoutGrid className="size-4" />
             </button>
-            <button onClick={() => onViewModeChange("list")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista lista" disabled={disabled}>
+            <button type="button" onClick={() => onViewModeChange("list")} className={cn("flex size-9 items-center justify-center transition-colors", viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")} title="Vista lista" disabled={disabled}>
               <List className="size-4" />
             </button>
           </div>
@@ -2007,7 +2011,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
 
       {/* Row 2: search */}
       <div className="relative">
-        <button onClick={onSearchCommit} disabled={disabled} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed">
+        <button type="button" onClick={onSearchCommit} disabled={disabled} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed">
           <Search className="size-4" />
         </button>
         <input
@@ -2019,7 +2023,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pl-9 pr-9 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         {search && (
-          <button onClick={onSearchClear} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive">
+          <button type="button" onClick={onSearchClear} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive">
             <X className="size-4" />
           </button>
         )}
@@ -2045,7 +2049,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {activeFilters.map((chip) => (
-            <button key={chip.key} onClick={chip.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+            <button type="button" key={chip.key} onClick={chip.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
               <span className="truncate max-w-[12rem]">{chip.label}</span>
               <X className="size-3 shrink-0" />
             </button>

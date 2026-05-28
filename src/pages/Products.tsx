@@ -96,7 +96,7 @@ function formatDate(value: unknown) {
   if (!value) return "N/A";
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return text(value);
-  return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }).format(date);
+  return DATE_FORMATTER.format(date);
 }
 
 function formatCount(value: number | null | undefined) {
@@ -104,6 +104,7 @@ function formatCount(value: number | null | undefined) {
 }
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const DATE_FORMATTER = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
 
 function money(value: unknown) {
   const amount = numberValue(value);
@@ -112,7 +113,7 @@ function money(value: unknown) {
 }
 
 function uniqueValues(items: ProductCatalogItem[], key: keyof ProductCatalogItem) {
-  return Array.from(new Set(items.map((item) => text(item[key], "")).filter(Boolean))).sort();
+  return Array.from(new Set(items.flatMap((item) => { const v = text(item[key], ""); return v ? [v] : []; }))).sort();
 }
 
 function productKey(product: ProductCatalogItem) {

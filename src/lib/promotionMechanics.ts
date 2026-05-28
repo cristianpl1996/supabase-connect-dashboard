@@ -230,7 +230,7 @@ export function summarizePromotionMechanic(state: PromotionMechanicFormState): s
     return `Compra minima de ${threshold}: recibe ${mechanic.bonus_quantity || 0} unidad(es) de ${mechanic.bonus_product_name || "producto bonificado"} a precio cero.`;
   }
   if (state.promotionType === "combo") {
-    const names = (mechanic.required_products || []).map((p) => p.product_name || p.product_id).filter(Boolean);
+    const names = (mechanic.required_products || []).flatMap((p) => { const n = p.product_name || p.product_id; return n ? [n] : []; });
     const combo = names.length > 1 ? `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}` : (names[0] || "los productos seleccionados");
     if (mechanic.benefit_type === "percentage_discount") return `Si el cliente compra ${combo}: descuento del ${mechanic.discount_value || 0}%.`;
     if (mechanic.benefit_type === "fixed_discount") return `Si el cliente compra ${combo}: descuento fijo de ${formatCurrency(mechanic.discount_value)}.`;
