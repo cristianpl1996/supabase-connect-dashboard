@@ -232,7 +232,7 @@ function TransferDetailSheet({
                   <div className="space-y-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Nombre</p>
-                      <p className="text-sm font-medium">{transfer.sales_representative_brand_name ?? transfer.brand ?? "—"}</p>
+                      <p className="text-sm font-medium">{transfer.brand ?? transfer.sales_representative_brand_name ?? "—"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Identificador</p>

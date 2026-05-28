@@ -31,14 +31,32 @@ interface CampaignGroup {
   title: string;
   startDate: string;
   endDate: string;
+  productNames: string[];
   skus: string[];
   tipoMecanica: string;
   mechanicSummary: string;
   scopeLabel: string;
+  customerNames: string[];
   customerIds: string[];
   rows: PromotionImportRowPayload[];
   errors: string[];
   isValid: boolean;
+}
+
+interface ParsedImportRow {
+  laboratory: string;
+  title: string;
+  origin: string | null;
+  start_date: string;
+  end_date: string;
+  productos_raw: string;
+  tipo_mecanica: string;
+  base_cantidad: number | null;
+  bonus_cantidad: number | null;
+  porcentaje_descuento: number | null;
+  alcance: string | null;
+  clientes_raw: string;
+  rowNumber: number;
 }
 
 interface ImportResult {
@@ -100,21 +118,96 @@ function resolveScope(alcance: string | null | undefined): 'all' | 'customers' {
   return SCOPE_CUSTOMERS_VALUES.includes((alcance ?? '').trim().toLowerCase()) ? 'customers' : 'all';
 }
 
-function validateAndGroup(rows: PromotionImportRowPayload[], laboratories: Laboratory[]): CampaignGroup[] {
-  const labNamesLower = new Set(laboratories.map((l) => l.name.trim().toLowerCase()));
-  const rowErrors: Map<number, string[]> = new Map();
+function normalizeForLookup(s: string): string {
+  return s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+function buildProductMap(products: ProductCatalogItem[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const p of products) {
+    if (!p.product_sku) continue;
+    const name = p.product_commercial_name ?? '';
+    if (name) map.set(normalizeForLookup(name), p.product_sku);
+  }
+  return map;
+}
+
+function buildCustomerMap(customers: CustomerRecord[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const c of customers) {
+    const nit = String(c['customer_government_id'] ?? '');
+    if (!nit) continue;
+    const name = String(c['customer_full_name'] ?? c['customer_commercial_name'] ?? c['customer_name'] ?? '');
+    if (name) map.set(normalizeForLookup(name), nit);
+  }
+  return map;
+}
+
+function resolveNames(
+  parsed: ParsedImportRow,
+  productMap: Map<string, string>,
+  customerMap: Map<string, string>,
+): { rows: PromotionImportRowPayload[]; errors: string[] } {
+  const n = parsed.rowNumber;
+  const errors: string[] = [];
+
+  const productNames = parsed.productos_raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (productNames.length === 0) errors.push(`Fila ${n}: Productos requerido`);
+
+  const skus: string[] = [];
+  for (const name of productNames) {
+    const sku = productMap.get(normalizeForLookup(name));
+    if (sku) skus.push(sku);
+    else errors.push(`Fila ${n}: Producto no encontrado: "${name}"`);
+  }
+
+  const scope = resolveScope(parsed.alcance);
+  const customerIds: string[] = [];
+  if (scope === 'customers') {
+    const names = parsed.clientes_raw.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const name of names) {
+      const id = customerMap.get(normalizeForLookup(name));
+      if (id) customerIds.push(id);
+      else errors.push(`Fila ${n}: Cliente no encontrado: "${name}"`);
+    }
+  }
+
+  const clientes = customerIds.length > 0 ? customerIds.join(', ') : null;
+  const rows: PromotionImportRowPayload[] = skus.map((sku) => ({
+    laboratory: parsed.laboratory,
+    title: parsed.title,
+    origin: parsed.origin,
+    start_date: parsed.start_date,
+    end_date: parsed.end_date,
+    sku,
+    tipo_mecanica: parsed.tipo_mecanica,
+    base_cantidad: parsed.base_cantidad,
+    bonus_cantidad: parsed.bonus_cantidad,
+    porcentaje_descuento: parsed.porcentaje_descuento,
+    alcance: parsed.alcance,
+    clientes,
+  }));
+
+  return { rows, errors };
+}
+
+function validateAndGroup(
+  parsedRows: ParsedImportRow[],
+  laboratories: Laboratory[],
+  productMap: Map<string, string>,
+  customerMap: Map<string, string>,
+): CampaignGroup[] {
+  const labNamesLower = new Set(laboratories.map((l) => l.name.trim().toLowerCase()));
+
+  return parsedRows.map((row, idx) => {
+    const n = row.rowNumber;
     const errs: string[] = [];
-    const n = i + 2;
 
     if (!row.laboratory?.trim()) errs.push(`Fila ${n}: Laboratorio requerido`);
     else if (!labNamesLower.has(row.laboratory.trim().toLowerCase()))
       errs.push(`Fila ${n}: Laboratorio "${row.laboratory.trim()}" no encontrado en el sistema`);
 
     if (!row.title?.trim()) errs.push(`Fila ${n}: Titulo requerido`);
-    if (!row.sku?.trim()) errs.push(`Fila ${n}: SKU requerido`);
 
     if (!row.start_date) errs.push(`Fila ${n}: Fecha_Inicio requerida`);
     else if (!isValidDate(row.start_date)) errs.push(`Fila ${n}: Fecha_Inicio "${row.start_date}" invalida (usar DD/MM/YYYY)`);
@@ -149,74 +242,48 @@ function validateAndGroup(rows: PromotionImportRowPayload[], laboratories: Labor
     if (alcanceRaw && resolveScope(row.alcance) === 'all' && !['toda la base', 'all', 'todos', ''].includes(alcanceRaw))
       errs.push(`Fila ${n}: Alcance debe ser "Toda la base" o "Clientes especificos"`);
 
-    if (resolveScope(row.alcance) === 'customers' && !(row.clientes ?? '').trim())
+    if (resolveScope(row.alcance) === 'customers' && !row.clientes_raw.trim())
       errs.push(`Fila ${n}: Columna Clientes requerida cuando Alcance = "Clientes especificos"`);
 
-    rowErrors.set(i, errs);
-  }
+    const { rows: expandedRows, errors: resolutionErrors } = resolveNames(row, productMap, customerMap);
+    errs.push(...resolutionErrors);
 
-  const groupMap = new Map<string, { rows: PromotionImportRowPayload[]; indices: number[] }>();
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const key = [
-      (row.laboratory ?? '').trim().toLowerCase(),
-      (row.title ?? '').trim(),
-      row.start_date ?? '',
-      row.end_date ?? '',
-    ].join('||');
-    if (!groupMap.has(key)) groupMap.set(key, { rows: [], indices: [] });
-    groupMap.get(key)!.rows.push(row);
-    groupMap.get(key)!.indices.push(i);
-  }
-
-  const groups: CampaignGroup[] = [];
-
-  for (const [key, { rows: gRows, indices }] of groupMap.entries()) {
-    const allErrors: string[] = [];
-    for (const idx of indices) allErrors.push(...(rowErrors.get(idx) ?? []));
-
-    const mecanicas = new Set(gRows.map((r) => (r.tipo_mecanica ?? '').trim().toLowerCase()).filter(Boolean));
-    if (mecanicas.size > 1)
-      allErrors.push(`Campana: mecanicas mezcladas (${[...mecanicas].join(', ')})`);
-
-    const scopes = new Set(gRows.map((r) => resolveScope(r.alcance)));
-    if (scopes.size > 1)
-      allErrors.push('Campana: alcances mezclados en el mismo grupo');
-
-    const first = gRows[0];
-    const mecanica = (first.tipo_mecanica ?? '').trim().toLowerCase();
     let mechanicSummary = mecanica;
-    if (mecanica === 'bonificacion' && first.base_cantidad && first.bonus_cantidad)
-      mechanicSummary = `Bonificacion ${first.base_cantidad}+${first.bonus_cantidad}`;
+    if (mecanica === 'bonificacion' && row.base_cantidad && row.bonus_cantidad)
+      mechanicSummary = `Bonificacion ${row.base_cantidad}+${row.bonus_cantidad}`;
     else if (mecanica === 'bonificacion') mechanicSummary = 'Bonificacion';
-    else if (mecanica === 'descuento' && first.porcentaje_descuento != null)
-      mechanicSummary = `Descuento ${first.porcentaje_descuento}%`;
+    else if (mecanica === 'descuento' && row.porcentaje_descuento != null)
+      mechanicSummary = `Descuento ${row.porcentaje_descuento}%`;
     else if (mecanica === 'descuento') mechanicSummary = 'Descuento';
 
-    const scope = resolveScope(first.alcance);
+    const scope = resolveScope(row.alcance);
     const scopeLabel = scope === 'customers' ? 'Clientes especificos' : 'Toda la base';
-    const customerIds = scope === 'customers'
-      ? (first.clientes ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+    const productNames = row.productos_raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const customerNames = scope === 'customers'
+      ? row.clientes_raw.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
 
-    groups.push({
-      key,
-      labName: first.laboratory?.trim() ?? '',
-      title: first.title?.trim() ?? '',
-      startDate: first.start_date ?? '',
-      endDate: first.end_date ?? '',
-      skus: gRows.map((r) => r.sku?.trim()).filter(Boolean),
+    const allErrors = [...new Set(errs)];
+    return {
+      key: String(idx),
+      labName: row.laboratory?.trim() ?? '',
+      title: row.title?.trim() ?? '',
+      startDate: row.start_date ?? '',
+      endDate: row.end_date ?? '',
+      productNames,
+      skus: expandedRows.map((r) => r.sku).filter(Boolean),
       tipoMecanica: mecanica,
       mechanicSummary,
       scopeLabel,
-      customerIds,
-      rows: gRows,
-      errors: [...new Set(allErrors)],
+      customerNames,
+      customerIds: scope === 'customers'
+        ? (expandedRows[0]?.clientes ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
+      rows: expandedRows,
+      errors: allErrors,
       isValid: allErrors.length === 0,
-    });
-  }
-
-  return groups;
+    };
+  });
 }
 
 // ─── Template download (with real data) ──────────────────────────────────────
@@ -227,45 +294,51 @@ async function buildAndDownloadTemplate(
   customers: CustomerRecord[],
 ) {
   const labNames = laboratories.map((l) => l.name.trim()).filter(Boolean);
-  const skuRows = products
+  const productRows = products
     .filter((p) => p.product_sku)
-    .map((p) => [p.product_sku, p.product_commercial_name ?? '', p.product_brand_name ?? ''] as const);
+    .map((p) => [p.product_commercial_name ?? '', p.product_sku, p.product_brand_name ?? ''] as const);
   const custRows = customers
     .map((c) => [
-      String(c['id'] ?? c['customer_id'] ?? ''),
       String(c['customer_full_name'] ?? c['customer_commercial_name'] ?? c['customer_name'] ?? ''),
       String(c['customer_government_id'] ?? ''),
     ] as const)
-    .filter((r) => r[0]);
+    .filter((r) => r[1]);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'IVANagro';
 
-  // Colores marca Ivanagro
-  const GREEN_DARK  = 'FF1A5C38'; // header principal
-  const GREEN_MID   = 'FF2D8653'; // header secundario / instrucciones
-  const GREEN_LIGHT = 'FFD6F0E0'; // zebra par
-  const GREEN_PALE  = 'FFEDF8F1'; // zebra impar
+  const GREEN_DARK  = 'FF1A5C38';
+  const GREEN_MID   = 'FF2D8653';
+  const GREEN_LIGHT = 'FFD6F0E0';
+  const GREEN_PALE  = 'FFEDF8F1';
 
-  // ── Sheet 1: Promociones (activa al abrir) ──
+  const styleRefHeader = (ws: ExcelJS.Worksheet) => {
+    ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Calibri' };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+    ws.getRow(1).height = 18;
+  };
+
+  // ── Sheet 1: Promociones ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsMain = wb.addWorksheet('Promociones') as any;
   wsMain.columns = [
-    { header: 'Laboratorio', key: 'lab', width: 30 },
-    { header: 'Titulo', key: 'titulo', width: 34 },
-    { header: 'Origen', key: 'origen', width: 24 },
-    { header: 'Fecha_Inicio', key: 'fi', width: 14 },
-    { header: 'Fecha_Fin', key: 'ff', width: 14 },
-    { header: 'SKU', key: 'sku', width: 18 },
-    { header: 'Tipo_Mecanica', key: 'mecanica', width: 18 },
-    { header: 'Base_Cantidad', key: 'base', width: 15 },
-    { header: 'Bonus_Cantidad', key: 'bonus', width: 16 },
-    { header: 'Porcentaje_Descuento', key: 'pct', width: 22 },
-    { header: 'Alcance', key: 'alcance', width: 24 },
-    { header: 'Clientes', key: 'clientes', width: 40 },
+    { header: 'Laboratorio',          key: 'lab',      width: 30 },
+    { header: 'Titulo',               key: 'titulo',   width: 34 },
+    { header: 'Origen',               key: 'origen',   width: 24 },
+    { header: 'Fecha_Inicio',         key: 'fi',       width: 14 },
+    { header: 'Fecha_Fin',            key: 'ff',       width: 14 },
+    { header: 'Productos',            key: 'productos', width: 48 },
+    { header: 'Tipo_Mecanica',        key: 'mecanica', width: 18 },
+    { header: 'Base_Cantidad',        key: 'base',     width: 15 },
+    { header: 'Bonus_Cantidad',       key: 'bonus',    width: 16 },
+    { header: 'Porcentaje_Descuento', key: 'pct',      width: 22 },
+    { header: 'Alcance',              key: 'alcance',  width: 24 },
+    { header: 'Clientes',             key: 'clientes', width: 50 },
   ];
 
-  // Fila de encabezados — verde Ivanagro oscuro
   const headerRow = wsMain.getRow(1);
   headerRow.eachCell({ includeEmpty: true }, (cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
@@ -274,34 +347,35 @@ async function buildAndDownloadTemplate(
     cell.border = { bottom: { style: 'medium', color: { argb: 'FF0F3D26' } } };
   });
   headerRow.height = 22;
-  wsMain.views = [{ state: 'frozen', xSplit: 0, ySplit: 1 }]; // congelar encabezado
+  wsMain.views = [{ state: 'frozen', xSplit: 0, ySplit: 1 }];
+
+  // Nota de referencia en col M
+  const noteCell = wsMain.getCell('M1');
+  noteCell.value = 'Ver hojas "Productos" y "Clientes" para nombres exactos';
+  noteCell.font = { italic: true, size: 9, color: { argb: GREEN_MID } };
+  noteCell.alignment = { vertical: 'middle' };
 
   // Filas de ejemplo
   const today = todayStr();
   const nextMonth = nextMonthStr();
   const ex1Lab = labNames[0] ?? 'Nombre del Laboratorio';
-  const ex1Sku1 = skuRows[0]?.[0] ?? 'SKU-001';
-  const ex1Sku2 = skuRows[1]?.[0] ?? 'SKU-002';
-  const ex2Sku = skuRows[2]?.[0] ?? 'SKU-003';
-  const exCustIds = custRows.slice(0, 3).map((r) => r[0]).join(', ') || '100001, 100002';
+  const ex1Products = productRows.slice(0, 2).map((r) => r[0]).filter(Boolean).join(', ') || 'Producto A, Producto B';
+  const ex2Products = productRows[2]?.[0] || 'Producto C';
+  const exCustNames = custRows.slice(0, 2).map((r) => r[0]).filter(Boolean).join(', ') || 'Cliente Uno, Cliente Dos';
 
-  wsMain.addRow([ex1Lab, 'BONIFICADO 10+1 JUNIO', 'Dinamica comercial', today, nextMonth, ex1Sku1, 'bonificacion', 10, 1, '', 'Toda la base', '']);
-  wsMain.addRow([ex1Lab, 'BONIFICADO 10+1 JUNIO', 'Dinamica comercial', today, nextMonth, ex1Sku2, 'bonificacion', 10, 1, '', 'Toda la base', '']);
-  wsMain.addRow([ex1Lab, 'DESCUENTO 3% CLIENTES VIP', 'Recurso propio', today, nextMonth, ex2Sku, 'descuento', '', '', 3, 'Clientes especificos', exCustIds]);
+  wsMain.addRow([ex1Lab, 'BONIFICADO 10+1 JUNIO',     'Dinamica comercial', today, nextMonth, ex1Products, 'bonificacion', 10, 1, '',  'Toda la base',         '']);
+  wsMain.addRow([ex1Lab, 'DESCUENTO 3% CLIENTES VIP', 'Recurso propio',     today, nextMonth, ex2Products, 'descuento',    '',  '', 3,   'Clientes especificos', exCustNames]);
 
-  // Zebra stripes verdes en filas de ejemplo
-  for (let r = 2; r <= 4; r++) {
+  for (let r = 2; r <= 3; r++) {
     wsMain.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r % 2 === 0 ? GREEN_LIGHT : GREEN_PALE } };
       cell.font = { name: 'Calibri', size: 10 };
     });
   }
 
-  // ── Dropdowns (data validations) ──
+  // Dropdowns (A=Lab, C=Origen, G=Mecanica, K=Alcance; F y L son texto libre)
   const labEnd = labNames.length + 1;
-  const skuEnd = skuRows.length + 1;
 
-  // Col A — Laboratorio
   wsMain.dataValidations.add('A2:A10000', {
     type: 'list', allowBlank: true,
     formulae: [`Referencia!$A$2:$A$${labEnd}`],
@@ -309,8 +383,6 @@ async function buildAndDownloadTemplate(
     errorTitle: 'Laboratorio invalido',
     error: 'Selecciona un laboratorio de la lista',
   });
-
-  // Col C — Origen
   wsMain.dataValidations.add('C2:C10000', {
     type: 'list', allowBlank: true,
     formulae: ['"Dinamica comercial,Recurso propio"'],
@@ -318,17 +390,6 @@ async function buildAndDownloadTemplate(
     errorTitle: 'Origen invalido',
     error: 'Debe ser "Dinamica comercial" o "Recurso propio"',
   });
-
-  // Col F — SKU
-  wsMain.dataValidations.add('F2:F10000', {
-    type: 'list', allowBlank: true,
-    formulae: [`Referencia!$B$2:$B$${skuEnd}`],
-    showErrorMessage: true, errorStyle: 'error',
-    errorTitle: 'SKU invalido',
-    error: 'Selecciona un SKU de la lista',
-  });
-
-  // Col G — Tipo_Mecanica
   wsMain.dataValidations.add('G2:G10000', {
     type: 'list', allowBlank: true,
     formulae: ['"bonificacion,descuento"'],
@@ -336,8 +397,6 @@ async function buildAndDownloadTemplate(
     errorTitle: 'Mecanica invalida',
     error: 'Debe ser "bonificacion" o "descuento"',
   });
-
-  // Col K — Alcance
   wsMain.dataValidations.add('K2:K10000', {
     type: 'list', allowBlank: true,
     formulae: ['"Toda la base,Clientes especificos"'],
@@ -353,71 +412,62 @@ async function buildAndDownloadTemplate(
   const instrRows: (string | null)[][] = [
     ['GUIA DE IMPORTACION MASIVA DE PROMOCIONES', null, null, null],
     [null, null, null, null],
+    ['ESTRUCTURA DEL ARCHIVO', null, null, null],
+    ['Cada fila es UNA promocion completa. Los campos Productos y Clientes aceptan multiples valores separados por coma.', null, null, null],
+    [null, null, null, null],
     ['COLUMNAS DEL ARCHIVO', null, null, null],
     ['Columna', 'Descripcion', 'Valores validos', 'Requerido'],
     ['Laboratorio', 'Nombre exacto del lab. Usar el dropdown.', 'Ver desplegable', 'Si'],
-    ['Titulo', 'Nombre de la campana. Mismo titulo + lab + fechas = 1 campana con varios SKUs.', 'Texto libre', 'Si'],
+    ['Titulo', 'Nombre de la campana.', 'Texto libre', 'Si'],
     ['Origen', 'Origen comercial de la promocion.', 'Dinamica comercial | Recurso propio', 'No'],
     ['Fecha_Inicio', 'Fecha de inicio de vigencia.', 'DD/MM/YYYY', 'Si'],
     ['Fecha_Fin', 'Fecha de fin de vigencia.', 'DD/MM/YYYY', 'Si'],
-    ['SKU', 'Codigo del producto. Usar el dropdown.', 'Ver desplegable', 'Si'],
+    ['Productos', 'Nombres de productos separados por coma. Ver hoja "Productos" para nombres exactos.', 'Texto libre (nombres exactos)', 'Si'],
     ['Tipo_Mecanica', 'Tipo de beneficio.', 'bonificacion | descuento', 'Si'],
     ['Base_Cantidad', 'Cantidad a comprar. Ej: 10 para escala 10+1.', 'Entero >= 1', 'Si (solo bonificacion)'],
     ['Bonus_Cantidad', 'Cantidad bonificada. Ej: 1 para 10+1.', 'Entero >= 1', 'Si (solo bonificacion)'],
     ['Porcentaje_Descuento', 'Descuento sobre el precio. Ej: 3 para 3%.', '0 a 100', 'Si (solo descuento)'],
     ['Alcance', 'A quienes aplica.', 'Toda la base | Clientes especificos', 'No (default: Toda la base)'],
-    ['Clientes', 'IDs de clientes separados por coma.', 'Ej: 123456, 789012', 'Si (si Alcance = Clientes especificos)'],
+    ['Clientes', 'Nombres de clientes separados por coma. Ver hoja "Clientes" para nombres exactos.', 'Texto libre (nombres exactos)', 'Si (si Alcance = Clientes especificos)'],
     [null, null, null, null],
-    ['REGLA DE AGRUPACION', null, null, null],
-    ['Filas con mismo Laboratorio + Titulo + Fecha_Inicio + Fecha_Fin = UNA campana con multiples SKUs.', null, null, null],
-    [`Datos cargados: ${labNames.length} laboratorios, ${skuRows.length} SKUs, ${custRows.length} clientes.`, null, null, null],
+    [`Datos cargados: ${labNames.length} laboratorios, ${productRows.length} productos, ${custRows.length} clientes.`, null, null, null],
   ];
   for (const row of instrRows) wsInstr.addRow(row);
 
-  const instrTitle = wsInstr.getCell('A1');
-  instrTitle.font = { bold: true, size: 14, color: { argb: GREEN_DARK }, name: 'Calibri' };
-
-  const instrHeaderRow = wsInstr.getRow(4);
-  instrHeaderRow.eachCell({ includeEmpty: true }, (cell) => {
+  wsInstr.getCell('A1').font = { bold: true, size: 14, color: { argb: GREEN_DARK }, name: 'Calibri' };
+  wsInstr.getRow(7).eachCell({ includeEmpty: true }, (cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Calibri' };
     cell.alignment = { vertical: 'middle' };
   });
-  instrHeaderRow.height = 18;
-
+  wsInstr.getRow(7).height = 18;
   wsInstr.getRow(3).font = { bold: true, size: 11, color: { argb: GREEN_DARK } };
-  wsInstr.getRow(18).font = { bold: true, size: 11, color: { argb: GREEN_DARK } };
+  wsInstr.getRow(6).font = { bold: true, size: 11, color: { argb: GREEN_DARK } };
 
-  // ── Sheet 3: Referencia (datos del sistema para los dropdowns) ──
-  const wsRef = wb.addWorksheet('Referencia');
-  wsRef.columns = [
-    { header: 'Laboratorio', width: 32 },
-    { header: 'SKU', width: 18 },
-    { header: 'Nombre Producto', width: 44 },
-    { header: 'Marca', width: 24 },
-    { header: 'ID Cliente', width: 14 },
-    { header: 'Nombre Cliente', width: 44 },
-    { header: 'NIT / Cedula', width: 20 },
+  // ── Sheet 3: Productos (referencia para col F) ──
+  const wsProducts = wb.addWorksheet('Productos');
+  wsProducts.columns = [
+    { header: 'Nombre_Producto', width: 52 },
+    { header: 'SKU',             width: 18 },
+    { header: 'Marca',           width: 24 },
   ];
-  // Estilo encabezado Referencia
-  wsRef.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Calibri' };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-  });
-  wsRef.getRow(1).height = 18;
-  const maxRef = Math.max(labNames.length, skuRows.length, custRows.length);
-  for (let i = 0; i < maxRef; i++) {
-    wsRef.addRow([
-      labNames[i] ?? '',
-      skuRows[i]?.[0] ?? '',
-      skuRows[i]?.[1] ?? '',
-      skuRows[i]?.[2] ?? '',
-      custRows[i]?.[0] ?? '',
-      custRows[i]?.[1] ?? '',
-      custRows[i]?.[2] ?? '',
-    ]);
-  }
+  styleRefHeader(wsProducts);
+  for (const p of productRows) wsProducts.addRow([p[0], p[1], p[2]]);
+
+  // ── Sheet 4: Clientes (referencia para col L) ──
+  const wsCustomers = wb.addWorksheet('Clientes');
+  wsCustomers.columns = [
+    { header: 'Nombre_Cliente', width: 52 },
+    { header: 'NIT_Cedula',     width: 20 },
+  ];
+  styleRefHeader(wsCustomers);
+  for (const c of custRows) wsCustomers.addRow([c[0], c[1]]);
+
+  // ── Sheet 5: Referencia (solo labs, para el dropdown de col A) ──
+  const wsRef = wb.addWorksheet('Referencia');
+  wsRef.columns = [{ header: 'Laboratorio', width: 32 }];
+  styleRefHeader(wsRef);
+  for (const lab of labNames) wsRef.addRow([lab]);
 
   // ── Descarga ──
   const buffer = await wb.xlsx.writeBuffer();
@@ -432,7 +482,7 @@ async function buildAndDownloadTemplate(
 
 // ─── File parsing ─────────────────────────────────────────────────────────────
 
-function parseFile(file: File): Promise<PromotionImportRowPayload[]> {
+function parseFile(file: File): Promise<ParsedImportRow[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -442,19 +492,20 @@ function parseFile(file: File): Promise<PromotionImportRowPayload[]> {
         const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
         if (jsonData.length === 0) return reject(new Error('El archivo esta vacio'));
 
-        const rows: PromotionImportRowPayload[] = jsonData.map((row) => ({
+        const rows: ParsedImportRow[] = jsonData.map((row, index) => ({
           laboratory: String(row['Laboratorio'] ?? '').trim(),
           title: String(row['Titulo'] ?? '').trim(),
           origin: row['Origen'] ? String(row['Origen']).trim() : null,
           start_date: formatExcelDate(row['Fecha_Inicio']),
           end_date: formatExcelDate(row['Fecha_Fin']),
-          sku: String(row['SKU'] ?? '').trim(),
+          productos_raw: String(row['Productos'] ?? '').trim(),
           tipo_mecanica: String(row['Tipo_Mecanica'] ?? '').trim().toLowerCase(),
           base_cantidad: row['Base_Cantidad'] != null && String(row['Base_Cantidad']).trim() !== '' ? Number(row['Base_Cantidad']) : null,
           bonus_cantidad: row['Bonus_Cantidad'] != null && String(row['Bonus_Cantidad']).trim() !== '' ? Number(row['Bonus_Cantidad']) : null,
           porcentaje_descuento: row['Porcentaje_Descuento'] != null && String(row['Porcentaje_Descuento']).trim() !== '' ? Number(row['Porcentaje_Descuento']) : null,
           alcance: row['Alcance'] ? String(row['Alcance']).trim() : null,
-          clientes: row['Clientes'] ? String(row['Clientes']).trim() : null,
+          clientes_raw: row['Clientes'] ? String(row['Clientes']).trim() : '',
+          rowNumber: index + 2,
         }));
 
         resolve(rows);
@@ -501,11 +552,20 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true);
     onDownloadingChange?.(true);
-    setDownloadProgress(2);
+    setDownloadProgress(4);
     setDownloadLabel('Descargando datos...');
+
+    // Progreso animado mientras esperan las APIs (avanza lentamente hasta ~82%)
+    let fakeProgress = 4;
+    const ticker = setInterval(() => {
+      fakeProgress = Math.min(fakeProgress + Math.random() * 2.5 + 0.5, 82);
+      setDownloadProgress(Math.round(fakeProgress));
+    }, 500);
+
     try {
       const [products, customers] = await Promise.all([getAllProducts(), getAllCustomers()]);
 
+      clearInterval(ticker);
       setDownloadProgress(88);
       setDownloadLabel('Generando archivo Excel...');
       await buildAndDownloadTemplate(laboratories, products, customers);
@@ -513,6 +573,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
       setDownloadProgress(100);
       toast.success('Plantilla descargada');
     } catch (err) {
+      clearInterval(ticker);
       toast.error('Error al generar la plantilla');
       console.error(err);
     } finally {
@@ -530,11 +591,17 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     }
     setModalState('parsing');
     try {
-      const rows = await parseFile(file);
-      const validated = validateAndGroup(rows, laboratories);
+      const [parsedRows, products, customers] = await Promise.all([
+        parseFile(file),
+        getAllProducts(),
+        getAllCustomers(),
+      ]);
+      const productMap = buildProductMap(products);
+      const customerMap = buildCustomerMap(customers);
+      const validated = validateAndGroup(parsedRows, laboratories, productMap, customerMap);
       setGroups(validated);
       setFileName(file.name);
-      setTotalRows(rows.length);
+      setTotalRows(parsedRows.length);
       setModalState('preview');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al leer el archivo');
@@ -669,7 +736,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{fileName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {totalRows} {totalRows === 1 ? 'fila' : 'filas'}&nbsp;·&nbsp;{groups.length} {groups.length === 1 ? 'campana' : 'campanas'}
+                  {totalRows} {totalRows === 1 ? 'promocion' : 'promociones'}
                 </p>
               </div>
               <button className="shrink-0 text-muted-foreground hover:text-foreground" onClick={reset}>
@@ -709,16 +776,20 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                           {g.labName}&nbsp;·&nbsp;{displayDate(g.startDate)} – {displayDate(g.endDate)}&nbsp;·&nbsp;{g.mechanicSummary}
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          <p className="text-xs text-muted-foreground">SKUs: {g.skus.join(', ')}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {g.productNames.length > 0
+                              ? g.productNames.join(', ')
+                              : <span className="italic">sin productos</span>}
+                          </p>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             {g.scopeLabel === 'Clientes especificos'
-                              ? <><Users className="size-3" /> {g.scopeLabel}{g.customerIds.length > 0 ? ` (${g.customerIds.length})` : ''}</>
+                              ? <><Users className="size-3" /> {g.scopeLabel}{g.customerNames.length > 0 ? ` (${g.customerNames.length})` : ''}</>
                               : <><Globe className="size-3" /> {g.scopeLabel}</>}
                           </span>
                         </div>
-                        {g.scopeLabel === 'Clientes especificos' && g.customerIds.length > 0 && (
+                        {g.scopeLabel === 'Clientes especificos' && g.customerNames.length > 0 && (
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            IDs: {g.customerIds.slice(0, 5).join(', ')}{g.customerIds.length > 5 ? ` +${g.customerIds.length - 5} mas` : ''}
+                            {g.customerNames.slice(0, 3).join(', ')}{g.customerNames.length > 3 ? ` +${g.customerNames.length - 3} mas` : ''}
                           </p>
                         )}
                       </div>

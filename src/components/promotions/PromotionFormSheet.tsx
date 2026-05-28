@@ -2,7 +2,6 @@ import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'rea
 import {
   createPromotion,
   getAllRepresentatives,
-  getCustomer,
   getCustomerFilterOptions,
   getProductFilterOptions,
   getPromotion,
@@ -258,7 +257,7 @@ export function PromotionFormSheet({
   const [currentStep, setCurrentStep] = useState(1);
 
   const visibleProductOptions = productOptions.filter(
-    (product) => !selectedProductSkus.includes(product.product_sku),
+    (product) => !!product.product_sku && !selectedProductSkus.includes(product.product_sku),
   );
   const businessTypeSelectOptions = useMemo(
     () => customerBusinessTypeOptions.map((item) => ({ value: item, label: item })),
@@ -315,13 +314,20 @@ export function PromotionFormSheet({
           const customerIds = details.customer_ids || [];
           setSelectedCustomerIds(customerIds);
           if (customerIds.length > 0) {
-            Promise.allSettled(customerIds.map((id) => getCustomer(parseInt(id, 10)))).then((results) => {
+            Promise.allSettled(customerIds.map((nit) =>
+              getCustomersPage({ search: nit, limit: 20 })
+            )).then((results) => {
               const names: Record<string, string> = {};
               results.forEach((res, i) => {
                 if (res.status === 'fulfilled') {
-                  const c = res.value as Record<string, unknown>;
-                  const name = String(c.customer_full_name || c.customer_name || '').trim();
-                  if (name) names[customerIds[i]] = name;
+                  const nit = customerIds[i];
+                  const match = (res.value.data ?? []).find(
+                    (c) => String(c['customer_government_id'] ?? '') === nit
+                  );
+                  const name = match
+                    ? String(match['customer_full_name'] ?? match['customer_name'] ?? '').trim()
+                    : '';
+                  names[nit] = name || nit;
                 }
               });
               if (Object.keys(names).length > 0) setCustomerNameMap((prev) => ({ ...prev, ...names }));
@@ -332,6 +338,9 @@ export function PromotionFormSheet({
           setProductFilterCategory(String(pf.category || ''));
           setProductFilterSector(String(pf.industry_sector || ''));
           setProductFilterSpecies(String(pf.target_species || ''));
+          if (Array.isArray(pf.excluded_product_skus)) {
+            setFilterExcludedSkus(pf.excluded_product_skus.map(String));
+          }
           setCustomerFilterBusinessType(String(cf.business_type || ''));
           setCustomerFilterCity(String(cf.city || ''));
           setCustomerFilterState(String(cf.state || ''));
@@ -353,6 +362,9 @@ export function PromotionFormSheet({
           setCustomerFilterMaxDays(String(cf.max_days_since_last_purchase || ''));
           setCustomerFilterClv(String(cf.customer_clv_segment || ''));
           setCustomerFilterRfm(String(cf.customer_rfm_segment || ''));
+          if (Array.isArray(cf.excluded_customer_ids)) {
+            setCustomerExcludedIds(cf.excluded_customer_ids.map(String));
+          }
           setEstimatedCost(details.estimated_cost || 0);
           setMaxRedemptions(details.max_redemptions || '');
 
@@ -515,7 +527,7 @@ export function PromotionFormSheet({
           is_catalog_verified: true,
           is_discontinued: false,
         });
-        setProductOptions(res);
+        setProductOptions(res.filter((p) => !!p.product_sku));
         productOptionsHasMoreRef.current = res.length === PAGE;
       } catch {
         setProductOptions([]);
@@ -540,7 +552,7 @@ export function PromotionFormSheet({
         is_catalog_verified: true,
         is_discontinued: false,
       });
-      setProductOptions((prev) => [...prev, ...res]);
+      setProductOptions((prev) => [...prev, ...res.filter((p) => !!p.product_sku)]);
       productOptionsHasMoreRef.current = res.length === PAGE;
     } catch {
       productOptionsHasMoreRef.current = false;
@@ -566,7 +578,7 @@ export function PromotionFormSheet({
           customer_is_valid: true,
           customer_is_frozen: false,
         });
-        const data = res.data ?? [];
+        const data = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? ''));
         const total = listTotal(res);
         setCustomerOptions(data);
         customerOptionsHasMoreRef.current = total === null ? data.length === PAGE : data.length < total;
@@ -595,7 +607,7 @@ export function PromotionFormSheet({
       });
       const data = res.data ?? [];
       const total = listTotal(res);
-      setCustomerOptions((prev) => [...prev, ...data]);
+      setCustomerOptions((prev) => [...prev, ...data.filter((c) => !!String(c['customer_government_id'] ?? ''))]);
       customerOptionsHasMoreRef.current = total === null ? data.length === PAGE : customerOffsetRef.current + data.length < total;
     } catch {
       customerOptionsHasMoreRef.current = false;
@@ -696,7 +708,7 @@ export function PromotionFormSheet({
       is_catalog_verified: true,
       is_discontinued: false,
       limit: 2000,
-    }).then((r) => { setProductFilterCount(r.length); setProductFilterResults(r); }).catch(() => { setProductFilterCount(null); setProductFilterResults([]); }).finally(() => setProductFilterFetching(false));
+    }).then((r) => { const valid = r.filter((p) => !!p.product_sku); setProductFilterCount(valid.length); setProductFilterResults(valid); }).catch(() => { setProductFilterCount(null); setProductFilterResults([]); }).finally(() => setProductFilterFetching(false));
   }, [debouncedProdFilters, productApplicationMode]);
 
   useEffect(() => {
@@ -726,7 +738,7 @@ export function PromotionFormSheet({
     setCustomerFilterFetching(true);
     setCustomerExcludedIds([]);
     getCustomersPage({ ...debouncedCustFilters, limit: 2000 })
-      .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
+      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustomerFilterCount(valid.length); setCustomerFilterResults(valid); })
       .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
       .finally(() => setCustomerFilterFetching(false));
   }, [debouncedCustFilters, scope, segment]);
@@ -737,7 +749,7 @@ export function PromotionFormSheet({
     setCustomerFilterCount(null); setCustomerFilterResults([]); setShowFilteredCustomers(false);
     setCustomerFilterFetching(true);
     getCustomersPage({ ...presetFilters, limit: 2000 })
-      .then((res) => { setCustomerFilterCount(listTotal(res) ?? (res.data?.length ?? 0)); setCustomerFilterResults(res.data ?? []); })
+      .then((res) => { const valid = (res.data ?? []).filter((c) => !!String(c['customer_government_id'] ?? '')); setCustomerFilterCount(valid.length); setCustomerFilterResults(valid); })
       .catch(() => { setCustomerFilterCount(null); setCustomerFilterResults([]); })
       .finally(() => setCustomerFilterFetching(false));
   }, [scope, segment]);
@@ -967,7 +979,11 @@ export function PromotionFormSheet({
 
       const buildCustomerFilters = () => {
         if (scope !== 'customer_segment') return null;
-        if (segment !== 'custom') return { ...buildSegmentPresetConfig(segment), segment_preset: segment };
+        if (segment !== 'custom') return {
+          ...buildSegmentPresetConfig(segment),
+          segment_preset: segment,
+          ...(customerExcludedIds.length > 0 ? { excluded_customer_ids: customerExcludedIds } : {}),
+        };
         const raw: Record<string, unknown> = {
           business_type: customerFilterBusinessType || undefined,
           city: customerFilterCity || undefined,
@@ -981,7 +997,7 @@ export function PromotionFormSheet({
           max_days_since_last_purchase: customerFilterMaxDays ? Number(customerFilterMaxDays) : undefined,
           customer_clv_segment: customerFilterClv || undefined,
           customer_rfm_segment: customerFilterRfm || undefined,
-          excluded_customer_ids: customerExcludedIds.length > 0 ? customerExcludedIds.map(Number) : undefined,
+          excluded_customer_ids: customerExcludedIds.length > 0 ? customerExcludedIds : undefined,
         };
         return Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined));
       };
@@ -994,6 +1010,7 @@ export function PromotionFormSheet({
           industry_sector: productFilterSector || undefined,
           category: productFilterCategory || undefined,
           target_species: productFilterSpecies || undefined,
+          excluded_product_skus: filterExcludedSkus.length > 0 ? filterExcludedSkus : undefined,
         }
         : undefined;
 
@@ -1010,7 +1027,16 @@ export function PromotionFormSheet({
           : productFilterResults.filter((p) => !filterExcludedSkus.includes(p.product_sku)).map((p) => p.product_sku),
         product_filters: productFiltersPayload,
         target_scope: scope as 'all' | 'customers' | 'customer_segment',
-        customer_ids: scope === 'customers' ? selectedCustomerIds : undefined,
+        customer_ids: scope === 'customers'
+          ? selectedCustomerIds
+          : scope === 'customer_segment'
+            ? customerFilterResults
+                .filter((c) => {
+                  const nit = String(c['customer_government_id'] ?? '');
+                  return nit && !customerExcludedIds.includes(nit);
+                })
+                .map((c) => String(c['customer_government_id']))
+            : undefined,
         customer_filters: customerFilters,
         target_config: buildTargetConfig(),
         estimated_cost: estimatedCost || null,
@@ -1189,7 +1215,7 @@ export function PromotionFormSheet({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="title" className="font-medium">Titulo de la Promocion <span className="text-destructive">*</span></Label>
-                      <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7%" value={title} onChange={(e) => setTitle(e.target.value)} className={submitted && formErrors.title ? 'border-destructive' : ''} />
+                      <Input id="title" placeholder="Ej: BONIFICADO 10+1, DESCUENTO 7" value={title} onChange={(e) => setTitle(e.target.value)} className={submitted && formErrors.title ? 'border-destructive' : ''} />
                       {submitted && <FieldError error={formErrors.title} />}
                     </div>
                   </div>
@@ -1350,12 +1376,14 @@ export function PromotionFormSheet({
                       </div>
                       {(() => {
                         const effectiveCount = (productFilterCount ?? 0) - filterExcludedSkus.length;
-                        const allVisible = productFilterResults.filter((p) => !filterExcludedSkus.includes(p.product_sku));
                         const isZero = hasProductFilters && !productFilterFetching && productFilterCount !== null && effectiveCount === 0;
                         const searchTerm = filterResultsSearch.trim().toLowerCase();
+                        const included = productFilterResults.filter((p) => !filterExcludedSkus.includes(p.product_sku));
+                        const excluded = productFilterResults.filter((p) => filterExcludedSkus.includes(p.product_sku));
+                        const allSorted = [...included, ...excluded];
                         const displayedResults = searchTerm
-                          ? allVisible.filter((p) => (p.product_commercial_name || p.product_sku).toLowerCase().includes(searchTerm) || p.product_sku.toLowerCase().includes(searchTerm))
-                          : allVisible;
+                          ? allSorted.filter((p) => (p.product_commercial_name || p.product_sku).toLowerCase().includes(searchTerm) || p.product_sku.toLowerCase().includes(searchTerm))
+                          : allSorted;
                         return (
                           <div className={cn("rounded-lg border", !hasProductFilters && "border-dashed")}>
                             <div className="flex items-center justify-between gap-2 px-3 py-2.5">
@@ -1376,10 +1404,10 @@ export function PromotionFormSheet({
                                     ? 'Aplica los filtros para ver resultados'
                                     : isZero
                                     ? 'Sin productos para estos filtros'
-                                    : `${effectiveCount} producto${effectiveCount !== 1 ? 's' : ''} encontrado${effectiveCount !== 1 ? 's' : ''}`}
+                                    : `${effectiveCount} incluido${effectiveCount !== 1 ? 's' : ''}${filterExcludedSkus.length > 0 ? ` · ${filterExcludedSkus.length} excluido${filterExcludedSkus.length !== 1 ? 's' : ''}` : ''}`}
                                 </span>
                               </div>
-                              {!productFilterFetching && hasProductFilters && productFilterCount !== null && effectiveCount > 0 && (
+                              {!productFilterFetching && hasProductFilters && productFilterCount !== null && productFilterResults.length > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => { setShowFilteredProducts((v) => !v); setFilterResultsSearch(''); }}
@@ -1390,9 +1418,9 @@ export function PromotionFormSheet({
                                 </button>
                               )}
                             </div>
-                            {showFilteredProducts && allVisible.length > 0 && (
+                            {showFilteredProducts && productFilterResults.length > 0 && (
                               <div className="border-t">
-                                {allVisible.length > 10 && (
+                                {allSorted.length > 10 && (
                                   <div className="flex items-center gap-2 border-b px-3 py-2.5">
                                     <Search className="size-4 shrink-0 text-muted-foreground" />
                                     <input
@@ -1405,17 +1433,26 @@ export function PromotionFormSheet({
                                   </div>
                                 )}
                                 <div className="max-h-72 overflow-y-auto divide-y">
-                                  {displayedResults.map((p) => (
-                                    <div key={p.product_sku} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                                      <span className="min-w-0 truncate">{p.product_commercial_name || p.product_sku}</span>
-                                      <div className="flex shrink-0 items-center gap-2">
-                                        <span className="font-mono text-xs text-muted-foreground">{p.product_sku}</span>
-                                        <button type="button" onClick={() => setFilterExcludedSkus((prev) => [...prev, p.product_sku])} className="text-muted-foreground transition-colors hover:text-destructive">
-                                          <X className="size-3.5" />
-                                        </button>
+                                  {displayedResults.map((p) => {
+                                    const isExcluded = filterExcludedSkus.includes(p.product_sku);
+                                    return (
+                                      <div key={p.product_sku} className={cn("flex items-center justify-between gap-3 px-3 py-2.5 text-sm", isExcluded && "opacity-50")}>
+                                        <span className={cn("min-w-0 truncate", isExcluded && "line-through")}>{p.product_commercial_name || p.product_sku}</span>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                          <span className="font-mono text-xs text-muted-foreground">{p.product_sku}</span>
+                                          {isExcluded ? (
+                                            <button type="button" title="Volver a incluir" onClick={() => setFilterExcludedSkus((prev) => prev.filter((s) => s !== p.product_sku))} className="text-muted-foreground hover:text-primary">
+                                              <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                            </button>
+                                          ) : (
+                                            <button type="button" onClick={() => setFilterExcludedSkus((prev) => [...prev, p.product_sku])} className="text-muted-foreground transition-colors hover:text-destructive">
+                                              <X className="size-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                   {searchTerm && displayedResults.length === 0 && (
                                     <p className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados para "{filterResultsSearch}"</p>
                                   )}
@@ -1461,12 +1498,13 @@ export function PromotionFormSheet({
                       {customerOptions.length > 0 && (
                         <div className="max-h-56 overflow-y-auto rounded-md border divide-y" onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMoreCustomers(); }}>
                           {customerOptions.map((customer) => {
-                            const id = String(customer.id || '');
-                            const name = String(customer.customer_full_name || `Cliente ${id}`);
+                            const nit = String(customer.customer_government_id || '');
+                            if (!nit) return null;
+                            const name = String(customer.customer_full_name || `Cliente ${nit}`);
                             return (
-                              <button key={id} type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted" onClick={() => addCustomerId(id, name)}>
+                              <button key={nit} type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted" onClick={() => addCustomerId(nit, name)}>
                                 <span className="min-w-0 truncate">{name}</span>
-                                <span className="shrink-0 text-xs text-muted-foreground">{String(customer.customer_government_id || id)}</span>
+                                <span className="shrink-0 text-xs text-muted-foreground">{nit}</span>
                               </button>
                             );
                           })}
@@ -1582,35 +1620,37 @@ export function PromotionFormSheet({
                           </div>
                           {(() => {
                             const effectiveCount = (customerFilterCount ?? 0) - customerExcludedIds.length;
-                            const allVisible = customerFilterResults.filter((c) => !customerExcludedIds.includes(String(c.id)));
                             const isZero = hasCustomerFilters && !customerFilterFetching && customerFilterCount !== null && effectiveCount === 0;
                             const searchTerm = customerResultsSearch.trim().toLowerCase();
+                            const includedC = customerFilterResults.filter((c) => !customerExcludedIds.includes(String(c['customer_government_id'] ?? '')));
+                            const excludedC = customerFilterResults.filter((c) => customerExcludedIds.includes(String(c['customer_government_id'] ?? '')));
+                            const allSortedC = [...includedC, ...excludedC];
                             const displayedResults = searchTerm
-                              ? allVisible.filter((c) => {
+                              ? allSortedC.filter((c) => {
                                   const name = String(c.customer_full_name || c.customer_name || '').toLowerCase();
                                   const govId = String(c.customer_government_id || '').toLowerCase();
                                   return name.includes(searchTerm) || govId.includes(searchTerm);
                                 })
-                              : allVisible;
+                              : allSortedC;
                             return (
                               <div className={cn("rounded-lg border", !hasCustomerFilters && "border-dashed")}>
                                 <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                                   <div className="flex items-center gap-2">
                                     {customerFilterFetching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <SlidersHorizontal className={cn("size-4 shrink-0", !hasCustomerFilters ? "text-muted-foreground/50" : isZero ? "text-destructive" : "text-primary")} />}
                                     <span className={cn("text-sm font-medium", !hasCustomerFilters || customerFilterFetching || customerFilterCount === null ? "text-muted-foreground" : isZero ? "text-destructive" : "text-foreground")}>
-                                      {customerFilterFetching ? 'Buscando clientes...' : !hasCustomerFilters ? 'Sin filtros seleccionados' : customerFilterCount === null ? 'Aplica filtros para ver clientes' : isZero ? 'Sin clientes para estos filtros' : `${effectiveCount} cliente(s) encontrado(s)`}
+                                      {customerFilterFetching ? 'Buscando clientes...' : !hasCustomerFilters ? 'Sin filtros seleccionados' : customerFilterCount === null ? 'Aplica filtros para ver clientes' : isZero ? 'Sin clientes para estos filtros' : `${effectiveCount} incluido(s)${customerExcludedIds.length > 0 ? ` · ${customerExcludedIds.length} excluido(s)` : ''}`}
                                     </span>
                                   </div>
-                                  {!customerFilterFetching && hasCustomerFilters && customerFilterCount !== null && effectiveCount > 0 && (
+                                  {!customerFilterFetching && hasCustomerFilters && customerFilterCount !== null && customerFilterResults.length > 0 && (
                                     <button type="button" onClick={() => { setShowFilteredCustomers((v) => !v); setCustomerResultsSearch(''); }} className="flex shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground shadow-sm hover:bg-muted/50 hover:text-foreground">
                                       {showFilteredCustomers ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                                       {showFilteredCustomers ? 'Ocultar' : 'Ver'}
                                     </button>
                                   )}
                                 </div>
-                                {showFilteredCustomers && allVisible.length > 0 && (
+                                {showFilteredCustomers && customerFilterResults.length > 0 && (
                                   <div className="border-t">
-                                    {allVisible.length > 10 && (
+                                    {customerFilterResults.length > 10 && (
                                       <div className="flex items-center gap-2 border-b px-3 py-2.5">
                                         <Search className="size-4 shrink-0 text-muted-foreground" />
                                         <input
@@ -1623,15 +1663,25 @@ export function PromotionFormSheet({
                                       </div>
                                     )}
                                     <div className="max-h-72 overflow-y-auto divide-y">
-                                      {displayedResults.map((c) => (
-                                        <div key={String(c.id)} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                                          <span className="min-w-0 truncate">{String(c.customer_full_name || c.customer_name || `Cliente ${c.id}`)}</span>
-                                          <div className="flex shrink-0 items-center gap-2">
-                                            <span className="font-mono text-xs text-muted-foreground">{String(c.customer_government_id || '')}</span>
-                                            <button type="button" onClick={() => setCustomerExcludedIds((prev) => [...prev, String(c.id)])}><X className="size-3.5 text-muted-foreground hover:text-foreground" /></button>
+                                      {displayedResults.map((c) => {
+                                        const nit = String(c['customer_government_id'] ?? '');
+                                        const isExcluded = customerExcludedIds.includes(nit);
+                                        return (
+                                          <div key={String(c['customer_government_id'] || c.id)} className={cn("flex items-center justify-between gap-3 px-3 py-2.5 text-sm", isExcluded && "opacity-50")}>
+                                            <span className={cn("min-w-0 truncate", isExcluded && "line-through")}>{String(c.customer_full_name || c.customer_name || `Cliente ${nit || c.id}`)}</span>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                              <span className="font-mono text-xs text-muted-foreground">{nit}</span>
+                                              {isExcluded ? (
+                                                <button type="button" title="Volver a incluir" onClick={() => setCustomerExcludedIds((prev) => prev.filter((id) => id !== nit))} className="text-muted-foreground hover:text-primary">
+                                                  <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                                </button>
+                                              ) : (
+                                                <button type="button" title="Excluir" onClick={() => { if (nit) setCustomerExcludedIds((prev) => [...prev, nit]); }}><X className="size-3.5 text-muted-foreground hover:text-destructive" /></button>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                       {searchTerm && displayedResults.length === 0 && (
                                         <p className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados para "{customerResultsSearch}"</p>
                                       )}
