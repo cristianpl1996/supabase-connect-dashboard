@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowUp, Bell, LogOut, Menu, Moon, Settings, Sun } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 
 import logo from "@/assets/logo.png";
@@ -22,9 +22,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { getNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "@/lib/api";
+import { getNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem, type NotificationsSummary } from "@/lib/api";
 
 const currentYear = new Date().getFullYear();
+
+function formatRelativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `hace ${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `hace ${weeks}sem`;
+  return new Date(isoString).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+}
 
 function getInitials(name?: string, username?: string): string {
   const source = name ?? username ?? "U";
@@ -46,6 +60,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
+  const queryClient = useQueryClient();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const showFooter = !isMobile && pathname !== "/map";
@@ -75,24 +90,36 @@ export function AppLayout({ children }: AppLayoutProps) {
     navigate("/login", { replace: true });
   };
 
-  const handleNotificationClick = async (notification: NotificationItem) => {
+  const handleNotificationClick = (notification: NotificationItem) => {
     if (!notification.is_read) {
-      try {
-        await markNotificationRead(notification.notification_key);
-      } catch (error) {
-        console.error("Error marking notification as read:", error);
-      }
+      queryClient.setQueryData<NotificationsSummary>(["header-notifications"], (old) => {
+        if (!old) return old;
+        return {
+          items: old.items.map((n) =>
+            n.notification_key === notification.notification_key ? { ...n, is_read: true } : n
+          ),
+          unread_count: Math.max(0, old.unread_count - 1),
+        };
+      });
+      void markNotificationRead(notification.notification_key).catch(() => {
+        void refetchNotifications();
+      });
     }
-    await refetchNotifications();
     navigate(notification.route);
   };
 
   const handleMarkAllAsRead = async () => {
+    queryClient.setQueryData<NotificationsSummary>(["header-notifications"], (old) => {
+      if (!old) return old;
+      return {
+        items: old.items.map((n) => ({ ...n, is_read: true })),
+        unread_count: 0,
+      };
+    });
     try {
       await markAllNotificationsRead();
-      await refetchNotifications();
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+    } catch {
+      void refetchNotifications();
     }
   };
 
@@ -220,18 +247,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
                 <DropdownMenuSeparator />
                 {notifications.length === 0 ? (
-                  <DropdownMenuItem disabled>No hay notificaciones nuevas</DropdownMenuItem>
+                  <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+                    <Bell className="size-8 opacity-30" />
+                    <p className="text-sm">Todo al día</p>
+                  </div>
                 ) : (
                   notifications.map((notification) => (
                     <DropdownMenuItem
                       key={notification.id}
-                      className={`cursor-pointer items-start gap-3 py-3 ${notification.is_read ? "opacity-70" : ""}`}
-                      onClick={() => void handleNotificationClick(notification)}
+                      className={`cursor-pointer items-start gap-3 py-3 ${notification.is_read ? "opacity-60" : ""}`}
+                      onClick={() => handleNotificationClick(notification)}
                     >
                       <div
-                        className={`mt-1 size-2.5 rounded-full ${
+                        className={`mt-1.5 size-2 shrink-0 rounded-full transition-colors duration-150 ${
                           notification.is_read
-                            ? "bg-muted-foreground/40"
+                            ? "bg-muted-foreground/30"
                             : notification.level === "critical"
                             ? "bg-red-500"
                             : notification.level === "warning"
@@ -239,11 +269,16 @@ export function AppLayout({ children }: AppLayoutProps) {
                               : "bg-sky-500"
                         }`}
                       />
-                      <div className="space-y-1">
-                        <p className={`text-sm leading-none ${notification.is_read ? "font-normal" : "font-medium"}`}>
-                          {notification.title}
-                        </p>
-                        <p className="text-xs leading-5 text-muted-foreground">{notification.message}</p>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`text-sm leading-snug ${notification.is_read ? "font-normal" : "font-medium"}`}>
+                            {notification.title}
+                          </p>
+                          <span className="shrink-0 text-[10px] text-muted-foreground/70">
+                            {formatRelativeTime(notification.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-xs leading-4 text-muted-foreground">{notification.message}</p>
                       </div>
                     </DropdownMenuItem>
                   ))

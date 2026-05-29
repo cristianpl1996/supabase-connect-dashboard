@@ -18,11 +18,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Search, Eye, EyeOff, Pencil, Trash2,
-  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2
+  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2, RefreshCw
 } from 'lucide-react';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
 import { ImportPromotionsModal } from '@/components/promotions/ImportPromotionsModal';
+import SyncFromSapModal from '@/components/promotions/SyncFromSapModal';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -79,7 +80,9 @@ const Promotions = () => {
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
   const [isCloning, setIsCloning] = useState(false);
+  const [promoToClone, setPromoToClone] = useState<Promotion | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [parsingFile, setParsingFile] = useState(false);
 
@@ -218,10 +221,15 @@ const Promotions = () => {
     });
   };
 
-  const handleClonePromo = async (promo: Promotion) => {
+  const handleCloneClick = (promo: Promotion) => {
+    setPromoToClone(promo);
+  };
+
+  const handleConfirmClone = async () => {
+    if (!promoToClone) return;
     setIsCloning(true);
     try {
-      await clonePromotion(promo.id);
+      await clonePromotion(promoToClone.id);
       toast.success('Promocion duplicada exitosamente');
       fetchData();
     } catch (err) {
@@ -229,6 +237,7 @@ const Promotions = () => {
       toast.error(`Error al clonar: ${errorMessage}`);
     } finally {
       setIsCloning(false);
+      setPromoToClone(null);
     }
   };
 
@@ -252,7 +261,11 @@ const Promotions = () => {
           title="Gestion de Promociones"
           description="Crea y administra promociones comerciales"
           actions={(
-            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 md:w-auto">
+              <Button variant="outline" onClick={() => setShowSyncModal(true)} disabled={loading} className="w-full gap-2">
+                <RefreshCw className="size-4" />
+                Sincronizar SAP
+              </Button>
               <Button variant="outline" onClick={() => setShowImportModal(true)} disabled={loading} className="w-full gap-2">
                 {(downloadingTemplate || parsingFile) ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                 Importar Excel
@@ -480,7 +493,7 @@ const Promotions = () => {
                         </div>
                         <div className="mt-3 grid grid-cols-4 gap-1">
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion"><Copy className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning} title="Duplicar promocion"><Copy className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar"><Pencil className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(promo)} disabled={loading} title="Eliminar"><Trash2 className="size-4" /></Button>
                         </div>
@@ -557,7 +570,7 @@ const Promotions = () => {
                                 <Button variant="ghost" size="icon" className="size-8" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles">
                                   <Eye className="size-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="size-8" onClick={() => handleClonePromo(promo)} disabled={loading || isCloning} title="Duplicar promocion">
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning} title="Duplicar promocion">
                                   <Copy className="size-4" />
                                 </Button>
                                 <Button variant="ghost" size="icon" className="size-8" onClick={() => { setEditingPromo(promo); setSheetOpen(true); }} disabled={loading} title="Editar">
@@ -586,6 +599,12 @@ const Promotions = () => {
           onDownloadingChange={setDownloadingTemplate}
           onBusyChange={setParsingFile}
           laboratories={laboratories}
+        />
+
+        <SyncFromSapModal
+          open={showSyncModal}
+          onClose={() => setShowSyncModal(false)}
+          onImported={fetchData}
         />
 
         <PromotionFormSheet
@@ -623,6 +642,23 @@ const Promotions = () => {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {isDeleting ? 'Eliminando…' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!promoToClone} onOpenChange={(open) => { if (!open && !isCloning) setPromoToClone(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Duplicar promocion?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Vas a duplicar la promocion "{promoToClone?.title}". Se creara una copia en estado borrador para que puedas revisarla antes de activarla.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isCloning}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmClone} disabled={isCloning}>
+                {isCloning ? 'Duplicando...' : 'Duplicar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

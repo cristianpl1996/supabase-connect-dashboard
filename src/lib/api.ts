@@ -1498,6 +1498,35 @@ export async function importPromotions(rows: PromotionImportRowPayload[]): Promi
   });
 }
 
+export interface SapCampaignPreview {
+  campaign_number: number;
+  title: string;
+  laboratory_name: string | null;
+  start_date: string;
+  end_date: string;
+  status: PromoStatus;
+  action: "create" | "update";
+  warnings: string[];
+}
+
+export interface SapImportResult {
+  imported_count: number;
+  updated_count: number;
+  skipped_count: number;
+  errors: string[];
+}
+
+export function previewSapCampaigns(): Promise<SapCampaignPreview[]> {
+  return apiList<SapCampaignPreview>("/api/v1/sap-sync/campaigns/from-sap/preview");
+}
+
+export function importSapCampaigns(campaignNumbers: number[]): Promise<SapImportResult> {
+  return apiDetail<SapImportResult>("/api/v1/sap-sync/campaigns/from-sap/import", {
+    method: "POST",
+    body: JSON.stringify({ campaign_numbers: campaignNumbers }),
+  });
+}
+
 export function getPromotionBudget(labId: string, excludePromoId?: string): Promise<PromotionBudgetSummary> {
   const qs = new URLSearchParams();
   if (excludePromoId) qs.set("exclude_promo_id", excludePromoId);
