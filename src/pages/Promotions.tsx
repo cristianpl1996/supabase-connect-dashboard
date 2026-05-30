@@ -533,7 +533,9 @@ const Promotions = () => {
                             <TableCell className="max-w-[260px] font-medium">
                               <span className="line-clamp-2">{promo.title}</span>
                             </TableCell>
-                            <TableCell>{promo.laboratory_name || '—'}</TableCell>
+                            <TableCell>
+                              {promo.laboratory_name || <span className="text-muted-foreground">Sin laboratorio</span>}
+                            </TableCell>
                             <TableCell className="whitespace-nowrap text-sm">
                               <div className="flex items-center gap-1 text-muted-foreground">
                                 <Calendar className="size-3" />
