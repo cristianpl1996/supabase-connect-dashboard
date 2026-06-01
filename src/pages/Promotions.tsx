@@ -4,9 +4,11 @@ const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", curren
 import {
   clonePromotion,
   deletePromotion,
+  getSapAutoSyncStatus,
   listLaboratories,
   listPromotions,
   updatePromotionStatus,
+  SapAutoSyncStatus,
 } from '@/lib/api';
 import { Promotion, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,12 +20,16 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Search, Eye, EyeOff, Pencil, Trash2,
-  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2, RefreshCw
+  Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2, RefreshCw,
+  AlertTriangle, XCircle, CheckCircle2,
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 import { PromotionFormSheet } from '@/components/promotions/PromotionFormSheet';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
 import { ImportPromotionsModal } from '@/components/promotions/ImportPromotionsModal';
 import SyncFromSapModal from '@/components/promotions/SyncFromSapModal';
+import { SapStatusBadge } from '@/components/promotions/SapStatusBadge';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -90,6 +96,8 @@ const Promotions = () => {
   const [laboratoryFilter, setLaboratoryFilter] = useState('all');
   const [mechanicFilter, setMechanicFilter] = useState('all');
   const [showCostColumn, setShowCostColumn] = useState(false);
+  const [showSapColumn, setShowSapColumn] = useState(true);
+  const [autoSyncStatus, setAutoSyncStatus] = useState<SapAutoSyncStatus | null>(null);
   const [hiddenCostRows, setHiddenCostRows] = useState<Set<string>>(new Set());
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
@@ -105,6 +113,7 @@ const Promotions = () => {
     } finally {
       setLoading(false);
     }
+    getSapAutoSyncStatus().then(setAutoSyncStatus).catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -283,6 +292,41 @@ const Promotions = () => {
         <ModuleErrorCard message={error} onRetry={fetchData} loading={loading} />
       )}
 
+      {autoSyncStatus && autoSyncStatus.status !== 'never_run' && (() => {
+        const { status, last_run_at, imported, updated, errors } = autoSyncStatus;
+        const timeAgo = last_run_at
+          ? formatDistanceToNow(parseISO(last_run_at), { addSuffix: true, locale: es })
+          : '';
+        if (status === 'ok') return (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+            <span>Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
+          </div>
+        );
+        if (status === 'errors') return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 px-1">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>Auto-sync SAP: {timeAgo} · {errors.length} error(es) — Ver detalles</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-3" align="start">
+              <p className="text-xs font-medium mb-1.5">Errores en última sincronización automática:</p>
+              <ul className="space-y-1 text-xs text-red-700 max-h-40 overflow-y-auto">
+                {errors.map((e, i) => <li key={i} className="break-words">• {e}</li>)}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        );
+        return (
+          <div className="flex items-center gap-1.5 text-xs text-red-600 px-1">
+            <XCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>Auto-sync SAP: falló {timeAgo}</span>
+          </div>
+        );
+      })()}
+
       <ErrorDisabledContent disabled={!!error} className="space-y-6 sm:space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card className="border-border/50 shadow-sm">
@@ -408,6 +452,23 @@ const Promotions = () => {
                       </div>
                     </div>
                   </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={showSapColumn}
+                    onCheckedChange={setShowSapColumn}
+                    className="min-h-12 rounded-md border border-border bg-background py-2 pl-3 pr-3 focus:bg-accent [&>span:first-child]:hidden"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${showSapColumn ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"}`}>
+                        {showSapColumn && <Check className="size-3.5" />}
+                      </span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-medium text-foreground">Estado SAP</span>
+                        <span className="text-xs text-muted-foreground">
+                          {showSapColumn ? "Visible en la tabla" : "Mostrar columna en la tabla"}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -502,7 +563,7 @@ const Promotions = () => {
                   })}
                 </div>
                 <div className="hidden overflow-x-auto md:block">
-                  <Table className={showCostColumn ? "min-w-[1240px]" : "min-w-[1080px]"}>
+                  <Table className={showCostColumn && showSapColumn ? "min-w-[1380px]" : showCostColumn || showSapColumn ? "min-w-[1220px]" : "min-w-[1080px]"}>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-20">Activa</TableHead>
@@ -512,6 +573,7 @@ const Promotions = () => {
                         <TableHead className="w-[120px]">Estado</TableHead>
                         <TableHead className="w-[170px]">Tipo Mecanica</TableHead>
                         {showCostColumn && <TableHead className="w-[190px] text-right">Costo Estimado</TableHead>}
+                        {showSapColumn && <TableHead className="w-[130px]">SAP</TableHead>}
                         <TableHead className="w-[150px] text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -565,6 +627,15 @@ const Promotions = () => {
                                     {isCostHidden ? <EyeOff className="size-3 text-muted-foreground" /> : <Eye className="size-3 text-muted-foreground" />}
                                   </Button>
                                 </div>
+                              </TableCell>
+                            )}
+                            {showSapColumn && (
+                              <TableCell>
+                                <SapStatusBadge
+                                  campaignNumber={promo.sap_campaign_number}
+                                  syncedAt={promo.sap_synced_at}
+                                  syncError={promo.sap_sync_error}
+                                />
                               </TableCell>
                             )}
                             <TableCell className="text-right">

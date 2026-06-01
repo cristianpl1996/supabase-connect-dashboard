@@ -1498,6 +1498,11 @@ export async function importPromotions(rows: PromotionImportRowPayload[]): Promi
   });
 }
 
+export interface SapMessage {
+  type: "info" | "warning" | "error";
+  text: string;
+}
+
 export interface SapCampaignPreview {
   campaign_number: number;
   title: string;
@@ -1506,7 +1511,7 @@ export interface SapCampaignPreview {
   end_date: string;
   status: PromoStatus;
   action: "create" | "update";
-  warnings: string[];
+  messages: SapMessage[];
 }
 
 export interface SapImportResult {
@@ -1514,6 +1519,31 @@ export interface SapImportResult {
   updated_count: number;
   skipped_count: number;
   errors: string[];
+}
+
+export interface SapHealthStatus {
+  status: "ok" | "unavailable" | "disabled";
+  latency_ms: number;
+}
+
+export interface SapErrorInfo {
+  error_type: "TIMEOUT" | "NETWORK_ERROR" | "SAP_UNAVAILABLE" | "AUTH_EXPIRED" | "DATA_ERROR" | "UNKNOWN";
+  is_retryable: boolean;
+  message: string;
+}
+
+export function inferSapErrorType(error: unknown): SapErrorInfo {
+  if (error instanceof ApiError) {
+    if (error.status === 504) return { error_type: "TIMEOUT", is_retryable: true, message: error.message };
+    if (error.status >= 500) return { error_type: "SAP_UNAVAILABLE", is_retryable: true, message: error.message };
+    if (error.status === 401) return { error_type: "AUTH_EXPIRED", is_retryable: true, message: error.message };
+    return { error_type: "DATA_ERROR", is_retryable: false, message: error.message };
+  }
+  return { error_type: "NETWORK_ERROR", is_retryable: true, message: String(error) };
+}
+
+export function checkSapHealth(): Promise<SapHealthStatus> {
+  return apiFetch<SapHealthStatus>("/api/v1/sap-sync/campaigns/from-sap/health");
 }
 
 export function previewSapCampaigns(): Promise<SapCampaignPreview[]> {
@@ -1525,6 +1555,19 @@ export function importSapCampaigns(campaignNumbers: number[]): Promise<SapImport
     method: "POST",
     body: JSON.stringify({ campaign_numbers: campaignNumbers }),
   });
+}
+
+export interface SapAutoSyncStatus {
+  status: "ok" | "errors" | "failed" | "never_run";
+  last_run_at: string | null;
+  imported: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+export function getSapAutoSyncStatus(): Promise<SapAutoSyncStatus> {
+  return apiFetch<SapAutoSyncStatus>("/api/v1/sap-sync/campaigns/auto-status");
 }
 
 export function getPromotionBudget(labId: string, excludePromoId?: string): Promise<PromotionBudgetSummary> {
