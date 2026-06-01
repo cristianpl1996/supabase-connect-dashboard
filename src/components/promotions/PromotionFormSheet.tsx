@@ -762,6 +762,7 @@ export function PromotionFormSheet({
     if (!labId) errors.labId = 'Selecciona un laboratorio';
     if (!origin) errors.origin = 'Selecciona el origen de la promocion';
     if (!title.trim()) errors.title = 'Ingresa un titulo para la promocion';
+    else if (/[%\[\]{}<>@#&*^~`\\|]/.test(title.trim())) errors.title = 'El título no puede contener caracteres especiales (%, [, ], {, }, @, etc.)';
     const today = new Date().toISOString().split('T')[0];
     if (!startDate || !endDate) errors.dates = 'Selecciona las fechas de vigencia';
     else if (startDate < today) errors.dates = 'La fecha de inicio no puede ser anterior a hoy';

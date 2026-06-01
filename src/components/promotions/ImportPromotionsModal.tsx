@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { Laboratory } from '@/types/database';
 import { toast } from 'sonner';
+import { StepsProgress } from './StepsProgress';
 
 interface ImportPromotionsModalProps {
   open: boolean;
@@ -109,9 +110,31 @@ function nextMonthStr() {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+// ─── Module-level cache for products + customers ──────────────────────────────
+let _cachedProducts: ProductCatalogItem[] | null = null;
+let _cachedCustomers: CustomerRecord[] | null = null;
+let _productsCachedAt = 0;
+let _customersCachedAt = 0;
+const CATALOG_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getCachedProducts(): Promise<ProductCatalogItem[]> {
+  if (_cachedProducts && Date.now() - _productsCachedAt < CATALOG_TTL_MS) return _cachedProducts;
+  _cachedProducts = await getAllProducts();
+  _productsCachedAt = Date.now();
+  return _cachedProducts;
+}
+
+async function getCachedCustomers(): Promise<CustomerRecord[]> {
+  if (_cachedCustomers && Date.now() - _customersCachedAt < CATALOG_TTL_MS) return _cachedCustomers;
+  _cachedCustomers = await getAllCustomers();
+  _customersCachedAt = Date.now();
+  return _cachedCustomers;
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 const VALID_MECANICAS = ['bonificacion', 'descuento'];
+const TITLE_FORBIDDEN = /[%\[\]{}<>@#&*^~`\\|]/;
 const VALID_ORIGINS = ['dinamica comercial', 'recurso propio'];
 const SCOPE_CUSTOMERS_VALUES = ['clientes especificos', 'clientes_especificos', 'customers', 'especificos'];
 
@@ -209,6 +232,8 @@ function validateAndGroup(
       errs.push(`Fila ${n}: Laboratorio "${row.laboratory.trim()}" no encontrado en el sistema`);
 
     if (!row.title?.trim()) errs.push(`Fila ${n}: Titulo requerido`);
+    else if (TITLE_FORBIDDEN.test(row.title.trim()))
+      errs.push(`Fila ${n}: Título contiene caracteres no permitidos (%, [, ], {, }, @, etc.)`);
 
     if (!row.start_date) errs.push(`Fila ${n}: Fecha_Inicio requerida`);
     else if (!isValidDate(row.start_date)) errs.push(`Fila ${n}: Fecha_Inicio "${row.start_date}" invalida (usar DD/MM/YYYY)`);
@@ -528,6 +553,8 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
   const [importing, setImporting] = useState(false);
   const [parsingStep, setParsingStep] = useState(0);
   const [parsingProgress, setParsingProgress] = useState(0);
+  const [importingStep, setImportingStep] = useState(0);
+  const [importingProgress, setImportingProgress] = useState(0);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadLabel, setDownloadLabel] = useState('');
@@ -538,6 +565,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const PARSING_STEPS = ['Leyendo archivo Excel…', 'Descargando catálogo de productos…', 'Descargando datos de clientes…', 'Validando y agrupando campañas…'];
+  const IMPORTING_STEPS = ['Validando campañas...', 'Guardando en Ivanagro...', 'Finalizando importación...'];
 
   useEffect(() => {
     if (modalState !== 'parsing') { setParsingStep(0); setParsingProgress(0); return; }
@@ -547,6 +575,18 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     let p = 5;
     const ticker = setInterval(() => { p = Math.min(p + 1.2, 92); setParsingProgress(Math.round(p)); }, 120);
     return () => { timers.forEach(clearTimeout); clearInterval(ticker); };
+  }, [modalState]);
+
+  useEffect(() => {
+    if (modalState !== 'importing') { setImportingStep(0); setImportingProgress(0); return; }
+    setImportingStep(0); setImportingProgress(5);
+    const stepTimers = [
+      window.setTimeout(() => setImportingStep(1), 800),
+      window.setTimeout(() => setImportingStep(2), 1800),
+    ];
+    let p = 5;
+    const ticker = setInterval(() => { p = Math.min(p + 1.2, 90); setImportingProgress(Math.round(p)); }, 120);
+    return () => { stepTimers.forEach(clearTimeout); clearInterval(ticker); };
   }, [modalState]);
 
   const reset = useCallback(() => {
@@ -583,7 +623,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     }, 500);
 
     try {
-      const [products, customers] = await Promise.all([getAllProducts(), getAllCustomers()]);
+      const [products, customers] = await Promise.all([getCachedProducts(), getCachedCustomers()]);
 
       clearInterval(ticker);
       setDownloadProgress(88);
@@ -614,8 +654,8 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     try {
       const [parsedRows, products, customers] = await Promise.all([
         parseFile(file),
-        getAllProducts(),
-        getAllCustomers(),
+        getCachedProducts(),
+        getCachedCustomers(),
       ]);
       const productMap = buildProductMap(products);
       const customerMap = buildCustomerMap(customers);
@@ -675,21 +715,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <style>{`
-        @keyframes ivanagro-stripes {
-          from { background-position: 28px 0; }
-          to   { background-position: 0 0; }
-        }
-        .progress-striped {
-          background-image: repeating-linear-gradient(
-            45deg,
-            #1a5c38 0px, #1a5c38 10px,
-            #2d8653 10px, #2d8653 20px
-          );
-          background-size: 28px 28px;
-          animation: ivanagro-stripes 0.5s linear infinite;
-        }
-      `}</style>
+      <style>{`@keyframes promo-stripes { from { background-position: 28px 0; } to { background-position: 0 0; } }`}</style>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader className="pb-2">
           <DialogTitle className="text-foreground">Importar Promociones desde Excel</DialogTitle>
@@ -724,8 +750,13 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                 </div>
                 <div className="h-3 w-full overflow-hidden rounded-full bg-green-100 dark:bg-green-900/30">
                   <div
-                    className="progress-striped h-full rounded-full transition-[width] duration-500 ease-out"
-                    style={{ width: `${downloadProgress}%` }}
+                    className="h-full rounded-full transition-[width] duration-500 ease-out"
+                    style={{
+                      width: `${downloadProgress}%`,
+                      backgroundImage: 'repeating-linear-gradient(45deg, #1a5c38 0px, #1a5c38 10px, #2d8653 10px, #2d8653 20px)',
+                      backgroundSize: '28px 28px',
+                      animation: 'promo-stripes 0.5s linear infinite',
+                    }}
                   />
                 </div>
               </div>
@@ -744,50 +775,13 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
         {/* ── parsing ── */}
         {modalState === 'parsing' && (
-          <div className="space-y-5 py-1">
-            {/* Barra de progreso striped */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground">{PARSING_STEPS[parsingStep]}</span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">{parsingProgress}%</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full bg-muted/60">
-                <div
-                  className="progress-striped h-full rounded-full transition-[width] duration-300 ease-out"
-                  style={{ width: `${parsingProgress}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Steps */}
-            <div className="rounded-lg border bg-muted/20 p-3 space-y-0">
-              {PARSING_STEPS.map((step, i) => {
-                const done   = i < parsingStep;
-                const active = i === parsingStep;
-                return (
-                  <div key={i} className="flex items-center gap-3 py-2">
-                    {/* Indicator */}
-                    {done ? (
-                      <CheckCircle2 className="size-6 shrink-0 text-primary" />
-                    ) : active ? (
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                        <Loader2 className="size-4 animate-spin text-primary" />
-                      </div>
-                    ) : (
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-muted-foreground/20 text-[11px] font-bold text-muted-foreground/30">
-                        {i + 1}
-                      </div>
-                    )}
-
-                    <span className={`text-sm transition-all ${
-                      done   ? 'font-medium italic text-foreground' :
-                      active ? 'font-semibold italic text-foreground' :
-                               'text-muted-foreground/45'
-                    }`}>{step}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="py-4">
+            <StepsProgress
+              steps={PARSING_STEPS}
+              step={parsingStep}
+              progress={parsingProgress}
+              label={PARSING_STEPS[parsingStep]}
+            />
           </div>
         )}
 
@@ -936,9 +930,13 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
         {/* ── importing ── */}
         {modalState === 'importing' && (
-          <div className="flex flex-col items-center justify-center gap-3 py-12">
-            <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Importando {validCount} {validCount === 1 ? 'campana' : 'campanas'}...</p>
+          <div className="py-4">
+            <StepsProgress
+              steps={IMPORTING_STEPS}
+              step={importingStep}
+              progress={importingProgress}
+              label={IMPORTING_STEPS[importingStep]}
+            />
           </div>
         )}
 
