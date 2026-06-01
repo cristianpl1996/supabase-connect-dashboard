@@ -2,12 +2,12 @@ import { useState, useCallback, useEffect, useRef, useMemo, Fragment, lazy, Susp
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Agotado,
-  AgotadoCreate,
-  createAgotado,
-  deleteAgotado,
-  listAgotados,
-  resolveAgotado,
+  Stockout,
+  StockoutCreate,
+  createStockout,
+  deleteStockout,
+  listStockouts,
+  resolveStockout,
   searchProductsLight,
   getAllRepresentatives,
   Representative,
@@ -43,8 +43,8 @@ import { toast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
-const AgotadosDashboardModal = lazy(() =>
-  import("@/components/agotados/AgotadosDashboardModal").then((m) => ({ default: m.AgotadosDashboardModal }))
+const StockoutsDashboardModal = lazy(() =>
+  import("@/components/stockouts/StockoutsDashboardModal").then((m) => ({ default: m.StockoutsDashboardModal }))
 );
 
 const DISPLAY_PAGE = 50;
@@ -157,7 +157,7 @@ function SalesRepView() {
     isError: productsError,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ["products-agotados-light", debouncedSearch],
+    queryKey: ["products-stockouts-light", debouncedSearch],
     queryFn: () =>
       debouncedSearch.trim()
         ? searchProductsLight(debouncedSearch)
@@ -172,18 +172,18 @@ function SalesRepView() {
     isError: reportsError,
     error: reportsErrorObj,
     refetch: refetchReports,
-  } = useQuery<Agotado[]>({
-    queryKey: ["agotados-mine", filterStatus],
-    queryFn: () => listAgotados({ status: filterStatus === "all" ? undefined : filterStatus, limit: 1000 }).then((d) => d ?? []),
+  } = useQuery<Stockout[]>({
+    queryKey: ["stockouts-mine", filterStatus],
+    queryFn: () => listStockouts({ status: filterStatus === "all" ? undefined : filterStatus, limit: 1000 }).then((d) => d ?? []),
     refetchOnMount: "always",
     gcTime: 0,
     retry: false,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteAgotado,
+    mutationFn: deleteStockout,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agotados-mine"] });
+      queryClient.invalidateQueries({ queryKey: ["stockouts-mine"] });
       toast({ title: "Reporte eliminado" });
     },
   });
@@ -256,15 +256,15 @@ function SalesRepView() {
     try {
       await Promise.all(
         selected.map((p) =>
-          createAgotado({
+          createStockout({
             product_sku: p.product_sku,
             product_name: p.product_commercial_name ?? p.product_sku,
             reason,
             notes: reason === "Otro" ? otroDetalle.trim() : (notes || undefined),
-          } as AgotadoCreate)
+          } as StockoutCreate)
         )
       );
-      queryClient.invalidateQueries({ queryKey: ["agotados-mine"] });
+      queryClient.invalidateQueries({ queryKey: ["stockouts-mine"] });
       toast({
         title: `${selected.length} agotado(s) reportado(s)`,
         description: "Los reportes fueron enviados correctamente.",
@@ -706,9 +706,9 @@ function SuperadminView() {
   const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: reports = [], isLoading, isError, error, refetch } = useQuery<Agotado[]>({
-    queryKey: ["agotados-all", filterStatus],
-    queryFn: () => listAgotados({ status: filterStatus === "all" ? undefined : filterStatus, limit: 1000 }).then((d) => d ?? []),
+  const { data: reports = [], isLoading, isError, error, refetch } = useQuery<Stockout[]>({
+    queryKey: ["stockouts-all", filterStatus],
+    queryFn: () => listStockouts({ status: filterStatus === "all" ? undefined : filterStatus, limit: 1000 }).then((d) => d ?? []),
     refetchOnMount: "always",
     gcTime: 0,
     retry: false,
@@ -721,9 +721,9 @@ function SuperadminView() {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: resolveAgotado,
+    mutationFn: resolveStockout,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agotados-all"] });
+      queryClient.invalidateQueries({ queryKey: ["stockouts-all"] });
       toast({ title: "Marcado como resuelto" });
     },
   });
@@ -1019,7 +1019,7 @@ function SuperadminView() {
       </ErrorDisabledContent>
 
       <Suspense fallback={null}>
-        <AgotadosDashboardModal
+        <StockoutsDashboardModal
           open={dashOpen}
           onOpenChange={setDashOpen}
           reports={reports}
@@ -1032,7 +1032,7 @@ function SuperadminView() {
 
 // ── Page entry point ───────────────────────────────────────────────────────────
 
-export default function Agotados() {
+export default function Stockouts() {
   const { user } = useAuth();
   const isSalesRep = user?.role === "sales_rep";
   return isSalesRep ? <SalesRepView /> : <SuperadminView />;

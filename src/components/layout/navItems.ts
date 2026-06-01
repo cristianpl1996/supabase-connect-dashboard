@@ -25,14 +25,14 @@ export const mainNavItems = [
   { title: "Marketing Kit", shortTitle: "Marketing", url: "/marketing", icon: Image },
   { title: "Billetera & Conciliacion", shortTitle: "Billetera", url: "/wallet", icon: Wallet },
   { title: "Mapa de Clientes", shortTitle: "Mapa", url: "/map", icon: Map },
-  { title: "Dashboard Agotados", shortTitle: "Agotados", url: "/sold-out", icon: PackageX },
+  { title: "Dashboard Agotados", shortTitle: "Agotados", url: "/stockouts", icon: PackageX },
   { title: "Transferencias", shortTitle: "Transferencias", url: "/transfers", icon: ArrowRightLeft },
 ] as const;
 
-export const agotadosNavItem = {
+export const stockoutsNavItem = {
   title: "Dashboard Agotados",
   shortTitle: "Agotados",
-  url: "/sold-out",
+  url: "/stockouts",
   icon: PackageX,
 } as const;
 
@@ -43,7 +43,7 @@ export const transfersNavItem = {
   icon: ArrowRightLeft,
 } as const;
 
-export const salesRepMoreNavItems = [agotadosNavItem, transfersNavItem] as const;
+export const salesRepMoreNavItems = [stockoutsNavItem, transfersNavItem] as const;
 
 export const settingsNavItem = {
   title: "Configuracion",

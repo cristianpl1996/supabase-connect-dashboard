@@ -32,7 +32,7 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts";
-import type { Agotado } from "@/lib/api";
+import type { Stockout } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -108,12 +108,12 @@ function EmptyState({ height = 200 }: { height?: number }) {
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  reports: Agotado[];
+  reports: Stockout[];
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function AgotadosDashboardModal({ open, onOpenChange, reports }: Props) {
+export function StockoutsDashboardModal({ open, onOpenChange, reports }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState<"png" | "pdf" | null>(null);
 

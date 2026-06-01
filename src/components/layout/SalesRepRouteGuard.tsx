@@ -7,14 +7,14 @@ interface SalesRepRouteGuardProps {
 }
 
 /**
- * Blocks sales_rep users from accessing any route except /sold-out.
+ * Blocks sales_rep users from accessing any route except /stockouts.
  * Wrap every restricted route with this guard.
  */
 export function SalesRepRouteGuard({ children }: SalesRepRouteGuardProps) {
   const { isSalesRep } = useSalesRep();
 
   if (isSalesRep) {
-    return <Navigate to="/sold-out" replace />;
+    return <Navigate to="/stockouts" replace />;
   }
 
   return <>{children}</>;

@@ -34,7 +34,7 @@ const TYPE_META: Record<string, NotifMeta> = {
     badgeLabel: "Seguridad",
     badgeClass: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
   },
-  agotado_new: {
+  stockout_new: {
     icon: Package,
     iconClass: "text-orange-500",
     badgeLabel: "Inventario",

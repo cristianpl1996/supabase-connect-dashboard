@@ -1794,9 +1794,9 @@ export async function deactivateAppUser(id: number): Promise<void> {
   }
 }
 
-// ── Agotados ───────────────────────────────────────────────────────────────────
+// ── Stockouts ──────────────────────────────────────────────────────────────────
 
-export interface Agotado {
+export interface Stockout {
   id: number;
   product_sku: string;
   product_name?: string | null;
@@ -1809,35 +1809,35 @@ export interface Agotado {
   resolved_at?: string | null;
 }
 
-export interface AgotadoCreate {
+export interface StockoutCreate {
   product_sku: string;
   product_name?: string | null;
   reason: string;
   notes?: string | null;
 }
 
-export async function createAgotado(data: AgotadoCreate): Promise<Agotado> {
-  return apiDetail<Agotado>('/api/v1/agotados', { method: 'POST', body: JSON.stringify(data) });
+export async function createStockout(data: StockoutCreate): Promise<Stockout> {
+  return apiDetail<Stockout>('/api/v1/stockouts', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function listAgotados(params?: { status?: string; limit?: number; offset?: number }): Promise<Agotado[]> {
+export async function listStockouts(params?: { status?: string; limit?: number; offset?: number }): Promise<Stockout[]> {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   const query = qs.toString() ? `?${qs.toString()}` : '';
-  return apiDetail<Agotado[]>(`/api/v1/agotados${query}`);
+  return apiDetail<Stockout[]>(`/api/v1/stockouts${query}`);
 }
 
-export async function resolveAgotado(id: number): Promise<Agotado> {
-  return apiDetail<Agotado>(`/api/v1/agotados/${id}/resolve`, { method: 'PATCH' });
+export async function resolveStockout(id: number): Promise<Stockout> {
+  return apiDetail<Stockout>(`/api/v1/stockouts/${id}/resolve`, { method: 'PATCH' });
 }
 
-export async function deleteAgotado(id: number): Promise<void> {
+export async function deleteStockout(id: number): Promise<void> {
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}/api/v1/agotados/${id}`, { method: 'DELETE', headers });
+  const res = await fetch(`${BASE_URL}/api/v1/stockouts/${id}`, { method: 'DELETE', headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body?.detail ?? `Error ${res.status}`);
