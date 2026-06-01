@@ -413,27 +413,35 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
 
         {/* ── Result ── */}
         {state === 'result' && result && (
-          <div className="py-4 space-y-4">
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex size-14 items-center justify-center rounded-full bg-green-100">
-                <CheckCircle2 className="h-7 w-7 text-green-600" />
+          <div className="py-2 space-y-5">
+            {/* Header */}
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
               </div>
-              <p className="text-lg font-semibold">Sincronización finalizada</p>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-lg border bg-green-50 p-4">
-                <div className="text-3xl font-bold text-green-600">{result.imported_count}</div>
-                <div className="text-xs text-muted-foreground mt-1">Creadas</div>
-              </div>
-              <div className="rounded-lg border bg-blue-50 p-4">
-                <div className="text-3xl font-bold text-blue-600">{result.updated_count}</div>
-                <div className="text-xs text-muted-foreground mt-1">Actualizadas</div>
-              </div>
-              <div className="rounded-lg border bg-amber-50 p-4">
-                <div className="text-3xl font-bold text-amber-600">{result.skipped_count}</div>
-                <div className="text-xs text-muted-foreground mt-1">Omitidas</div>
+              <div>
+                <p className="font-semibold text-sm">Sincronización completada</p>
+                <p className="text-xs text-muted-foreground">Las campañas de SAP han sido procesadas correctamente</p>
               </div>
             </div>
+
+            {/* Stats */}
+            <div className="rounded-lg border divide-y">
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-muted-foreground">Campañas creadas</span>
+                <span className="text-sm font-semibold tabular-nums">{result.imported_count}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-muted-foreground">Campañas actualizadas</span>
+                <span className="text-sm font-semibold tabular-nums">{result.updated_count}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-muted-foreground">Omitidas</span>
+                <span className="text-sm font-semibold tabular-nums text-muted-foreground">{result.skipped_count}</span>
+              </div>
+            </div>
+
+            {/* Errors */}
             {result.errors.length > 0 && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5">
                 <button
@@ -454,11 +462,15 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
                 )}
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={loadPreview} className="gap-2">
-                <Download className="h-4 w-4" /> Ver de nuevo
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-1 border-t">
+              <Button variant="ghost" size="sm" onClick={() => { setState('idle'); }} className="gap-2 text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5" /> Sincronizar de nuevo
               </Button>
-              <Button onClick={onClose}>Cerrar</Button>
+              <Button onClick={onClose} className="gap-2">
+                Cerrar
+              </Button>
             </div>
           </div>
         )}
