@@ -691,7 +691,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
         }
       `}</style>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+        <DialogHeader className="pb-2">
           <DialogTitle className="text-foreground">Importar Promociones desde Excel</DialogTitle>
         </DialogHeader>
 
@@ -780,8 +780,8 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                     )}
 
                     <span className={`text-sm transition-all ${
-                      done   ? 'font-medium text-foreground' :
-                      active ? 'font-semibold text-foreground' :
+                      done   ? 'font-medium italic text-foreground' :
+                      active ? 'font-semibold italic text-foreground' :
                                'text-muted-foreground/45'
                     }`}>{step}</span>
                   </div>

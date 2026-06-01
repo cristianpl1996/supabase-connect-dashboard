@@ -12,6 +12,7 @@ import {
   listProducts,
   RequiredPromotionProduct,
   updatePromotion,
+  updatePromotionStatus,
   CustomerRecord,
   FilterOptionItem,
   ProductCatalogItem,
@@ -1043,7 +1044,19 @@ export function PromotionFormSheet({
         ? await updatePromotion(editingPromo.id, payload)
         : await createPromotion(payload);
 
-      if (result.requires_manager_approval) {
+      if (result.sap_sync_error && result.status === 'activa') {
+        // Backend activó pero SAP falló — revertir a borrador
+        await updatePromotionStatus(result.id, 'borrador');
+        toast.warning(isEditing ? 'No se pudo activar — error SAP' : 'Promoción creada como borrador — error SAP', {
+          description: result.sap_sync_error,
+          duration: 10000,
+        });
+      } else if (result.sap_sync_error) {
+        toast.warning(isEditing ? 'Guardada con advertencia SAP' : 'Creada con advertencia SAP', {
+          description: result.sap_sync_error,
+          duration: 10000,
+        });
+      } else if (result.requires_manager_approval) {
         toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
       } else {
         toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');

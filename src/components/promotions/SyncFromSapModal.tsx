@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   RefreshCw, Loader2, AlertCircle, CheckCircle2, Download, ArrowDownToLine,
-  AlertTriangle, Info, Clock, WifiOff, ServerCrash, Lock,
+  AlertTriangle, Info, Clock, WifiOff, ServerCrash, Lock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,66 +20,74 @@ interface SyncFromSapModalProps {
   open: boolean;
   onClose: () => void;
   onImported: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-type ModalState = 'loading' | 'preview' | 'importing' | 'result' | 'error';
+type ModalState = 'idle' | 'loading' | 'preview' | 'importing' | 'result' | 'error';
+
+const LOADING_STEPS = [
+  'Verificando conexión con SAP…',
+  'Consultando campañas disponibles…',
+  'Preparando vista previa…',
+];
+
+const IMPORTING_STEPS = [
+  'Validando campañas seleccionadas…',
+  'Sincronizando con Ivanagro…',
+  'Finalizando importación…',
+];
 
 const SAP_ERROR_MAP: Record<
   string,
-  { title: string; description: string; Icon: React.ComponentType<{ className?: string }> }
+  { title: string; description: string; Icon: React.ComponentType<{ className?: string }>; isWarning?: boolean }
 > = {
   TIMEOUT: {
     title: 'SAP tardó demasiado en responder',
-    description: 'El servidor tardó más de 30s. Suele resolverse reintentando.',
+    description: 'El servidor tardó más de 30 segundos. Suele resolverse reintentando.',
     Icon: Clock,
+    isWarning: true,
   },
   NETWORK_ERROR: {
     title: 'No se pudo conectar con SAP',
-    description: 'Verifica que el servidor SAP esté accesible.',
+    description: 'Verifica que el servidor SAP esté accesible desde la red.',
     Icon: WifiOff,
   },
   SAP_UNAVAILABLE: {
     title: 'SAP no está disponible',
-    description: 'El servidor SAP respondió con un error. Intenta en unos minutos.',
+    description: 'El servidor SAP respondió con un error interno. Intenta en unos minutos.',
     Icon: ServerCrash,
   },
   AUTH_EXPIRED: {
     title: 'Sesión con SAP expirada',
-    description: 'La sesión fue renovada automáticamente. Reintenta.',
+    description: 'La sesión fue renovada automáticamente. Vuelve a intentarlo.',
     Icon: Lock,
+    isWarning: true,
   },
   DATA_ERROR: {
-    title: 'Error en los datos',
-    description: 'Hubo un problema con el formato de los datos. Contacta soporte.',
+    title: 'Error en los datos recibidos',
+    description: 'Hubo un problema con el formato de los datos de SAP. Contacta soporte.',
     Icon: AlertCircle,
   },
 };
 
 function MessagesBadge({ messages }: { messages: SapMessage[] }) {
   if (messages.length === 0) return <span className="text-muted-foreground">—</span>;
-
   const hasError = messages.some((m) => m.type === 'error');
   const hasWarning = messages.some((m) => m.type === 'warning');
   const severity = hasError ? 'error' : hasWarning ? 'warning' : 'info';
-
   const badgeClass = cn(
     'cursor-pointer text-xs font-medium',
     severity === 'error' && 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100',
     severity === 'warning' && 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100',
     severity === 'info' && 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100',
   );
-
-  const label =
-    messages.length === 1
-      ? severity === 'error' ? '1 error' : severity === 'warning' ? '1 aviso' : '1 info'
-      : `${messages.length} ${severity === 'error' ? 'errores' : severity === 'warning' ? 'avisos' : 'info'}`;
-
+  const label = messages.length === 1
+    ? severity === 'error' ? '1 error' : severity === 'warning' ? '1 aviso' : '1 info'
+    : `${messages.length} ${severity === 'error' ? 'errores' : severity === 'warning' ? 'avisos' : 'info'}`;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button">
-          <Badge variant="outline" className={badgeClass}>{label}</Badge>
-        </button>
+        <button type="button"><Badge variant="outline" className={badgeClass}>{label}</Badge></button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-3" align="start">
         <ul className="space-y-2">
@@ -101,16 +109,108 @@ function MessagesBadge({ messages }: { messages: SapMessage[] }) {
   );
 }
 
-export default function SyncFromSapModal({ open, onClose, onImported }: SyncFromSapModalProps) {
-  const [state, setState] = useState<ModalState>('loading');
+function StepsProgress({ steps, step, progress, label }: { steps: string[]; step: number; progress: number; label: string }) {
+  return (
+    <>
+      <style>{`
+        @keyframes sap-stripes { from { background-position: 28px 0; } to { background-position: 0 0; } }
+        .sap-progress-bar {
+          background-image: repeating-linear-gradient(45deg, #1a5c38 0px, #1a5c38 10px, #2d8653 10px, #2d8653 20px);
+          background-size: 28px 28px;
+          animation: sap-stripes 0.5s linear infinite;
+        }
+      `}</style>
+      <div className="space-y-5 py-1">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">{label}</span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">{progress}%</span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-muted/60">
+            <div className="sap-progress-bar h-full rounded-full transition-[width] duration-300 ease-out" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+        <div className="rounded-lg border bg-muted/20 p-3 space-y-0">
+          {steps.map((s, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <div key={i} className="flex items-center gap-3 py-2">
+                {done ? (
+                  <CheckCircle2 className="size-6 shrink-0 text-primary" />
+                ) : active ? (
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Loader2 className="size-4 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-muted-foreground/20 text-[11px] font-bold text-muted-foreground/30">
+                    {i + 1}
+                  </div>
+                )}
+                <span className={cn(
+                  'text-sm transition-all',
+                  done && 'font-medium italic text-foreground',
+                  active && 'font-semibold italic text-foreground',
+                  !done && !active && 'text-muted-foreground/45',
+                )}>{s}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function SyncFromSapModal({ open, onClose, onImported, onBusyChange }: SyncFromSapModalProps) {
+  const [state, setState] = useState<ModalState>('idle');
   const [campaigns, setCampaigns] = useState<SapCampaignPreview[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [errorInfo, setErrorInfo] = useState<SapErrorInfo | null>(null);
   const [result, setResult] = useState<SapImportResult | null>(null);
+  const [errorsExpanded, setErrorsExpanded] = useState(false);
+
+  // Progress state for loading and importing animations
+  const [loadStep, setLoadStep] = useState(0);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [importStep, setImportStep] = useState(0);
+  const [importProgress, setImportProgress] = useState(0);
+
+  // Animate loading steps
+  useEffect(() => {
+    if (state !== 'loading') { setLoadStep(0); setLoadProgress(0); return; }
+    setLoadStep(0); setLoadProgress(5);
+    const stepTimers = [
+      window.setTimeout(() => setLoadStep(1), 700),
+      window.setTimeout(() => setLoadStep(2), 1600),
+    ];
+    let p = 5;
+    const ticker = setInterval(() => { p = Math.min(p + 1.5, 88); setLoadProgress(Math.round(p)); }, 100);
+    return () => { stepTimers.forEach(clearTimeout); clearInterval(ticker); };
+  }, [state]);
+
+  // Animate importing steps
+  useEffect(() => {
+    if (state !== 'importing') { setImportStep(0); setImportProgress(0); return; }
+    setImportStep(0); setImportProgress(5);
+    const stepTimers = [
+      window.setTimeout(() => setImportStep(1), 800),
+      window.setTimeout(() => setImportStep(2), 1800),
+    ];
+    let p = 5;
+    const ticker = setInterval(() => { p = Math.min(p + 1.2, 90); setImportProgress(Math.round(p)); }, 120);
+    return () => { stepTimers.forEach(clearTimeout); clearInterval(ticker); };
+  }, [state]);
+
+  // Report busy state independently of open — spinner persists in background
+  useEffect(() => {
+    onBusyChange?.(state === 'loading' || state === 'importing');
+  }, [state, onBusyChange]);
 
   const loadPreview = useCallback(async () => {
     setState('loading');
     setErrorInfo(null);
+    setErrorsExpanded(false);
 
     const [healthSettled, previewSettled] = await Promise.allSettled([
       checkSapHealth(),
@@ -119,7 +219,6 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
 
     if (previewSettled.status === 'rejected') {
       const info = inferSapErrorType(previewSettled.reason);
-      // If health confirmed SAP is down, use NETWORK_ERROR for a clearer message
       if (healthSettled.status === 'fulfilled' && healthSettled.value.status === 'unavailable') {
         setErrorInfo({ ...info, error_type: 'NETWORK_ERROR' });
       } else {
@@ -135,48 +234,42 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
     setState('preview');
   }, []);
 
+  // Start loading only when opened from idle (not during background op)
   useEffect(() => {
-    if (open) {
+    if (open && state === 'idle') {
       setResult(null);
       loadPreview();
     }
-  }, [open, loadPreview]);
+  }, [open, state, loadPreview]);
+
+  // Reset to idle when closed after seeing a result (not during background op)
+  useEffect(() => {
+    if (!open && (state === 'result' || state === 'error' || state === 'preview')) {
+      setState('idle');
+    }
+  }, [open, state]);
 
   const allSelected = campaigns.length > 0 && selected.size === campaigns.length;
-
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(campaigns.map((c) => c.campaign_number)));
-  };
-
-  const toggleOne = (campaignNumber: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(campaignNumber)) next.delete(campaignNumber);
-      else next.add(campaignNumber);
-      return next;
-    });
-  };
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(campaigns.map((c) => c.campaign_number)));
+  const toggleOne = (n: number) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(n) ? next.delete(n) : next.add(n);
+    return next;
+  });
 
   const counts = useMemo(() => {
-    let create = 0;
-    let update = 0;
-    campaigns.forEach((c) => {
-      if (selected.has(c.campaign_number)) {
-        if (c.action === 'create') create += 1;
-        else update += 1;
-      }
-    });
+    let create = 0; let update = 0;
+    campaigns.forEach((c) => { if (selected.has(c.campaign_number)) { c.action === 'create' ? create++ : update++; } });
     return { create, update };
   }, [campaigns, selected]);
 
   const handleImport = async () => {
-    if (selected.size === 0) {
-      toast.error('Selecciona al menos una campaña');
-      return;
-    }
+    if (selected.size === 0) { toast.error('Selecciona al menos una campaña'); return; }
     setState('importing');
     try {
       const res = await importSapCampaigns(Array.from(selected));
+      setImportProgress(100);
+      await new Promise((r) => setTimeout(r, 400));
       setResult(res);
       setState('result');
       if (res.errors.length === 0) {
@@ -193,48 +286,61 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent forceMount className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-green-600" />
-            Sincronizar promociones desde SAP
-          </DialogTitle>
+          <DialogTitle>Sincronizar promociones desde SAP</DialogTitle>
         </DialogHeader>
 
+        {/* ── Loading ── */}
         {state === 'loading' && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p>Consultando campañas en SAP…</p>
+          <div className="py-4">
+            <StepsProgress
+              steps={LOADING_STEPS}
+              step={loadStep}
+              progress={loadProgress}
+              label={LOADING_STEPS[loadStep]}
+            />
           </div>
         )}
 
+        {/* ── Error ── */}
         {state === 'error' && errorInfo && (() => {
           const mapping = SAP_ERROR_MAP[errorInfo.error_type] ?? {
             title: 'Error inesperado',
             description: errorInfo.message,
             Icon: AlertCircle,
+            isWarning: false,
           };
-          const { title, description, Icon } = mapping;
-          const iconClass = cn(
-            'h-10 w-10',
-            errorInfo.error_type === 'TIMEOUT' || errorInfo.error_type === 'AUTH_EXPIRED'
-              ? 'text-amber-500'
-              : 'text-red-500',
-          );
+          const { title, description, Icon, isWarning } = mapping;
           return (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-              <Icon className={iconClass} />
-              <p className="font-medium">{title}</p>
-              <p className="text-sm text-muted-foreground max-w-sm">{description}</p>
-              {errorInfo.is_retryable && (
-                <Button variant="outline" onClick={loadPreview}>
-                  <RefreshCw className="h-4 w-4 mr-2" /> Reintentar
-                </Button>
-              )}
+            <div className="py-6 space-y-4">
+              <div className="rounded-lg border bg-muted/20 p-6 flex flex-col items-center gap-3 text-center">
+                <div className={cn(
+                  'flex size-14 items-center justify-center rounded-full',
+                  isWarning ? 'bg-amber-100' : 'bg-red-100',
+                )}>
+                  <Icon className={cn('h-7 w-7', isWarning ? 'text-amber-500' : 'text-red-500')} />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-base">{title}</p>
+                  <p className="text-sm text-muted-foreground max-w-sm">{description}</p>
+                </div>
+                {errorInfo.message && (
+                  <div className="w-full rounded-md border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-xs text-destructive text-center">
+                    <span className="font-medium">Error de sincronización SAP: </span>{errorInfo.message}
+                  </div>
+                )}
+                {errorInfo.is_retryable && (
+                  <Button variant="outline" onClick={loadPreview} className="gap-2 mt-1">
+                    <RefreshCw className="h-4 w-4" /> Reintentar
+                  </Button>
+                )}
+              </div>
             </div>
           );
         })()}
 
+        {/* ── Preview ── */}
         {state === 'preview' && (
           <>
             {campaigns.length === 0 ? (
@@ -261,25 +367,17 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
                     {campaigns.map((c) => (
                       <tr key={c.campaign_number} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="p-2 text-center">
-                          <Checkbox
-                            checked={selected.has(c.campaign_number)}
-                            onCheckedChange={() => toggleOne(c.campaign_number)}
-                            aria-label={`Seleccionar campaña ${c.campaign_number}`}
-                          />
+                          <Checkbox checked={selected.has(c.campaign_number)} onCheckedChange={() => toggleOne(c.campaign_number)} aria-label={`Seleccionar campaña ${c.campaign_number}`} />
                         </td>
-                        <td className="p-2 text-muted-foreground">#{c.campaign_number}</td>
+                        <td className="p-2 text-muted-foreground font-mono">#{c.campaign_number}</td>
                         <td className="p-2 font-medium">{c.title || '(sin título)'}</td>
-                        <td className="p-2">
-                          <MessagesBadge messages={c.messages} />
-                        </td>
+                        <td className="p-2"><MessagesBadge messages={c.messages} /></td>
                         <td className="p-2">{c.laboratory_name || <span className="text-amber-600">—</span>}</td>
                         <td className="p-2 text-muted-foreground whitespace-nowrap">{c.start_date} → {c.end_date}</td>
                         <td className="p-2">
-                          {c.action === 'create' ? (
-                            <Badge variant="default" className="bg-green-600 hover:bg-green-600">Nueva</Badge>
-                          ) : (
-                            <Badge variant="secondary">Actualizar</Badge>
-                          )}
+                          {c.action === 'create'
+                            ? <Badge variant="default" className="bg-green-600 hover:bg-green-600">Nueva</Badge>
+                            : <Badge variant="secondary">Actualizar</Badge>}
                         </td>
                       </tr>
                     ))}
@@ -287,7 +385,6 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
                 </table>
               </div>
             )}
-
             <div className="flex items-center justify-between pt-2 border-t mt-2">
               <div className="text-sm text-muted-foreground">
                 {selected.size} seleccionada(s) · {counts.create} nuevas, {counts.update} a actualizar
@@ -302,44 +399,64 @@ export default function SyncFromSapModal({ open, onClose, onImported }: SyncFrom
           </>
         )}
 
+        {/* ── Importing ── */}
         {state === 'importing' && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p>Importando campañas a Ivanagro…</p>
+          <div className="py-4">
+            <StepsProgress
+              steps={IMPORTING_STEPS}
+              step={importStep}
+              progress={importProgress}
+              label={IMPORTING_STEPS[importStep]}
+            />
           </div>
         )}
 
+        {/* ── Result ── */}
         {state === 'result' && result && (
-          <div className="py-6 space-y-4">
+          <div className="py-4 space-y-4">
             <div className="flex flex-col items-center gap-2">
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
-              <p className="text-lg font-medium">Sincronización finalizada</p>
+              <div className="flex size-14 items-center justify-center rounded-full bg-green-100">
+                <CheckCircle2 className="h-7 w-7 text-green-600" />
+              </div>
+              <p className="text-lg font-semibold">Sincronización finalizada</p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-md border p-3">
-                <div className="text-2xl font-semibold text-green-600">{result.imported_count}</div>
-                <div className="text-xs text-muted-foreground">Creadas</div>
+              <div className="rounded-lg border bg-green-50 p-4">
+                <div className="text-3xl font-bold text-green-600">{result.imported_count}</div>
+                <div className="text-xs text-muted-foreground mt-1">Creadas</div>
               </div>
-              <div className="rounded-md border p-3">
-                <div className="text-2xl font-semibold text-blue-600">{result.updated_count}</div>
-                <div className="text-xs text-muted-foreground">Actualizadas</div>
+              <div className="rounded-lg border bg-blue-50 p-4">
+                <div className="text-3xl font-bold text-blue-600">{result.updated_count}</div>
+                <div className="text-xs text-muted-foreground mt-1">Actualizadas</div>
               </div>
-              <div className="rounded-md border p-3">
-                <div className="text-2xl font-semibold text-amber-600">{result.skipped_count}</div>
-                <div className="text-xs text-muted-foreground">Omitidas</div>
+              <div className="rounded-lg border bg-amber-50 p-4">
+                <div className="text-3xl font-bold text-amber-600">{result.skipped_count}</div>
+                <div className="text-xs text-muted-foreground mt-1">Omitidas</div>
               </div>
             </div>
             {result.errors.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 max-h-40 overflow-y-auto">
-                <p className="text-sm font-medium text-amber-800 mb-1">Detalles:</p>
-                <ul className="text-xs text-amber-700 list-disc list-inside space-y-0.5">
-                  {result.errors.map((e, i) => <li key={i}>{e}</li>)}
-                </ul>
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-4 py-2.5 text-sm"
+                  onClick={() => setErrorsExpanded((v) => !v)}
+                >
+                  <span className="flex items-center gap-2 font-medium text-destructive">
+                    <AlertCircle className="size-4" />
+                    {result.errors.length} {result.errors.length === 1 ? 'error en la importación' : 'errores en la importación'}
+                  </span>
+                  {errorsExpanded ? <ChevronUp className="size-4 text-destructive" /> : <ChevronDown className="size-4 text-destructive" />}
+                </button>
+                {errorsExpanded && (
+                  <ul className="max-h-40 overflow-y-auto border-t px-4 py-2 space-y-1 text-xs text-destructive">
+                    {result.errors.map((e, i) => <li key={i} className="py-0.5">• {e}</li>)}
+                  </ul>
+                )}
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={loadPreview}>
-                <Download className="h-4 w-4 mr-2" /> Ver de nuevo
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={loadPreview} className="gap-2">
+                <Download className="h-4 w-4" /> Ver de nuevo
               </Button>
               <Button onClick={onClose}>Cerrar</Button>
             </div>

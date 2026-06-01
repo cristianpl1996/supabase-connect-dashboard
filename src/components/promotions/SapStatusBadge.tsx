@@ -24,6 +24,7 @@ export function SapStatusBadge({ campaignNumber, syncedAt, syncError }: SapStatu
       <Popover>
         <PopoverTrigger asChild>
           <button type="button" className="flex items-center gap-1">
+            <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
             <Badge
               variant="outline"
               className="cursor-pointer border-red-300 bg-red-50 text-red-700 hover:bg-red-100 text-xs"
@@ -34,17 +35,17 @@ export function SapStatusBadge({ campaignNumber, syncedAt, syncError }: SapStatu
         </PopoverTrigger>
         <PopoverContent className="w-80 p-3" align="start">
           <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+            <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-500" />
             <div className="space-y-1.5 text-xs">
               {campaignNumber && (
                 <p className="font-medium text-foreground">Campaña SAP: #{campaignNumber}</p>
               )}
               {!campaignNumber && (
-                <p className="text-muted-foreground">Sin número de campaña asignado</p>
+                <p>Error de sincronización SAP: </p>
               )}
               <p className="text-red-700 max-h-32 overflow-y-auto break-words">{syncError}</p>
               {syncedAt && (
-                <p className="text-muted-foreground">
+                <p>
                   Último intento: {formatDistanceToNow(parseISO(syncedAt), { addSuffix: true, locale: es })}
                 </p>
               )}
@@ -72,11 +73,14 @@ export function SapStatusBadge({ campaignNumber, syncedAt, syncError }: SapStatu
           </span>
         </TooltipTrigger>
         <TooltipContent side="top">
-          <p className="text-xs">
-            {syncedDate
-              ? `Sincronizado: ${format(syncedDate, 'dd MMM yyyy HH:mm', { locale: es })}`
-              : 'Sincronizado'}
-          </p>
+          <div className="flex items-center gap-1.5 text-xs">
+            <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0" />
+            <span>
+              {syncedDate
+                ? `Sincronizado: ${format(syncedDate, 'dd MMM yyyy HH:mm', { locale: es })}`
+                : 'Sincronizado con SAP'}
+            </span>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

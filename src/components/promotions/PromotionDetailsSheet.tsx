@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Promotion, PromoMechanic } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, DollarSign, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
+import { Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
+import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
+import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { listProducts, getCustomersPage } from "@/lib/api";
@@ -156,9 +158,6 @@ export function PromotionDetailsSheet({
                 {(labName || promotion.laboratory_name) && (
                   <Badge variant="outline">{labName || promotion.laboratory_name}</Badge>
                 )}
-                {promotion.origin && (
-                  <Badge variant="secondary">{promotion.origin}</Badge>
-                )}
               </div>
               <SheetTitle className="text-xl font-bold sm:text-2xl">{promotion.title}</SheetTitle>
               {promotion.description && (
@@ -278,6 +277,7 @@ export function PromotionDetailsSheet({
                 <PromoFact label="Beneficio" value={mechanic.benefit_type_label    || mechanic.benefit_type} />
               </div>
               <div className="rounded-md bg-muted/40 px-4 py-3 text-sm leading-6">
+                <p className="text-[11px] font-medium text-muted-foreground">Descripcion</p>
                 {mechanic.summary || "Promocion comercial configurada."}
               </div>
               {mechanic.accounting_treatment && (
@@ -304,21 +304,36 @@ export function PromotionDetailsSheet({
           </SectionCard>
 
           {/* ── SAP info ── */}
-          {(promotion.sap_campaign_number || promotion.sap_sync_error) && (
-            <SectionCard
-              icon={<Megaphone className="size-4 text-primary" />}
-              title="Sincronizacion SAP"
-            >
-              {promotion.sap_campaign_number && (
-                <PromoFact label="Numero de campana SAP" value={promotion.sap_campaign_number} />
-              )}
-              {promotion.sap_sync_error && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                  {promotion.sap_sync_error}
+          <SectionCard
+            icon={<Megaphone className="size-4 text-primary" />}
+            title="Sincronizacion SAP"
+          >
+            {(promotion.sap_campaign_number || promotion.sap_sync_error) ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Estado</span>
+                  <SapStatusBadge
+                    campaignNumber={promotion.sap_campaign_number}
+                    syncedAt={promotion.sap_synced_at}
+                    syncError={promotion.sap_sync_error}
+                  />
                 </div>
-              )}
-            </SectionCard>
-          )}
+                {promotion.sap_synced_at && !promotion.sap_sync_error && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Última sync</span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(parseISO(promotion.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs">
+                <Info className="h-3 w-3 shrink-0" />
+                <span>Esta promoción aún no ha sido sincronizada con SAP.</span>
+              </div>
+            )}
+          </SectionCard>
 
         </div>
       </SheetContent>
@@ -329,17 +344,23 @@ export function PromotionDetailsSheet({
 // ─── Helper components ────────────────────────────────────────────────────────
 
 function SectionCard({
-  icon, title, subtitle, count, children,
+  icon, title, subtitle, count, children, defaultOpen = true,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
   count?: number;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="rounded-lg border bg-card">
-      <div className="flex items-center gap-2 border-b px-4 py-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 border-b px-4 py-2.5 text-left"
+      >
         {icon}
         <span className="text-sm font-semibold">{title}</span>
         {subtitle && <span className="text-xs text-muted-foreground">· {subtitle}</span>}
@@ -348,8 +369,11 @@ function SectionCard({
             {count}
           </span>
         )}
-      </div>
-      <div className="space-y-2.5 p-3">{children}</div>
+        <ChevronDown
+          className={`${count != null ? '' : 'ml-auto'} h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+        />
+      </button>
+      {open && <div className="space-y-2.5 p-3">{children}</div>}
     </div>
   );
 }
@@ -444,7 +468,7 @@ function FinancialProgress({ percent, current, max }: { percent: number; current
   const hasLimit = Boolean(max && max > 0);
   const width    = hasLimit ? `${Math.max(4, Math.min(percent, 100))}%` : "100%";
   return (
-    <div className="rounded-md border bg-muted/20 p-3">
+    <div className="rounded-md bg-muted/20 p-3">
       <div className="mb-2 flex items-center justify-between gap-3 text-xs">
         <span className="font-medium">Uso de redenciones</span>
         <span className="text-muted-foreground">
