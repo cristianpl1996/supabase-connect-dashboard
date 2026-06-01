@@ -428,15 +428,30 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
             {/* Stats */}
             <div className="rounded-lg border divide-y">
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-muted-foreground">Campañas creadas</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-7 items-center justify-center rounded-md bg-primary/10">
+                    <ArrowDownToLine className="size-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm">Campañas creadas</span>
+                </div>
                 <span className="text-sm font-semibold tabular-nums">{result.imported_count}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-muted-foreground">Campañas actualizadas</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-7 items-center justify-center rounded-md bg-primary/10">
+                    <RefreshCw className="size-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm">Campañas actualizadas</span>
+                </div>
                 <span className="text-sm font-semibold tabular-nums">{result.updated_count}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-muted-foreground">Omitidas</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-7 items-center justify-center rounded-md bg-muted">
+                    <Download className="size-3.5 text-muted-foreground" />
+                  </span>
+                  <span className="text-sm text-muted-foreground">Omitidas</span>
+                </div>
                 <span className="text-sm font-semibold tabular-nums text-muted-foreground">{result.skipped_count}</span>
               </div>
             </div>
@@ -464,12 +479,12 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-1 border-t">
-              <Button variant="ghost" size="sm" onClick={() => { setState('idle'); }} className="gap-2 text-muted-foreground">
-                <RefreshCw className="h-3.5 w-3.5" /> Sincronizar de nuevo
-              </Button>
-              <Button onClick={onClose} className="gap-2">
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <Button variant="outline" onClick={onClose}>
                 Cerrar
+              </Button>
+              <Button onClick={() => { setState('idle'); }} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" /> Sincronizar de nuevo
               </Button>
             </div>
           </div>
