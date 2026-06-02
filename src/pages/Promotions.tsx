@@ -156,10 +156,6 @@ const Promotions = () => {
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ promo, newStatus }: { promo: Promotion; newStatus: string }) => {
       const updated = await updatePromotionStatus(promo.id, newStatus);
-      if (newStatus === 'activa' && updated.sap_sync_error) {
-        const reverted = await updatePromotionStatus(promo.id, 'borrador');
-        return { result: reverted, sapError: updated.sap_sync_error };
-      }
       return { result: updated, sapError: null };
     },
     onMutate: async ({ promo, newStatus }) => {

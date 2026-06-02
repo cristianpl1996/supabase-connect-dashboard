@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Promotion, PromoMechanic } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar, ChevronDown, DollarSign, Info, Loader2, Megaphone, Package, RefreshCw, Users, WalletCards, Zap } from "lucide-react";
+import { Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
 import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { getAllProducts, getAllCustomers, getPromotion, updatePromotionStatus } from "@/lib/api";
+import { getAllProducts, getAllCustomers } from "@/lib/api";
 
 const EMPTY_STRING_ARRAY: string[] = [];
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -83,46 +82,6 @@ export function PromotionDetailsSheet({
 }: PromotionDetailsSheetProps) {
   const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
   const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
-
-  // Live promotion state — updated by polling and retry
-  const [livePromotion, setLivePromotion] = useState<Promotion | null>(null);
-  const [retrying, setRetrying] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const current = livePromotion ?? promotion;
-  const currentSyncStatus = current?.sap_sync_status;
-
-  // Reset live state when a different promotion opens
-  useEffect(() => {
-    setLivePromotion(null);
-  }, [promotion?.id]);
-
-  // Poll every 8s while sap_sync_status === 'pending' (works for both initial and retry paths)
-  useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (!open || !promotion?.id || currentSyncStatus !== 'pending') return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const fresh = await getPromotion(promotion.id);
-        if (fresh.sap_sync_status !== 'pending') {
-          setLivePromotion(fresh);
-          clearInterval(pollRef.current!);
-          pollRef.current = null;
-        }
-      } catch { /* keep polling */ }
-    }, 8000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, promotion?.id, currentSyncStatus]);
-
-  const handleRetrySap = async () => {
-    if (!promotion?.id) return;
-    setRetrying(true);
-    try {
-      const fresh = await updatePromotionStatus(promotion.id, 'activa');
-      setLivePromotion(fresh);
-    } catch { /* badge shows failed, user can try again */ }
-    finally { setRetrying(false); }
-  };
 
   useEffect(() => {
     if (!open || !promotion) return;
@@ -348,39 +307,23 @@ export function PromotionDetailsSheet({
             icon={<Megaphone className="size-4 text-primary" />}
             title="Sincronizacion SAP"
           >
-            {(current?.sap_sync_status === 'pending' || current?.sap_campaign_number || current?.sap_sync_error) ? (
+            {(promotion?.sap_sync_status === 'pending' || promotion?.sap_campaign_number || promotion?.sap_sync_error) ? (
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Estado</span>
                   <SapStatusBadge
-                    campaignNumber={current?.sap_campaign_number}
-                    syncedAt={current?.sap_synced_at}
-                    syncError={current?.sap_sync_error}
-                    syncStatus={current?.sap_sync_status}
+                    campaignNumber={promotion?.sap_campaign_number}
+                    syncedAt={promotion?.sap_synced_at}
+                    syncError={promotion?.sap_sync_error}
+                    syncStatus={promotion?.sap_sync_status}
                   />
                 </div>
-                {current?.sap_synced_at && !current?.sap_sync_error && current?.sap_sync_status !== 'pending' && (
+                {promotion?.sap_synced_at && !promotion?.sap_sync_error && promotion?.sap_sync_status !== 'pending' && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Última sync</span>
                     <span className="text-xs text-muted-foreground">
-                      {format(parseISO(current.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                      {format(parseISO(promotion.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
                     </span>
-                  </div>
-                )}
-                {current?.sap_sync_status === 'failed' && (
-                  <div className="pt-1 flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      disabled={retrying}
-                      onClick={handleRetrySap}
-                    >
-                      {retrying
-                        ? <Loader2 className="h-3 w-3 animate-spin" />
-                        : <RefreshCw className="h-3 w-3" />}
-                      Reintentar sync SAP
-                    </Button>
                   </div>
                 )}
               </>
