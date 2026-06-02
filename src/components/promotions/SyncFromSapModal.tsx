@@ -24,7 +24,7 @@ interface SyncFromSapModalProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-type ModalState = 'idle' | 'loading' | 'preview' | 'importing' | 'queued' | 'result' | 'error';
+type ModalState = 'idle' | 'loading' | 'preview' | 'importing' | 'result' | 'error';
 
 const LOADING_STEPS = [
   'Verificando conexión con SAP…',
@@ -125,6 +125,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
   const [importProgress, setImportProgress] = useState(0);
   const importStartTimeRef = useRef<number>(0);
   const previewPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Animate loading steps
   useEffect(() => {
@@ -154,39 +155,8 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
 
   // Report busy state independently of open — spinner persists in background
   useEffect(() => {
-    onBusyChange?.(state === 'loading' || state === 'importing' || state === 'queued');
+    onBusyChange?.(state === 'loading' || state === 'importing');
   }, [state, onBusyChange]);
-
-  // Poll /auto-status while in queued state to detect background import completion
-  useEffect(() => {
-    if (state !== 'queued') return;
-    const poll = setInterval(async () => {
-      try {
-        const status = await getSapAutoSyncStatus();
-        if (!status.last_run_at) return;
-        const lastRun = new Date(status.last_run_at).getTime();
-        if (lastRun >= importStartTimeRef.current && status.status !== 'never_run') {
-          clearInterval(poll);
-          setResult({
-            imported_count: status.imported,
-            updated_count: status.updated,
-            skipped_count: status.skipped,
-            errors: status.errors,
-          });
-          setState('result');
-          onImported();
-          if (status.errors.length === 0) {
-            toast.success(`Sincronización completa: ${status.imported} creadas, ${status.updated} actualizadas`);
-          } else {
-            toast.warning(`Sincronización con ${status.errors.length} error(es)`);
-          }
-        }
-      } catch {
-        // network hiccup — keep polling
-      }
-    }, 5000);
-    return () => clearInterval(poll);
-  }, [state, onImported]);
 
   const loadPreview = useCallback(async () => {
     setState('loading');
@@ -224,7 +194,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
           setState('error');
         }
       } catch { /* network hiccup — keep polling */ }
-    }, 3000);
+    }, 10000);
   }, []);
 
   // Start loading only when opened from idle (not during background op)
@@ -235,13 +205,19 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     }
   }, [open, state, loadPreview]);
 
-  // Reset to idle when closed after seeing a final state (not during background op)
+  // Reset to idle when closed after seeing a final state
   useEffect(() => {
-    if (!open && (state === 'result' || state === 'error' || state === 'preview' || state === 'loading')) {
+    if (!open && state !== 'importing') {
       if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
+      if (state === 'result' || state === 'error' || state === 'preview' || state === 'loading') {
+        setState('idle');
+      }
+    }
+    if (!open && state === 'importing') {
+      // import continues in background — clean up if user force-closes
+      if (importPollRef.current) { clearInterval(importPollRef.current); importPollRef.current = null; }
       setState('idle');
     }
-    // queued stays queued across close/reopen so polling survives
   }, [open, state]);
 
   const allSelected = campaigns.length > 0 && selected.size === campaigns.length;
@@ -264,10 +240,32 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     try {
       importStartTimeRef.current = Date.now();
       await importSapCampaigns(Array.from(selected));
-      // API always returns queued — transition to background polling state
-      setImportProgress(100);
-      await new Promise((r) => setTimeout(r, 300));
-      setState('queued');
+      // Poll /auto-status until the background import completes
+      if (importPollRef.current) clearInterval(importPollRef.current);
+      importPollRef.current = setInterval(async () => {
+        try {
+          const status = await getSapAutoSyncStatus();
+          if (!status.last_run_at) return;
+          const lastRun = new Date(status.last_run_at).getTime();
+          if (lastRun >= importStartTimeRef.current && status.status !== 'never_run') {
+            if (importPollRef.current) { clearInterval(importPollRef.current); importPollRef.current = null; }
+            setImportProgress(100);
+            setResult({
+              imported_count: status.imported,
+              updated_count: status.updated,
+              skipped_count: status.skipped,
+              errors: status.errors,
+            });
+            setState('result');
+            onImported();
+            if (status.errors.length === 0) {
+              toast.success(`Sincronización completa: ${status.imported} creadas, ${status.updated} actualizadas`);
+            } else {
+              toast.warning(`Sincronización con ${status.errors.length} error(es)`);
+            }
+          }
+        } catch { /* network hiccup — keep polling */ }
+      }, 10000);
     } catch (err) {
       setErrorInfo(inferSapErrorType(err));
       setState('error');
@@ -398,32 +396,6 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
               progress={importProgress}
               label={IMPORTING_STEPS[importStep]}
             />
-          </div>
-        )}
-
-        {/* ── Queued (background processing) ── */}
-        {state === 'queued' && (
-          <div className="py-8 flex flex-col items-center gap-5 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
-              <RefreshCw className="h-8 w-8 text-primary animate-spin [animation-duration:2s]" />
-            </div>
-            <div className="space-y-1.5">
-              <p className="font-semibold text-base">Procesando en segundo plano</p>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Las campañas se están sincronizando. Con audiencias grandes esto
-                puede tomar 1–2 minutos. Esta ventana se actualizará sola.
-              </p>
-            </div>
-            <div className="w-full max-w-xs h-1.5 rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-primary/60 rounded-full animate-pulse" />
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Verificando estado cada 5 segundos…</span>
-            </div>
-            <Button variant="outline" size="sm" onClick={onClose}>
-              Cerrar y esperar en background
-            </Button>
           </div>
         )}
 
