@@ -166,28 +166,8 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     isStartingPreviewRef.current = false;
   }, []);
 
-  const loadPreview = useCallback(async () => {
-    if (isStartingPreviewRef.current) return;
-    isStartingPreviewRef.current = true;
-    previewPollAttemptsRef.current = 0;
-    setState('loading');
-    setErrorInfo(null);
-    setErrorsExpanded(false);
+  const startPreviewPolling = useCallback((healthPromise: Promise<{ status: string } | null>) => {
     if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
-
-    const healthPromise = checkSapHealth().catch(() => null);
-
-    try {
-      await startSapPreview();
-    } catch (err) {
-      const health = await healthPromise;
-      const info = inferSapErrorType(err);
-      setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
-      setState('error');
-      isStartingPreviewRef.current = false;
-      return;
-    }
-
     previewPollRef.current = setInterval(async () => {
       previewPollAttemptsRef.current += 1;
       if (previewPollAttemptsRef.current > 30) {
@@ -215,6 +195,49 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
       } catch { /* network hiccup */ }
     }, 10000);
   }, [stopPreviewPoll]);
+
+  const loadPreview = useCallback(async () => {
+    if (isStartingPreviewRef.current) return;
+    isStartingPreviewRef.current = true;
+    previewPollAttemptsRef.current = 0;
+    setState('loading');
+    setErrorInfo(null);
+    setErrorsExpanded(false);
+
+    const healthPromise = checkSapHealth().catch(() => null);
+
+    // Check if backend already has a result (e.g. modal was closed and reopened)
+    try {
+      const existing = await getSapPreviewResult();
+      if (existing.status === 'ready') {
+        isStartingPreviewRef.current = false;
+        const data = existing.data ?? [];
+        setCampaigns(data);
+        setSelected(new Set(data.map((c) => c.campaign_number)));
+        setState('preview');
+        return;
+      }
+      if (existing.status === 'pending') {
+        // Backend task still running — just resume polling, don't call /start again
+        startPreviewPolling(healthPromise);
+        return;
+      }
+    } catch { /* network hiccup — fall through to start fresh */ }
+
+    // No cached result — start a new backend task
+    try {
+      await startSapPreview();
+    } catch (err) {
+      const health = await healthPromise;
+      const info = inferSapErrorType(err);
+      setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
+      setState('error');
+      isStartingPreviewRef.current = false;
+      return;
+    }
+
+    startPreviewPolling(healthPromise);
+  }, [startPreviewPolling]);
 
   // Open → start preview
   useEffect(() => {
