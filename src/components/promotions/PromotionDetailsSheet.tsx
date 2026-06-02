@@ -7,7 +7,7 @@ import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { listProducts, getCustomersPage } from "@/lib/api";
+import { getAllProducts, getAllCustomers } from "@/lib/api";
 
 const EMPTY_STRING_ARRAY: string[] = [];
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -93,7 +93,7 @@ export function PromotionDetailsSheet({
     const cf = (promotion.customer_filters || {}) as Record<string, unknown>;
 
     const fetchProducts = skus.length > 0
-      ? listProducts({ brand_name: pf.brand_name || undefined, limit: 500 })
+      ? getAllProducts()
           .then((rows) => {
             const map: Record<string, string> = {};
             for (const p of rows) {
@@ -106,12 +106,11 @@ export function PromotionDetailsSheet({
           .catch(() => {})
       : Promise.resolve();
 
-    const repId = cf.sales_representative_id;
     const fetchCustomers = nits.length > 0
-      ? getCustomersPage({ ...(repId ? { sales_representative_id: Number(repId) } : {}), limit: 2000 })
-          .then((res) => {
+      ? getAllCustomers()
+          .then((customers) => {
             const map: Record<string, string> = {};
-            for (const c of res.data ?? []) {
+            for (const c of customers) {
               const nit = String(c['customer_government_id'] ?? '');
               const name = String(c['customer_full_name'] ?? c['customer_commercial_name'] ?? c['customer_name'] ?? '');
               if (nit && name) map[nit] = name;
