@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,9 @@ interface LaboratoriesTabProps {
 export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
   const { laboratories, isLoading, isError, errorMessage, refetch, createLab, updateLab, deleteLab } = useLaboratories();
 
-  useEffect(() => { onError?.(isError); }, [isError, onError]);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  useEffect(() => { onErrorRef.current?.(isError); }, [isError]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingLab, setEditingLab] = useState<Laboratory | null>(null);
@@ -245,13 +247,13 @@ export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
                           </AvatarFallback>
                         </Avatar>
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium uppercase">
                         <div>{lab.name}</div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         {lab.erp_code ? (
                           <Badge variant="outline" className="font-mono text-xs">
-                            {lab.erp_code}
+                            LAB-SAP: {lab.erp_code}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground text-sm">–</span>
@@ -260,7 +262,7 @@ export function LaboratoriesTab({ onError }: LaboratoriesTabProps) {
                       <TableCell className="hidden md:table-cell">
                         {lab.external_brand_id ? (
                           <Badge variant="secondary" className="font-mono text-xs">
-                            {lab.external_brand_id}
+                            ID: {lab.external_brand_id}
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-xs">

@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, Info } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useBudgetRules } from '@/hooks/useBudgetRules';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { toast } from 'sonner';
@@ -16,7 +16,9 @@ interface BudgetRulesTabProps {
 export function BudgetRulesTab({ onError }: BudgetRulesTabProps) {
   const { rules, config, isLoading, isError, errorMessage, refetch, toggleRule } = useBudgetRules();
 
-  useEffect(() => { onError?.(isError); }, [isError, onError]);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  useEffect(() => { onErrorRef.current?.(isError); }, [isError]);
 
   const handleToggleRule = async (conceptKey: string) => {
     await toggleRule(conceptKey);

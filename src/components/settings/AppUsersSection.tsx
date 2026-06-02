@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AppUserRecord,
@@ -225,7 +225,9 @@ export function AppUsersSection({ onError }: AppUsersSectionProps) {
   });
   const errorMessage = isError && error instanceof Error ? error.message : 'Error al cargar usuarios';
 
-  useEffect(() => { onError?.(isError); }, [isError, onError]);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  useEffect(() => { onErrorRef.current?.(isError); }, [isError]);
 
   const { data: allUsers = [] } = useQuery<AppUserRecord[]>({
     queryKey: ['app-users'],

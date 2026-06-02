@@ -51,7 +51,6 @@ export function LaboratoryFormDialog({
   );
   const selectedBrand = brands.find((brand) => brand.id === externalBrandId);
   const filteredBrands = brands.filter((brand) => {
-    if (unavailableBrandIds.has(brand.id)) return false;
     const term = brandSearch.trim().toLowerCase();
     if (!term) return true;
     return [brand.name, brand.code, brand.type]
@@ -82,7 +81,7 @@ export function LaboratoryFormDialog({
 
     let cancelled = false;
     setIsLoadingBrands(true);
-    listSupabaseBrands({ limit: 1000 })
+    listSupabaseBrands()
       .then((items) => {
         if (cancelled) return;
         setBrands(items.filter((brand) => brand.id && brand.name));
@@ -189,30 +188,46 @@ export function LaboratoryFormDialog({
                       No hay marcas disponibles
                     </p>
                   ) : (
-                    filteredBrands.map((brand) => (
-                      <button
-                        key={brand.id}
-                        type="button"
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-sm px-2 py-2 text-left text-sm hover:bg-muted',
-                          externalBrandId === brand.id && 'bg-primary/10 text-primary',
-                        )}
-                        onClick={() => {
-                          setExternalBrandId(brand.id);
-                          if (errors.brand) setErrors((er) => ({ ...er, brand: undefined }));
-                        }}
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{brand.name}</span>
-                          {brand.code && (
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {brand.code}
-                            </span>
+                    filteredBrands.map((brand) => {
+                      const isUnavailable = unavailableBrandIds.has(brand.id);
+                      return (
+                        <button
+                          key={brand.id}
+                          type="button"
+                          disabled={isUnavailable}
+                          className={cn(
+                            'flex w-full items-center justify-between rounded-sm px-2 py-2 text-left text-sm',
+                            isUnavailable
+                              ? 'cursor-not-allowed opacity-40'
+                              : 'hover:bg-muted',
+                            externalBrandId === brand.id && 'bg-primary/10 text-primary',
                           )}
-                        </span>
-                        {externalBrandId === brand.id && <Check className="size-4 shrink-0" />}
-                      </button>
-                    ))
+                          onClick={() => {
+                            if (isUnavailable) return;
+                            setExternalBrandId(brand.id);
+                            if (errors.brand) setErrors((er) => ({ ...er, brand: undefined }));
+                          }}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{brand.name}</span>
+                            <span className="flex items-center gap-1.5 mt-0.5">
+                              {brand.code && (
+                                <span className="truncate text-xs text-muted-foreground font-mono">
+                                  {brand.code}
+                                </span>
+                              )}
+                              <span className="shrink-0 rounded-full border border-border bg-muted/60 px-1.5 py-px text-[10px] font-mono text-muted-foreground">
+                                ID {brand.id}
+                              </span>
+                            </span>
+                          </span>
+                          {isUnavailable
+                            ? <span className="ml-2 shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">En uso</span>
+                            : externalBrandId === brand.id && <Check className="size-4 shrink-0" />
+                          }
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </div>

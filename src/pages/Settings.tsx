@@ -11,10 +11,17 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('budget');
   const [tabErrors, setTabErrors] = useState<Record<string, boolean>>({});
 
-  const makeErrorHandler = useCallback(
-    (tab: string) => (hasError: boolean) =>
-      setTabErrors((prev) => ({ ...prev, [tab]: hasError })),
-    []
+  const handleBudgetError = useCallback(
+    (hasError: boolean) => setTabErrors((prev) => ({ ...prev, budget: hasError })),
+    [],
+  );
+  const handleLabsError = useCallback(
+    (hasError: boolean) => setTabErrors((prev) => ({ ...prev, labs: hasError })),
+    [],
+  );
+  const handleUsersError = useCallback(
+    (hasError: boolean) => setTabErrors((prev) => ({ ...prev, users: hasError })),
+    [],
   );
 
   const hasError = tabErrors[activeTab] ?? false;
@@ -29,37 +36,47 @@ const Settings = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="w-full grid grid-cols-4">
-          <TabsTrigger value="budget" className="gap-1.5 text-xs sm:text-sm">
+        <TabsList className="w-full grid grid-cols-4 h-auto">
+          <TabsTrigger value="budget" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5 sm:py-1.5 text-xs sm:text-sm">
             <ShieldCheck className="size-4 shrink-0" />
-            <span className="hidden sm:inline truncate">Reglas de Presupuesto</span>
-            <span className="sm:hidden truncate">Presupuesto</span>
+            <span className="text-[10px] leading-tight sm:text-sm sm:leading-normal truncate">
+              <span className="sm:hidden">Presupuesto</span>
+              <span className="hidden sm:inline">Reglas de Presupuesto</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="labs" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="labs" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5 sm:py-1.5 text-xs sm:text-sm">
             <FlaskConical className="size-4 shrink-0" />
-            <span className="truncate">Laboratorios</span>
+            <span className="text-[10px] leading-tight sm:text-sm sm:leading-normal truncate">
+              <span className="sm:hidden">Labs</span>
+              <span className="hidden sm:inline">Laboratorios</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="users" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="users" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5 sm:py-1.5 text-xs sm:text-sm">
             <Users className="size-4 shrink-0" />
-            <span className="hidden sm:inline truncate">Usuarios y Accesos</span>
-            <span className="sm:hidden truncate">Usuarios</span>
+            <span className="text-[10px] leading-tight sm:text-sm sm:leading-normal truncate">
+              <span className="sm:hidden">Usuarios</span>
+              <span className="hidden sm:inline">Usuarios y Accesos</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="notifications" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5 sm:py-1.5 text-xs sm:text-sm">
             <Bell className="size-4 shrink-0" />
-            <span className="truncate">Notificaciones</span>
+            <span className="text-[10px] leading-tight sm:text-sm sm:leading-normal truncate">
+              <span className="sm:hidden">Alertas</span>
+              <span className="hidden sm:inline">Notificaciones</span>
+            </span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="budget" className="space-y-6">
-          <BudgetRulesTab onError={makeErrorHandler('budget')} />
+          <BudgetRulesTab onError={handleBudgetError} />
         </TabsContent>
 
         <TabsContent value="labs">
-          <LaboratoriesTab onError={makeErrorHandler('labs')} />
+          <LaboratoriesTab onError={handleLabsError} />
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <AppUsersSection onError={makeErrorHandler('users')} />
+          <AppUsersSection onError={handleUsersError} />
         </TabsContent>
 
         <TabsContent value="notifications">

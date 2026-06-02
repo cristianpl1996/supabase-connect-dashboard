@@ -346,6 +346,28 @@ async function apiList<T>(path: string): Promise<T[]> {
   return listResults(res);
 }
 
+async function apiListAll<T>(
+  buildUrl: (limit: number, offset: number) => string,
+  pageSize = 500,
+): Promise<T[]> {
+  const firstRes = await apiFetch<ApiListResponse<T>>(buildUrl(pageSize, 0));
+  const total = firstRes.meta?.count ?? firstRes.data.length;
+  const allData = [...(firstRes.data ?? [])];
+
+  if (allData.length >= total) return allData;
+
+  // Use actual returned count as step (server may cap below pageSize)
+  const step = allData.length || pageSize;
+  const requests: Promise<ApiListResponse<T>>[] = [];
+  for (let offset = step; offset < total; offset += step) {
+    requests.push(apiFetch<ApiListResponse<T>>(buildUrl(pageSize, offset)));
+  }
+  const pages = await Promise.all(requests);
+  for (const page of pages) allData.push(...(page.data ?? []));
+
+  return allData;
+}
+
 async function apiDetail<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await apiFetch<ApiDetailResponse<T>>(path, options);
   return res.data;
@@ -1400,14 +1422,16 @@ export function updateInventoryItem(inventoryId: number, units_available_in_stoc
 }
 
 export function listSupabaseBrands(params: SupabaseBrandListParams = {}): Promise<SupabaseBrand[]> {
-  return apiList<SupabaseBrand>(withQuery("/api/v1/supabase/brands", {
-    search: params.search,
-    type: params.type,
-    is_verified: params.is_verified,
-    trained: params.trained,
-    limit: params.limit ?? 1000,
-    offset: params.offset ?? 0,
-  }));
+  return apiListAll<SupabaseBrand>(
+    (limit, offset) => withQuery("/api/v1/supabase/brands", {
+      search: params.search,
+      type: params.type,
+      is_verified: params.is_verified,
+      trained: params.trained,
+      limit,
+      offset,
+    }),
+  );
 }
 
 export function listLaboratories(params: LaboratoryListParams = {}): Promise<Laboratory[]> {
