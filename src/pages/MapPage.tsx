@@ -1,62 +1,60 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { MapModule } from "@/components/map/MapModule";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
-import { getMapCustomersBatch, type CustomerRecord } from "@/lib/api";
-import { formatApiErrorMessage } from "@/lib/errors";
+import { getMapCustomersBatch } from "@/lib/api";
 
 const PAGE = 2000;
 
 type BadgePhase = "loading" | "done" | "fading" | "hidden";
 
 export default function MapPage() {
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [totalLoaded, setTotalLoaded] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
   const [badge, setBadge] = useState<BadgePhase>("loading");
-  const fetchedRef = useRef(false);
 
-  async function fetchCustomers() {
-    setCustomers([]);
-    setTotalLoaded(0);
-    setError(null);
-    setInitialLoading(true);
-    setBadge("loading");
-    let offset = 0;
+  const {
+    data,
+    isLoading: initialLoading,
+    isError,
+    error: queryError,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['map-customers'],
+    queryFn: ({ pageParam }) => getMapCustomersBatch(pageParam as number),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE ? allPages.flatMap((p) => p).length : undefined,
+    staleTime: 5 * 60_000,
+  });
 
-    async function fetchNext() {
-      try {
-        const batch = await getMapCustomersBatch(offset);
+  const customers = useMemo(
+    () => data?.pages.flatMap((p) => p) ?? [],
+    [data],
+  );
+  const totalLoaded = customers.length;
+  const error = isError ? (queryError instanceof Error ? queryError.message : 'Error al cargar clientes') : null;
 
-        setCustomers((prev) => [...prev, ...batch]);
-        setTotalLoaded((prev) => prev + batch.length);
-        setInitialLoading(false);
-
-        if (batch.length === PAGE) {
-          offset += PAGE;
-          void fetchNext();
-        } else {
-          setBadge("done");
-          setTimeout(() => setBadge("fading"), 1800);
-          setTimeout(() => setBadge("hidden"), 3000);
-        }
-      } catch (err) {
-        setError(formatApiErrorMessage(err));
-        setInitialLoading(false);
-        setBadge("hidden");
-      }
-    }
-
-    await fetchNext();
-  }
-
+  // Auto-cargar el siguiente batch mientras haya más
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    void fetchCustomers();
-  }, []);
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Gestión del badge una vez que todos los batches cargaron
+  const isLoadingAll = initialLoading || isFetchingNextPage || hasNextPage;
+  useEffect(() => {
+    if (!isLoadingAll && !isError) {
+      setBadge("done");
+      const t1 = setTimeout(() => setBadge("fading"), 1800);
+      const t2 = setTimeout(() => setBadge("hidden"), 3000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [isLoadingAll, isError]);
 
   if (initialLoading && customers.length === 0 && !error) {
     return (
@@ -79,7 +77,7 @@ export default function MapPage() {
     return (
       <div className="-mx-3 -my-4 flex h-[calc(100svh-3.5rem)] items-center justify-center bg-slate-50 px-4 dark:bg-background sm:-mx-5 md:-mx-8 md:-my-8 xl:-mx-10">
         <div className="w-full max-w-3xl">
-          <ModuleErrorCard message={error} onRetry={() => void fetchCustomers()} loading={initialLoading} />
+          <ModuleErrorCard message={error} onRetry={() => void refetch()} loading={initialLoading} />
         </div>
       </div>
     );

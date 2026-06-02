@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type React from "react";
 import {
   CustomerParams,
@@ -51,7 +52,7 @@ import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SearchableSelect } from "@/components/common/SearchableSelect";
-import { formatApiErrorMessage } from "@/lib/errors";
+import { formatApiErrorMessage } from "@/lib/errors"; // kept for export error only
 import { buildExportFileName, exportRowsToWorkbook, fetchAllPagesParallel } from "@/lib/export";
 
 const PAGE_SIZE = 200;
@@ -317,19 +318,7 @@ function customerSortParams(value: string): Pick<CustomerParams, "sort_by" | "so
 }
 
 export default function Customers() {
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [loadingInitial, setLoadingInitial] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasMoreRef = useRef(false);
-  const [totalCustomers, setTotalCustomers] = useState<number | null>(null);
-  const [filterOptions, setFilterOptions] = useState({
-    businessTypes: [] as string[],
-    clvSegments: [] as FilterOptionItem[],
-    rfmSegments: [] as FilterOptionItem[],
-    representatives: [] as Array<[string, string]>,
-  });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [searchInput, setSearchInput] = useState("");
@@ -406,88 +395,70 @@ export default function Customers() {
     stateName,
   ]);
 
-  const fetchPage = useCallback(async (offset: number, mode: "reset" | "append") => {
-    if (mode === "reset") {
-      setLoadingInitial(true);
-      setError(null);
-    } else {
-      setLoadingMore(true);
-    }
-    try {
-      const page = await getCustomersPage(buildParams(offset));
-      const batch = page.data ?? [];
-      const total = listTotal(page) ?? offset + batch.length;
-      setTotalCustomers(total);
-      setCustomers((prev) => {
-        const base = mode === "reset" ? [] : prev;
-        const seen = new Set(base.map(customerKey));
-        const next = [...base];
-        batch.forEach((item) => {
-          if (!seen.has(customerKey(item))) {
-            seen.add(customerKey(item));
-            next.push(item);
-          }
-        });
-        return next;
-      });
-      hasMoreRef.current = offset + batch.length < total;
-    } catch (err) {
-      setError(formatApiErrorMessage(err));
-      if (mode === "reset") setCustomers([]);
-      if (mode === "reset") setTotalCustomers(null);
-    } finally {
-      setLoadingInitial(false);
-      setLoadingMore(false);
-    }
-  }, [buildParams]);
+  // ── Filter options ─────────────────────────────────────────────────────────
+  const { data: filterOptionsRaw } = useQuery({
+    queryKey: ['customer-filter-options'],
+    queryFn: getCustomerFilterOptions,
+    staleTime: 5 * 60_000,
+  });
+  const { data: repsRaw = [] } = useQuery({
+    queryKey: ['representatives'],
+    queryFn: getAllRepresentatives,
+    staleTime: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => fetchPage(0, "reset"), 250);
-    return () => window.clearTimeout(timer);
-  }, [fetchPage]);
+  const filterOptions = useMemo(() => ({
+    businessTypes: Array.isArray(filterOptionsRaw?.business_types) ? filterOptionsRaw.business_types : [],
+    clvSegments: filterOptionsRaw ? normalizeSegmentOptions(filterOptionsRaw.clv_segments) : [],
+    rfmSegments: filterOptionsRaw ? normalizeSegmentOptions(filterOptionsRaw.rfm_segments) : [],
+    representatives: [
+      [WITHOUT_REP_OPTION, "Sin representante"] as [string, string],
+      ...repsRaw.map(representativeOption).filter((item): item is [string, string] => item !== null),
+    ],
+  }), [filterOptionsRaw, repsRaw]);
 
-  useEffect(() => {
-    let cancelled = false;
+  // ── Infinite customers query ───────────────────────────────────────────────
+  const {
+    data: customersData,
+    isLoading: loadingInitial,
+    isFetchingNextPage: loadingMore,
+    isError,
+    error: customersError,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['customers', { search, businessType, clvSegment, rfmSegment, governmentId, city, stateName, salesRepId, hasLocation, showInactive, minRevenue, maxRevenue, minPurchases, maxPurchases, minTicket, maxTicket, minDays, maxDays, sortOrder }],
+    queryFn: ({ pageParam }) => getCustomersPage(buildParams(pageParam as number)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.flatMap((p) => p.data ?? []).length;
+      const total = listTotal(lastPage);
+      if (total === null) return (lastPage.data?.length ?? 0) === PAGE_SIZE ? fetched : undefined;
+      return fetched < total ? fetched : undefined;
+    },
+    staleTime: 30_000,
+  });
 
-    Promise.allSettled([getCustomerFilterOptions(), getAllRepresentatives()]).then(([typesResult, repsResult]) => {
-      if (cancelled) return;
+  const customers = useMemo(
+    () => customersData?.pages.flatMap((p) => p.data ?? []) ?? [],
+    [customersData],
+  );
+  const totalCustomers = customersData?.pages[0] ? (listTotal(customersData.pages[0]) ?? null) : null;
+  const error = isError ? (customersError instanceof Error ? customersError.message : 'Error al cargar clientes') : null;
 
-      setFilterOptions({
-        businessTypes:
-          typesResult.status === "fulfilled" && Array.isArray(typesResult.value.business_types)
-            ? typesResult.value.business_types
-            : [],
-        clvSegments: typesResult.status === "fulfilled" ? normalizeSegmentOptions(typesResult.value.clv_segments) : [],
-        rfmSegments: typesResult.status === "fulfilled" ? normalizeSegmentOptions(typesResult.value.rfm_segments) : [],
-        representatives:
-          repsResult.status === "fulfilled"
-            ? [
-              [WITHOUT_REP_OPTION, "Sin representante"] as [string, string],
-              ...repsResult.value
-                .map(representativeOption)
-                .filter((item): item is [string, string] => item !== null),
-            ]
-            : [],
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // IntersectionObserver para carga progresiva
   useEffect(() => {
     const target = sentinelRef.current;
     if (!target) return;
-    const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries;
-      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
-        fetchPage(customers.length, "append");
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && hasNextPage && !loadingInitial && !loadingMore) {
+        void fetchNextPage();
       }
     }, { rootMargin: "500px" });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [customers.length, fetchPage, loadingInitial, loadingMore]);
+  }, [fetchNextPage, hasNextPage, loadingInitial, loadingMore]);
 
   const businessTypes = filterOptions.businessTypes;
   const clvSegments = filterOptions.clvSegments;
@@ -688,7 +659,7 @@ export default function Customers() {
       </ErrorDisabledContent>
 
       {error && (
-        <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
+        <ModuleErrorCard message={error ?? ''} onRetry={() => void refetch()} loading={loadingInitial} />
       )}
 
       <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { CalendarPromotion, listCalendarPromotions, Promotion } from '@/lib/api';
@@ -11,7 +12,6 @@ import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsS
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
-import { formatApiErrorMessage } from '@/lib/errors';
 import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, Layers, Info } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addMonths, subMonths, differenceInDays, isBefore, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -59,31 +59,22 @@ interface GanttPromo {
 }
 
 const Calendar = () => {
-  const [promotions, setPromotions] = useState<CalendarPromotion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
 
-  useEffect(() => {
-    void fetchData();
-  }, []);
-
-  async function fetchData() {
-    try {
-      setLoading(true);
-      setError(null);
-      setPromotions(await listCalendarPromotions());
-    } catch (err) {
-      console.error('Error fetching calendar data:', err);
-      setError(formatApiErrorMessage(err));
-      setPromotions([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const {
+    data: promotions = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['calendar-promotions'],
+    queryFn: listCalendarPromotions,
+    staleTime: 60_000,
+  });
 
   const ganttItems = useMemo(() => {
     const dynamicColorMap = new Map<string, typeof CATEGORY_COLORS.default>();
@@ -165,14 +156,14 @@ const Calendar = () => {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
-      <ErrorDisabledContent disabled={!!error}>
+      <ErrorDisabledContent disabled={isError}>
       <PageHeader
         icon={CalendarDays}
         title="Calendario Comercial"
         description="Linea de tiempo de promociones con deteccion de canibalizacion"
         actions={(
           <div className="flex items-center gap-3">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={loading}>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoading}>
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Filtrar categoria" />
             </SelectTrigger>
@@ -190,11 +181,15 @@ const Calendar = () => {
       />
       </ErrorDisabledContent>
 
-      {error && (
-        <ModuleErrorCard message={error} onRetry={() => void fetchData()} loading={loading} />
+      {isError && (
+        <ModuleErrorCard
+          message={error instanceof Error ? error.message : 'Error al cargar el calendario'}
+          onRetry={() => void refetch()}
+          loading={isLoading}
+        />
       )}
 
-      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
+      <ErrorDisabledContent disabled={isError} className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -202,7 +197,7 @@ const Calendar = () => {
             <CalendarDays className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isLoading ? (
               <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
             ) : (
               <p className="text-2xl font-bold text-foreground">{visibleItems.length}</p>
@@ -216,7 +211,7 @@ const Calendar = () => {
             <Layers className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isLoading ? (
               <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
             ) : (
               <p className="text-2xl font-bold text-foreground">{new Set(visibleItems.map((item) => item.category)).size}</p>
@@ -230,7 +225,7 @@ const Calendar = () => {
             <AlertTriangle className={`h-4 w-4 ${conflictCount > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isLoading ? (
               <div className="h-8 w-20 animate-pulse rounded-md bg-muted shadow-sm" />
             ) : (
               <>
@@ -246,16 +241,16 @@ const Calendar = () => {
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center justify-between gap-2 sm:justify-start">
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={loading}>
+              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={isLoading}>
                 <ChevronLeft className="size-4" />
               </Button>
               <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-foreground sm:min-w-[200px] sm:text-xl">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
               </h2>
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={loading}>
+              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={isLoading}>
                 <ChevronRight className="size-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={loading} className="text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={isLoading} className="text-xs text-muted-foreground">
                 Hoy
               </Button>
             </div>
@@ -278,7 +273,7 @@ const Calendar = () => {
         </CardHeader>
 
         <CardContent className="px-4 pb-6">
-          {loading ? (
+          {isLoading ? (
             <div className="space-y-3">
               {["week-1", "week-2", "week-3", "week-4", "week-5"].map((slot) => (
                 <div key={slot} className="h-10 bg-muted animate-pulse rounded" />

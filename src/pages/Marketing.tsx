@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { generateAiText, listMarketingPromotions, Promotion, uploadMarketingFlashcard } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
-import { formatApiErrorMessage } from "@/lib/errors";
 import { Megaphone, Copy, Download, Sparkles, Loader2, ImageIcon, Save, Camera } from "lucide-react";
 import { format } from "date-fns";
 import html2canvas from "html2canvas";
@@ -73,27 +73,33 @@ function MarketingAiLoader() {
 
 export default function Marketing() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const flashcardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousSelectedPromoIdRef = useRef<string>("");
 
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const {
+    data: promotions = [],
+    isLoading: isLoadingPromotions,
+    isError,
+    error: promotionsError,
+    refetch,
+  } = useQuery({
+    queryKey: ['marketing-promotions'],
+    queryFn: listMarketingPromotions,
+    staleTime: 30_000,
+  });
+
   const [selectedPromoId, setSelectedPromoId] = useState<string>("");
   const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState("");
   const [displayedCopy, setDisplayedCopy] = useState("");
-  const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isTypingCopy, setIsTypingCopy] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [productImage, setProductImage] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState([100]);
-
-  useEffect(() => {
-    void fetchPromotions();
-  }, []);
 
   // eslint-disable-next-line react-doctor/no-cascading-set-state -- intentional: animation timer; setStates run at different moments across interval ticks
   useEffect(() => {
@@ -147,19 +153,6 @@ export default function Marketing() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: promo is derived from existing deps; handleGenerateCopy is not useCallback
   }, [selectedPromoId, promotions, isGenerating, isTypingCopy]);
-
-  async function fetchPromotions() {
-    setIsLoadingPromotions(true);
-    setLoadError(null);
-    try {
-      setPromotions(await listMarketingPromotions());
-    } catch (error) {
-      console.error("Error fetching promotions:", error);
-      setLoadError(formatApiErrorMessage(error));
-    } finally {
-      setIsLoadingPromotions(false);
-    }
-  }
 
   function getMechanicDescription(promo: Promotion): string {
     if (!promo.mechanic) return "Promocion Especial";
@@ -220,8 +213,8 @@ export default function Marketing() {
       setGeneratedCopy(response.text);
       setDisplayedCopy("");
       setIsTypingCopy(true);
-      setPromotions((prev) =>
-        prev.map((item) => (item.id === promo.id ? { ...item, marketing_copy: response.text } : item)),
+      queryClient.setQueryData<Promotion[]>(['marketing-promotions'], (prev) =>
+        prev?.map((item) => item.id === promo.id ? { ...item, marketing_copy: response.text } : item) ?? []
       );
     } catch (error) {
       console.error("Error generating copy:", error);
@@ -326,12 +319,12 @@ export default function Marketing() {
         `flashcard-${selectedPromo.id}-${Date.now()}.png`,
         generatedCopy,
       );
-      setPromotions((prev) =>
-        prev.map((promo) =>
+      queryClient.setQueryData<Promotion[]>(['marketing-promotions'], (prev) =>
+        prev?.map((promo) =>
           promo.id === selectedPromo.id
             ? { ...promo, flash_card_url: payload.flash_card_url, marketing_copy: payload.marketing_copy }
-            : promo,
-        ),
+            : promo
+        ) ?? []
       );
       setSelectedPromo((prev) =>
         prev ? { ...prev, flash_card_url: payload.flash_card_url, marketing_copy: payload.marketing_copy } : prev,
@@ -354,7 +347,7 @@ export default function Marketing() {
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-6">
-      <ErrorDisabledContent disabled={!!loadError}>
+      <ErrorDisabledContent disabled={isError}>
         <PageHeader
           icon={Megaphone}
           title="Kit de Difusion"
@@ -362,11 +355,15 @@ export default function Marketing() {
         />
       </ErrorDisabledContent>
 
-      {loadError && (
-        <ModuleErrorCard message={loadError} onRetry={() => void fetchPromotions()} loading={isLoadingPromotions} />
+      {isError && (
+        <ModuleErrorCard
+          message={promotionsError instanceof Error ? promotionsError.message : 'Error al cargar las promociones'}
+          onRetry={() => void refetch()}
+          loading={isLoadingPromotions}
+        />
       )}
 
-      <ErrorDisabledContent disabled={!!loadError} className="space-y-5 sm:space-y-6">
+      <ErrorDisabledContent disabled={isError} className="space-y-5 sm:space-y-6">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Seleccionar Promocion</CardTitle>

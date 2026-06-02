@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type React from "react";
 import {
   getAllRepresentatives,
@@ -41,7 +42,6 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { formatApiErrorMessage } from "@/lib/errors";
 
 const PAGE_SIZE = 200;
 
@@ -214,18 +214,6 @@ function formatField(value: unknown) {
 }
 
 export default function Orders() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loadingInitial, setLoadingInitial] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasMoreRef = useRef(false);
-  const [totalOrders, setTotalOrders] = useState<number | null>(null);
-  const [filterOptions, setFilterOptions] = useState({
-    statuses: [] as string[],
-    originChannels: [] as string[],
-    paymentMethods: [] as string[],
-  });
-  const [representatives, setRepresentatives] = useState<Array<[string, string]>>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [searchInput, setSearchInput] = useState("");
@@ -245,8 +233,6 @@ export default function Orders() {
   const [sortOrder, setSortOrder] = useState("date_desc");
 
   const [selectedSummary, setSelectedSummary] = useState<Order | null>(null);
-  const [detail, setDetail] = useState<{ order: Order | null; loading: boolean; error: string | null }>({ order: null, loading: false, error: null });
-  const { order: selectedOrder, loading: detailLoading, error: detailError } = detail;
 
   const buildParams = useCallback((offset: number): OrderListParams => ({
     search: search.trim() || undefined,
@@ -267,105 +253,85 @@ export default function Orders() {
     offset,
   }), [customerId, dateFrom, dateTo, hasObservations, invoiceNumber, maxTotal, minTotal, originChannel, originPlatform, paymentMethod, salesRepId, search, sortOrder, status]);
 
-  const fetchPage = useCallback(async (offset: number, mode: "reset" | "append") => {
-    if (mode === "reset") {
-      setLoadingInitial(true);
-      setError(null);
-      setOrders([]);
-    } else {
-      setLoadingMore(true);
-    }
+  // ── Filter options ─────────────────────────────────────────────────────────
+  const { data: filterOptionsRaw } = useQuery({
+    queryKey: ['order-filter-options'],
+    queryFn: getOrderFilterOptions,
+    staleTime: 5 * 60_000,
+  });
+  const filterOptions = {
+    statuses: Array.isArray(filterOptionsRaw?.statuses) ? filterOptionsRaw.statuses : [],
+    originChannels: Array.isArray(filterOptionsRaw?.origin_channels) ? filterOptionsRaw.origin_channels : [],
+    paymentMethods: Array.isArray(filterOptionsRaw?.payment_methods) ? filterOptionsRaw.payment_methods : [],
+  };
 
-    try {
-      const response = await getOrdersPage(buildParams(offset));
-      const batch = response.data ?? [];
-      const total = listTotal(response);
-      setTotalOrders(total);
-      setOrders((prev) => {
-        const base = mode === "reset" ? [] : prev;
-        const seen = new Set(base.map(orderKey));
-        const next = [...base];
-        batch.forEach((item) => {
-          if (!seen.has(orderKey(item))) {
-            seen.add(orderKey(item));
-            next.push(item);
-          }
-        });
-        return next;
-      });
-      hasMoreRef.current = total === null ? batch.length === PAGE_SIZE : offset + batch.length < total;
-    } catch (err) {
-      setError(formatApiErrorMessage(err));
-      if (mode === "reset") {
-        setOrders([]);
-        setTotalOrders(null);
-      }
-    } finally {
-      setLoadingInitial(false);
-      setLoadingMore(false);
-    }
-  }, [buildParams]);
+  const { data: repsRaw = [] } = useQuery({
+    queryKey: ['representatives'],
+    queryFn: getAllRepresentatives,
+    staleTime: 5 * 60_000,
+  });
+  const representatives = useMemo(
+    () => repsRaw.map(representativeOption).filter((item): item is [string, string] => item !== null),
+    [repsRaw],
+  );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => fetchPage(0, "reset"), 250);
-    return () => window.clearTimeout(timer);
-  }, [fetchPage]);
+  // ── Infinite orders query ──────────────────────────────────────────────────
+  const {
+    data: ordersData,
+    isLoading: loadingInitial,
+    isFetchingNextPage: loadingMore,
+    isError,
+    error: ordersError,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['orders', { search, status, customerId, salesRepId, originChannel, originPlatform, paymentMethod, invoiceNumber, hasObservations, dateFrom, dateTo, minTotal, maxTotal, sortOrder }],
+    queryFn: ({ pageParam }) => getOrdersPage(buildParams(pageParam as number)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.flatMap((p) => p.data ?? []).length;
+      const total = listTotal(lastPage);
+      if (total === null) return (lastPage.data?.length ?? 0) === PAGE_SIZE ? fetched : undefined;
+      return fetched < total ? fetched : undefined;
+    },
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.allSettled([getOrderFilterOptions(), getAllRepresentatives()]).then(([optionsResult, repsResult]) => {
-      if (cancelled) return;
-      if (optionsResult.status === "fulfilled") {
-        const options = optionsResult.value;
-        setFilterOptions({
-          statuses: Array.isArray(options.statuses) ? options.statuses : [],
-          originChannels: Array.isArray(options.origin_channels) ? options.origin_channels : [],
-          paymentMethods: Array.isArray(options.payment_methods) ? options.payment_methods : [],
-        });
-      }
-      if (repsResult.status === "fulfilled") {
-        setRepresentatives(
-          repsResult.value.map(representativeOption).filter((item): item is [string, string] => item !== null),
-        );
-      }
-    });
-    return () => { cancelled = true; };
-  }, []);
+  const orders = useMemo(
+    () => ordersData?.pages.flatMap((p) => p.data ?? []) ?? [],
+    [ordersData],
+  );
+  const totalOrders = ordersData?.pages[0] ? listTotal(ordersData.pages[0]) : null;
+  const error = isError ? (ordersError instanceof Error ? ordersError.message : 'Error al cargar pedidos') : null;
 
+  // ── Order detail query ─────────────────────────────────────────────────────
+  const {
+    data: detailOrder,
+    isLoading: detailLoading,
+    isError: detailIsError,
+    error: detailErrorRaw,
+  } = useQuery({
+    queryKey: ['order-detail', selectedSummary?.id],
+    queryFn: () => getOrder(selectedSummary!.id),
+    enabled: !!selectedSummary?.id,
+    staleTime: 60_000,
+  });
+  const selectedOrder = detailOrder ?? selectedSummary;
+  const detailError = detailIsError ? (detailErrorRaw instanceof Error ? detailErrorRaw.message : 'Error al cargar el pedido') : null;
+
+  // IntersectionObserver para carga progresiva
   useEffect(() => {
     const target = sentinelRef.current;
     if (!target) return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
-        void fetchPage(orders.length, "append");
+      if (entry.isIntersecting && hasNextPage && !loadingInitial && !loadingMore) {
+        void fetchNextPage();
       }
     }, { rootMargin: "260px" });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [fetchPage, loadingInitial, loadingMore, orders.length]);
-
-  useEffect(() => {
-    if (!selectedSummary) {
-      setDetail({ order: null, loading: false, error: null });
-      return;
-    }
-
-    let cancelled = false;
-    setDetail({ order: selectedSummary, loading: true, error: null });
-    getOrder(selectedSummary.id)
-      .then((order) => {
-        if (!cancelled) setDetail((prev) => ({ ...prev, order }));
-      })
-      .catch((err) => {
-        if (!cancelled) setDetail((prev) => ({ ...prev, error: formatApiErrorMessage(err) }));
-      })
-      .finally(() => {
-        if (!cancelled) setDetail((prev) => ({ ...prev, loading: false }));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSummary]);
+  }, [fetchNextPage, hasNextPage, loadingInitial, loadingMore]);
 
   const loadedLabel = orders.length.toLocaleString("es-CO");
   const totalLabel = totalOrders === null ? "…" : totalOrders.toLocaleString("es-CO");
@@ -454,7 +420,7 @@ export default function Orders() {
       </ErrorDisabledContent>
 
       {error && (
-        <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
+        <ModuleErrorCard message={error ?? ''} onRetry={() => void refetch()} loading={loadingInitial} />
       )}
 
       <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">
@@ -743,7 +709,7 @@ export default function Orders() {
                 </div>
 
                 <div className="space-y-5 px-4 py-4 sm:px-6">
-                  {detailError && <ModuleErrorCard message={detailError} onRetry={() => selectedSummary && getOrder(selectedSummary.id).then((order) => setDetail((prev) => ({ ...prev, order }))).catch((err) => setDetail((prev) => ({ ...prev, error: formatApiErrorMessage(err) })))} loading={detailLoading} />}
+                  {detailError && <ModuleErrorCard message={detailError} loading={detailLoading} />}
 
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <OrderMetric icon={CreditCard} label="Total orden" value={money(currentOrder.doc_total)} note={`${formatCount(currentOrder.line_items_count ?? lineItems.length)} items`} />

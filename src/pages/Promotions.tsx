@@ -369,6 +369,11 @@ const Promotions = () => {
     setSapStatusFilter('all');
   };
 
+  const prefetchProductsAndCustomers = () => {
+    queryClient.prefetchQuery({ queryKey: ['products-all'], queryFn: getAllProducts });
+    queryClient.prefetchQuery({ queryKey: ['customers-all'], queryFn: getAllCustomers });
+  };
+
   const handlePromoSaved = () => {
     setSheetOpen(false);
     setEditingPromo(null);
@@ -444,15 +449,15 @@ const Promotions = () => {
           description="Crea y administra promociones comerciales"
           actions={(
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 md:w-auto">
-              <Button variant="outline" onClick={() => setShowSyncModal(true)} disabled={isLoading} className="w-full gap-2">
+              <Button variant="outline" onClick={() => { prefetchProductsAndCustomers(); setShowSyncModal(true); }} disabled={isLoading} className="w-full gap-2">
                 {syncingFromSap ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 Sincronizar SAP
               </Button>
-              <Button variant="outline" onClick={() => { queryClient.prefetchQuery({ queryKey: ['products-all'], queryFn: getAllProducts }); queryClient.prefetchQuery({ queryKey: ['customers-all'], queryFn: getAllCustomers }); setShowImportModal(true); }} disabled={isLoading} className="w-full gap-2">
+              <Button variant="outline" onClick={() => { prefetchProductsAndCustomers(); setShowImportModal(true); }} disabled={isLoading} className="w-full gap-2">
                 {(downloadingTemplate || parsingFile) ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                 Importar Excel
               </Button>
-              <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading} className="w-full gap-2">
+              <Button onClick={() => { prefetchProductsAndCustomers(); setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading} className="w-full gap-2">
                 <Plus className="size-4" />
                 Nueva Promocion
               </Button>
@@ -776,7 +781,7 @@ const Promotions = () => {
                     Limpiar filtros
                   </Button>
                 ) : (
-                  <Button variant="outline" className="mt-4" onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading}>
+                  <Button variant="outline" className="mt-4" onClick={() => { prefetchProductsAndCustomers(); setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading}>
                     <Plus className="size-4 mr-2" />
                     Crear primera promocion
                   </Button>
@@ -830,7 +835,7 @@ const Promotions = () => {
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={isLoading} title="Ver detalles"><Eye className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={isLoading || cloneMutation.isPending} title="Duplicar"><Copy className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full"
-                            onClick={() => canEdit(promo) && (setEditingPromo(promo), setSheetOpen(true))}
+                            onClick={() => canEdit(promo) && (prefetchProductsAndCustomers(), setEditingPromo(promo), setSheetOpen(true))}
                             disabled={isLoading || !canEdit(promo)}
                             title="Editar">
                             <Pencil className="size-4" />
@@ -984,7 +989,7 @@ const Promotions = () => {
                                     <TooltipTrigger asChild>
                                       <span className="inline-flex">
                                         <Button variant="ghost" size="icon" className="size-8"
-                                          onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
+                                          onClick={() => { prefetchProductsAndCustomers(); setEditingPromo(promo); setSheetOpen(true); }}
                                           disabled={isLoading || !canEdit(promo)}>
                                           <Pencil className="size-4" />
                                         </Button>

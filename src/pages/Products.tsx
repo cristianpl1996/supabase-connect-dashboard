@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type React from "react";
 import {
   getProductFilterOptions,
@@ -37,7 +38,7 @@ import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SearchableSelect } from "@/components/common/SearchableSelect";
-import { formatApiErrorMessage } from "@/lib/errors";
+import { formatApiErrorMessage } from "@/lib/errors"; // kept for export error only
 import { buildExportFileName, exportRowsToWorkbook, fetchAllPagesParallel } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
@@ -264,14 +265,7 @@ function productSortParams(value: string): Pick<ProductListParams, "sort_by" | "
 }
 
 export default function Products() {
-  const [products, setProducts] = useState<ProductCatalogItem[]>([]);
-  const [loadingInitial, setLoadingInitial] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasMoreRef = useRef(false);
-  const [totalProducts, setTotalProducts] = useState<number | null>(null);
-  const [filterOptions, setFilterOptions] = useState({ brands: [] as string[], categories: [] as string[] });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [searchInput, setSearchInput] = useState("");
@@ -305,83 +299,63 @@ export default function Products() {
     offset,
   }), [brand, category, inventoryStatus, line, maxUnits, minUnits, search, showDiscontinued, sku, species]);
 
-  const fetchPage = useCallback(async (offset: number, mode: "reset" | "append") => {
-    if (mode === "reset") {
-      setLoadingInitial(true);
-      setError(null);
-      setProducts([]);
-    } else {
-      setLoadingMore(true);
-    }
+  // ── Filter options query ───────────────────────────────────────────────────
+  const { data: filterOptions = { brands: [], categories: [] } } = useQuery({
+    queryKey: ['product-filter-options'],
+    queryFn: async () => {
+      const options = await getProductFilterOptions();
+      return {
+        brands: Array.isArray(options.brands) ? options.brands : [],
+        categories: Array.isArray(options.categories) ? options.categories : [],
+      };
+    },
+    staleTime: 5 * 60_000,
+  });
 
-    try {
-      const response = await getProductsPage(buildParams(offset));
-      const batch = response.data ?? [];
-      const total = listTotal(response);
+  // ── Infinite products query ────────────────────────────────────────────────
+  const {
+    data: productsData,
+    isLoading: loadingInitial,
+    isFetchingNextPage: loadingMore,
+    isError,
+    error: productsError,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['products', { sku, search, brand, category, line, species, showDiscontinued, inventoryStatus, minUnits, maxUnits }],
+    queryFn: ({ pageParam }) => getProductsPage(buildParams(pageParam as number)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.flatMap((p) => p.data ?? []).length;
+      const total = listTotal(lastPage);
+      if (total === null) return (lastPage.data?.length ?? 0) === PAGE_SIZE ? fetched : undefined;
+      return fetched < total ? fetched : undefined;
+    },
+    staleTime: 30_000,
+  });
 
-      setTotalProducts(total);
-      setProducts((prev) => {
-        const base = mode === "reset" ? [] : prev;
-        const seen = new Set(base.map(productKey));
-        const next = [...base];
-        batch.forEach((item) => {
-          if (!seen.has(productKey(item))) {
-            seen.add(productKey(item));
-            next.push(item);
-          }
-        });
-        return next;
-      });
-      hasMoreRef.current = total === null ? batch.length === PAGE_SIZE : offset + batch.length < total;
-    } catch (err) {
-      setError(formatApiErrorMessage(err));
-      if (mode === "reset") {
-        setProducts([]);
-        setTotalProducts(null);
-      }
-    } finally {
-      setLoadingInitial(false);
-      setLoadingMore(false);
-    }
-  }, [buildParams]);
+  const products = useMemo(
+    () => productsData?.pages.flatMap((p) => p.data ?? []) ?? [],
+    [productsData],
+  );
+  const totalProducts = productsData?.pages[0] ? listTotal(productsData.pages[0]) : null;
+  const error = isError ? (productsError instanceof Error ? productsError.message : 'Error al cargar productos') : null;
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => fetchPage(0, "reset"), 250);
-    return () => window.clearTimeout(timer);
-  }, [fetchPage]);
-
-  useEffect(() => {
-    let cancelled = false;
-    getProductFilterOptions()
-      .then((options) => {
-        if (cancelled) return;
-        setFilterOptions({
-          brands: Array.isArray(options.brands) ? options.brands : [],
-          categories: Array.isArray(options.categories) ? options.categories : [],
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setFilterOptions({ brands: [], categories: [] });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // IntersectionObserver para cargar más al llegar al final
   useEffect(() => {
     const target = sentinelRef.current;
     if (!target) return;
 
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && hasMoreRef.current && !loadingInitial && !loadingMore) {
-        void fetchPage(products.length, "append");
+      if (entry.isIntersecting && hasNextPage && !loadingInitial && !loadingMore) {
+        void fetchNextPage();
       }
     }, { rootMargin: "240px" });
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [fetchPage, loadingInitial, loadingMore, products.length]);
+  }, [fetchNextPage, hasNextPage, loadingInitial, loadingMore]);
 
   const brands = filterOptions.brands;
   const categories = filterOptions.categories;
@@ -513,7 +487,7 @@ export default function Products() {
       </ErrorDisabledContent>
 
       {error && (
-        <ModuleErrorCard message={error} onRetry={() => fetchPage(0, "reset")} loading={loadingInitial} />
+        <ModuleErrorCard message={error} onRetry={() => void refetch()} loading={loadingInitial} />
       )}
 
       <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-6">

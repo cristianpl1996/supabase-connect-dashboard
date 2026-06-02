@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -18,103 +19,65 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
-import { formatApiErrorMessage } from "@/lib/errors";
 import { PageHeader } from "@/components/common/PageHeader";
 
 export default function Middleware() {
-  const [executions, setExecutions] = useState<PromoExecution[]>([]);
-  const [activePromos, setActivePromos] = useState<ActivePromotionExecutionView[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [simulating, setSimulating] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date>(new Date());
-  const [isOnline, setIsOnline] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchExecutions = async (silent = false) => {
-    if (!silent) {
-      setRefreshing(true);
-    }
+  // ── Queries con polling cada 10s ───────────────────────────────────────────
+  const {
+    data: executions = [],
+    isLoading: loading,
+    isError,
+    error: executionsError,
+    isFetching: refreshing,
+    refetch: refetchExecutions,
+    dataUpdatedAt,
+  } = useQuery({
+    queryKey: ['promo-executions'],
+    queryFn: listPromoExecutions,
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
 
-    try {
-      const data = await listPromoExecutions();
-      setExecutions(data);
-      setIsOnline(true);
-      setError(null);
-      setLastSync(new Date());
-    } catch (error) {
-      console.error("Error fetching executions from API:", error);
-      setIsOnline(false);
-      setError(formatApiErrorMessage(error));
-      if (!silent) {
-        toast({
-          title: "Error de API",
-          description: "No se pudieron cargar las ejecuciones del middleware.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setLoading(false);
-      if (!silent) {
-        setRefreshing(false);
-      }
-    }
-  };
+  const { data: activePromos = [] } = useQuery({
+    queryKey: ['active-execution-promotions'],
+    queryFn: listActiveExecutionPromotions,
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
 
-  const fetchActivePromos = async () => {
-    try {
-      const data = await listActiveExecutionPromotions();
-      setActivePromos(data);
-      setIsOnline(true);
-      setError(null);
-    } catch (error) {
-      console.error("Error fetching active promotions from API:", error);
-      setIsOnline(false);
-      setError(formatApiErrorMessage(error));
-    }
-  };
+  const isOnline = !isError;
+  const lastSync = new Date(dataUpdatedAt || Date.now());
+  const error = isError ? (executionsError instanceof Error ? executionsError.message : 'Error de API') : null;
 
-  const refreshData = async (silent = false) => {
-    await Promise.all([fetchExecutions(silent), fetchActivePromos()]);
-  };
-
-  useEffect(() => {
-    void refreshData();
-
-    const interval = window.setInterval(() => {
-      void refreshData(true);
-    }, 10000);
-
-    return () => window.clearInterval(interval);
-  }, []);
-
-  const simulateSAPOrder = async () => {
-    setSimulating(true);
-
-    try {
-      const result = await simulatePromoExecution();
+  // ── Mutación simulate ──────────────────────────────────────────────────────
+  const simulateMutation = useMutation({
+    mutationFn: simulatePromoExecution,
+    onSuccess: (result) => {
       const amount = result.execution.cost_impact ?? 0;
-
       toast({
         title: "Pedido SAP simulado",
         description: result.triggered
           ? `Orden ${result.erp_order_id} - Promocion activada por ${formatCurrency(amount)}.`
           : `Orden ${result.erp_order_id} - ${result.description}.`,
       });
+      queryClient.invalidateQueries({ queryKey: ['promo-executions'] });
+    },
+    onError: () => {
+      toast({ title: "Error de API", description: "No se pudo simular el pedido en el middleware.", variant: "destructive" });
+    },
+    onSettled: () => setSimulating(false),
+  });
 
-      await refreshData(true);
-    } catch (error) {
-      console.error("Error simulating middleware order:", error);
-      setIsOnline(false);
-      setError(formatApiErrorMessage(error));
-      toast({
-        title: "Error de API",
-        description: "No se pudo simular el pedido en el middleware.",
-        variant: "destructive",
-      });
-    } finally {
-      setSimulating(false);
-    }
+  const simulateSAPOrder = () => {
+    setSimulating(true);
+    simulateMutation.mutate();
   };
 
   const formatCurrency = (value: number | null) => {
@@ -145,7 +108,7 @@ export default function Middleware() {
       </ErrorDisabledContent>
 
       {error && (
-        <ModuleErrorCard message={error} onRetry={() => void refreshData()} loading={refreshing || loading} />
+        <ModuleErrorCard message={error} onRetry={() => void refetchExecutions()} loading={refreshing || loading} />
       )}
 
       <ErrorDisabledContent disabled={!!error} className="space-y-6">
@@ -196,7 +159,7 @@ export default function Middleware() {
               <CardTitle>Transacciones Procesadas</CardTitle>
               <CardDescription>Ultimas 50 ejecuciones registradas por el backend</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => void refreshData()} className="gap-2" disabled={refreshing}>
+            <Button variant="outline" size="sm" onClick={() => void refetchExecutions()} className="gap-2" disabled={refreshing}>
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               Actualizar
             </Button>

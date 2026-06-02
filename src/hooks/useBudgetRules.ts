@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listBudgetRules, updateBudgetRule } from '@/lib/api';
 
 export interface BudgetRule {
@@ -44,73 +45,48 @@ export async function fetchBudgetRulesConfig(): Promise<BudgetRulesConfig> {
 }
 
 export function useBudgetRules() {
-  const [rules, setRules] = useState<BudgetRule[]>([]);
-  const [config, setConfig] = useState<BudgetRulesConfig>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const queryClient = useQueryClient();
 
-  const fetchRules = useCallback(async () => {
-    setIsLoading(true);
-    setIsError(false);
-    setErrorMessage('');
-    try {
-      const data = await listBudgetRules();
-      setRules(data || []);
-      const nextConfig: BudgetRulesConfig = {};
-      (data || []).forEach((rule) => {
-        nextConfig[rule.concept_key] = rule.is_budget_source;
-      });
-      setConfig(nextConfig);
-    } catch (error) {
-      console.error('Error fetching budget_rules:', error);
-      setIsError(true);
-      setErrorMessage(error instanceof Error ? error.message : 'Error desconocido');
-      setRules([]);
-      setConfig({});
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data: rules = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['budget-rules'],
+    queryFn: listBudgetRules,
+    staleTime: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    fetchRules();
-  }, [fetchRules]);
+  const config: BudgetRulesConfig = useMemo(() => {
+    const c: BudgetRulesConfig = {};
+    rules.forEach((rule) => { c[rule.concept_key] = rule.is_budget_source; });
+    return c;
+  }, [rules]);
 
-  const toggleRule = useCallback(async (conceptKey: string) => {
-    const newValue = !config[conceptKey];
-    setConfig((prev) => ({ ...prev, [conceptKey]: newValue }));
-    setRules((prev) =>
-      prev.map((r) =>
-        r.concept_key === conceptKey
-          ? { ...r, is_budget_source: newValue }
-          : r
-      )
-    );
-
-    try {
-      await updateBudgetRule(conceptKey, newValue);
-    } catch (error) {
-      console.error('Error updating budget_rule:', error);
-      setConfig((prev) => ({ ...prev, [conceptKey]: !newValue }));
-      setRules((prev) =>
-        prev.map((r) =>
-          r.concept_key === conceptKey
-            ? { ...r, is_budget_source: !newValue }
-            : r
-        )
+  const toggleMutation = useMutation({
+    mutationFn: ({ conceptKey, newValue }: { conceptKey: string; newValue: boolean }) =>
+      updateBudgetRule(conceptKey, newValue),
+    onMutate: async ({ conceptKey, newValue }) => {
+      await queryClient.cancelQueries({ queryKey: ['budget-rules'] });
+      const previous = queryClient.getQueryData<BudgetRule[]>(['budget-rules']);
+      queryClient.setQueryData<BudgetRule[]>(['budget-rules'], (prev) =>
+        prev?.map((r) => r.concept_key === conceptKey ? { ...r, is_budget_source: newValue } : r) ?? []
       );
-      throw error;
-    }
-  }, [config]);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['budget-rules'], context.previous);
+    },
+  });
+
+  const toggleRule = async (conceptKey: string) => {
+    const newValue = !config[conceptKey];
+    await toggleMutation.mutateAsync({ conceptKey, newValue });
+  };
 
   return {
     rules,
     config,
     isLoading,
     isError,
-    errorMessage,
+    errorMessage: isError ? (error instanceof Error ? error.message : 'Error desconocido') : '',
     toggleRule,
-    refetch: fetchRules,
+    refetch,
   };
 }

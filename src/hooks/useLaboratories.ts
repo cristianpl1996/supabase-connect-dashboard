@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   createLaboratory as createLaboratoryRequest,
   deleteLaboratory as deleteLaboratoryRequest,
@@ -27,72 +27,52 @@ export interface LaboratoryFormData {
 }
 
 export function useLaboratories() {
-  const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const queryClient = useQueryClient();
 
-  const fetchLabs = useCallback(async () => {
-    setIsLoading(true);
-    setIsError(false);
-    setErrorMessage('');
-    try {
-      const data = await listLaboratories();
-      setLaboratories(data || []);
-    } catch (error) {
-      console.error('Error fetching laboratories:', error);
-      setIsError(true);
-      setErrorMessage(error instanceof Error ? error.message : 'Error desconocido');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data: laboratories = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['laboratories'],
+    queryFn: listLaboratories,
+    staleTime: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    fetchLabs();
-  }, [fetchLabs]);
-
-  const createLab = useCallback(async (formData: LaboratoryFormData) => {
-    const data = await createLaboratoryRequest({
+  const createLab = useMutation({
+    mutationFn: (formData: LaboratoryFormData) => createLaboratoryRequest({
       external_brand_id: formData.external_brand_id,
       erp_code: formData.erp_code || null,
       tax_id: null,
       logo_url: formData.logo_url || null,
       brand_color: formData.brand_color || null,
       annual_goal: formData.annual_goal,
-    });
-    setLaboratories((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    return data;
-  }, []);
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['laboratories'] }),
+  });
 
-  const updateLab = useCallback(async (id: string, formData: LaboratoryFormData) => {
-    const data = await updateLaboratoryRequest(id, {
-      external_brand_id: formData.external_brand_id,
-      erp_code: formData.erp_code || null,
-      tax_id: null,
-      logo_url: formData.logo_url || null,
-      brand_color: formData.brand_color || null,
-      annual_goal: formData.annual_goal,
-    });
-    setLaboratories((prev) =>
-      prev.map((l) => (l.id === id ? data : l)).sort((a, b) => a.name.localeCompare(b.name))
-    );
-    return data;
-  }, []);
+  const updateLab = useMutation({
+    mutationFn: ({ id, formData }: { id: string; formData: LaboratoryFormData }) =>
+      updateLaboratoryRequest(id, {
+        external_brand_id: formData.external_brand_id,
+        erp_code: formData.erp_code || null,
+        tax_id: null,
+        logo_url: formData.logo_url || null,
+        brand_color: formData.brand_color || null,
+        annual_goal: formData.annual_goal,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['laboratories'] }),
+  });
 
-  const deleteLab = useCallback(async (id: string) => {
-    await deleteLaboratoryRequest(id);
-    setLaboratories((prev) => prev.filter((l) => l.id !== id));
-  }, []);
+  const deleteLab = useMutation({
+    mutationFn: (id: string) => deleteLaboratoryRequest(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['laboratories'] }),
+  });
 
   return {
     laboratories,
     isLoading,
     isError,
-    errorMessage,
-    createLab,
-    updateLab,
-    deleteLab,
-    refetch: fetchLabs,
+    errorMessage: isError ? (error instanceof Error ? error.message : 'Error desconocido') : '',
+    createLab: (formData: LaboratoryFormData) => createLab.mutateAsync(formData),
+    updateLab: (id: string, formData: LaboratoryFormData) => updateLab.mutateAsync({ id, formData }),
+    deleteLab: (id: string) => deleteLab.mutateAsync(id),
+    refetch,
   };
 }

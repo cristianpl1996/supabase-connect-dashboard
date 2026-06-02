@@ -1190,16 +1190,16 @@ export function PromotionFormSheet({
                           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Asignado</span>
                         </div>
                       ) : (
-                        <Select value={labId} onValueChange={setLabId}>
-                          <SelectTrigger id="laboratory" className={submitted && formErrors.labId ? 'border-destructive' : ''}>
-                            <SelectValue placeholder="Selecciona un laboratorio" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {laboratories.map((lab) => (
-                              <SelectItem key={lab.id} value={lab.id}>{lab.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className={submitted && formErrors.labId ? 'rounded-md ring-1 ring-destructive' : ''}>
+                          <SearchableSelect
+                            value={labId || 'all'}
+                            onValueChange={(v) => setLabId(v === 'all' ? '' : v)}
+                            options={laboratories.map((lab) => ({ value: lab.id, label: lab.name }))}
+                            allLabel="Selecciona un laboratorio"
+                            searchPlaceholder="Buscar laboratorio..."
+                            emptyLabel="Sin resultados"
+                          />
+                        </div>
                       )}
                       {submitted && <FieldError error={formErrors.labId} />}
                     </div>

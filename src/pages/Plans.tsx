@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import { deletePlan, listLaboratories, listPlans, updatePlanStatus } from "@/lib/api";
-import { AnnualPlan, Laboratory } from "@/types/database";
+import { AnnualPlan } from "@/types/database";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,6 @@ import { PlanDetailsSheet } from "@/components/plans/PlanDetailsSheet";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
-import { formatApiErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -61,15 +61,32 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 };
 
 const Plans = () => {
-  const [plans, setPlans] = useState<AnnualPlan[]>([]);
-  const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // ── Queries ────────────────────────────────────────────────────────────────
+  const {
+    data: plans = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['plans'],
+    queryFn: listPlans,
+    staleTime: 30_000,
+  });
+
+  const { data: laboratories = [] } = useQuery({
+    queryKey: ['laboratories'],
+    queryFn: listLaboratories,
+    staleTime: 5 * 60_000,
+  });
+
+  // ── UI state ───────────────────────────────────────────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<AnnualPlan | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<AnnualPlan | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -84,24 +101,46 @@ const Plans = () => {
   const [hiddenGoalRows, setHiddenGoalRows] = useState<Set<string>>(new Set());
   const [hiddenBudgetRows, setHiddenBudgetRows] = useState<Set<string>>(new Set());
 
-  // Toggle status loading
+  // Per-row toggle loading tracker
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      toast.success("Plan eliminado exitosamente");
+      setDeleteDialogOpen(false);
+      setPlanToDelete(null);
+    },
+    onError: (err) => {
+      toast.error(`Error al eliminar: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    },
+  });
 
-      const [plansData, labsData] = await Promise.all([listPlans(), listLaboratories()]);
-
-      setPlans(plansData || []);
-      setLaboratories(labsData || []);
-    } catch (err) {
-      setError(formatApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, newStatus }: { id: string; newStatus: string }) =>
+      updatePlanStatus(id, newStatus),
+    onMutate: async ({ id, newStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['plans'] });
+      const previous = queryClient.getQueryData<AnnualPlan[]>(['plans']);
+      queryClient.setQueryData<AnnualPlan[]>(['plans'], (prev) =>
+        prev?.map((p) => p.id === id ? { ...p, status: newStatus as AnnualPlan['status'] } : p) ?? []
+      );
+      return { previous };
+    },
+    onSuccess: (updatedPlan) => {
+      queryClient.setQueryData<AnnualPlan[]>(['plans'], (prev) =>
+        prev?.map((p) => p.id === updatedPlan.id ? { ...p, status: updatedPlan.status } : p) ?? []
+      );
+      toast.success(`Plan ${updatedPlan.status === "activo" ? "activado" : "desactivado"}`);
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['plans'], context.previous);
+      toast.error(`Error al cambiar estado: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    },
+    onSettled: () => setTogglingStatusId(null),
+  });
 
   const labMap = useMemo(() => {
     return laboratories.reduce(
@@ -129,14 +168,10 @@ const Plans = () => {
     });
   }, [plans, searchQuery, statusFilter, labMap]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
   const handlePlanSaved = () => {
     setSheetOpen(false);
     setEditingPlan(null);
-    fetchData();
+    queryClient.invalidateQueries({ queryKey: ['plans'] });
   };
 
   const handleEditPlan = (plan: AnnualPlan) => {
@@ -154,22 +189,9 @@ const Plans = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!planToDelete) return;
-
-    setIsDeleting(true);
-    try {
-      await deletePlan(planToDelete.id);
-      toast.success("Plan eliminado exitosamente");
-      fetchData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
-      toast.error(`Error al eliminar: ${errorMessage}`);
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setPlanToDelete(null);
-    }
+    deleteMutation.mutate(planToDelete.id);
   };
 
   const handleViewPlan = (plan: AnnualPlan) => {
@@ -177,19 +199,10 @@ const Plans = () => {
     setDetailsSheetOpen(true);
   };
 
-  const handleToggleStatus = async (plan: AnnualPlan) => {
+  const handleToggleStatus = (plan: AnnualPlan) => {
     const newStatus = plan.status === "activo" ? "cerrado" : "activo";
     setTogglingStatusId(plan.id);
-    try {
-      const updatedPlan = await updatePlanStatus(plan.id, newStatus);
-      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: updatedPlan.status } : p)));
-      toast.success(`Plan ${newStatus === "activo" ? "activado" : "desactivado"}`);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
-      toast.error(`Error al cambiar estado: ${errorMessage}`);
-    } finally {
-      setTogglingStatusId(null);
-    }
+    toggleStatusMutation.mutate({ id: plan.id, newStatus });
   };
 
   const toggleRowGoalHidden = (planId: string) => {
@@ -231,12 +244,12 @@ const Plans = () => {
   return (
     <div className="mx-auto max-w-screen-2xl space-y-5 sm:space-y-8">
       {/* Header */}
-      <ErrorDisabledContent disabled={!!error}>
+      <ErrorDisabledContent disabled={isError}>
         <PageHeader
           icon={FileText}
           title="Planes y Negociaciones"
           actions={(
-            <Button onClick={handleOpenCreate} disabled={loading} className="gap-2">
+            <Button onClick={handleOpenCreate} disabled={isLoading} className="gap-2">
               <Plus className="size-4" />
               Nuevo Plan Año
             </Button>
@@ -244,11 +257,15 @@ const Plans = () => {
       </ErrorDisabledContent>
 
       {/* Error Display */}
-      {error && (
-        <ModuleErrorCard message={error} onRetry={fetchData} loading={loading} />
+      {isError && (
+        <ModuleErrorCard
+          message={error instanceof Error ? error.message : 'Error al cargar los planes'}
+          onRetry={() => void refetch()}
+          loading={isLoading}
+        />
       )}
 
-      <ErrorDisabledContent disabled={!!error} className="space-y-5 sm:space-y-8">
+      <ErrorDisabledContent disabled={isError} className="space-y-5 sm:space-y-8">
         {/* Summary Cards */}
         <div className="grid gap-3 sm:grid-cols-2">
           <Card className="border-border/50 shadow-sm">
@@ -257,7 +274,7 @@ const Plans = () => {
               <TrendingUp className="size-4 text-primary" />
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {isLoading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(totalPurchaseGoal)}</p>
@@ -271,7 +288,7 @@ const Plans = () => {
               <DollarSign className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {isLoading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(totalBudget)}</p>
@@ -285,7 +302,7 @@ const Plans = () => {
           <CardHeader className="p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
-                <button type="button" onClick={commitSearch} disabled={loading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
+                <button type="button" onClick={commitSearch} disabled={isLoading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
                   <Search className="size-4" />
                 </button>
                 <Input
@@ -293,7 +310,7 @@ const Plans = () => {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitSearch()}
-                  disabled={loading}
+                  disabled={isLoading}
                   className="h-10 pl-9 pr-9"
                 />
                 {searchQuery && (
@@ -302,7 +319,7 @@ const Plans = () => {
                   </button>
                 )}
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={isLoading}>
                 <SelectTrigger className="h-10 w-full sm:w-48">
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
@@ -315,7 +332,7 @@ const Plans = () => {
               </Select>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 shrink-0" disabled={loading}>
+                  <Button variant="outline" className="h-10 gap-2 shrink-0" disabled={isLoading}>
                     <Columns3 className="size-4" />
                     Columnas
                   </Button>
@@ -352,19 +369,19 @@ const Plans = () => {
                 marginTop: "20px"
               }}>
                 {activeFilters.map((filter) => (
-                  <button key={filter.key} type="button" onClick={filter.clear} disabled={loading} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
+                  <button key={filter.key} type="button" onClick={filter.clear} disabled={isLoading} className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15">
                     <span className="truncate">{filter.label}</span>
                     <X className="size-3 shrink-0" />
                   </button>
                 ))}
-                <button type="button" onClick={clearFilters} disabled={loading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={clearFilters} disabled={isLoading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
                   <X className="size-3" /> Limpiar
                 </button>
               </div>
             )}
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isLoading ? (
               <div className="space-y-3">
                 {["plan-1", "plan-2", "plan-3"].map((slot) => (
                   <div key={slot} className="h-12 bg-muted animate-pulse rounded" />
@@ -377,12 +394,12 @@ const Plans = () => {
                   {activeFilters.length > 0 ? "No se encontraron planes con los filtros aplicados" : "No hay planes anuales registrados"}
                 </p>
                 {activeFilters.length > 0 ? (
-                  <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loading}>
+                  <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={isLoading}>
                     <X className="size-4 mr-2" />
                     Limpiar filtros
                   </Button>
                 ) : (
-                  <Button variant="outline" className="mt-4" onClick={handleOpenCreate} disabled={loading}>
+                  <Button variant="outline" className="mt-4" onClick={handleOpenCreate} disabled={isLoading}>
                     <Plus className="size-4 mr-2" />
                     Crear primer plan
                   </Button>
@@ -405,7 +422,7 @@ const Plans = () => {
                           <Switch
                             checked={plan.status === "activo"}
                             onCheckedChange={() => handleToggleStatus(plan)}
-                            disabled={loading || togglingStatusId === plan.id}
+                            disabled={isLoading || togglingStatusId === plan.id}
                             aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
                           />
                         </div>
@@ -425,9 +442,9 @@ const Plans = () => {
                           )}
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-1">
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={loading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para editarlo' : 'Editar'}><Pencil className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={loading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para eliminarlo' : 'Eliminar'}><Trash2 className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleViewPlan(plan)} disabled={isLoading} title="Ver detalles"><Eye className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleEditPlan(plan)} disabled={isLoading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para editarlo' : 'Editar'}><Pencil className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive" onClick={() => handleDeleteClick(plan)} disabled={isLoading || plan.status === 'activo'} title={plan.status === 'activo' ? 'Desactiva el plan para eliminarlo' : 'Eliminar'}><Trash2 className="size-4" /></Button>
                         </div>
                       </div>
                     );
@@ -454,7 +471,7 @@ const Plans = () => {
                                   setAllGoalsHidden((prev) => !prev);
                                   setHiddenGoalRows(new Set());
                                 }}
-                                disabled={loading}
+                                disabled={isLoading}
                                 title={allGoalsHidden ? "Mostrar todos" : "Ocultar todos"}
                               >
                                 {allGoalsHidden ? (
@@ -478,7 +495,7 @@ const Plans = () => {
                                   setAllBudgetsHidden((prev) => !prev);
                                   setHiddenBudgetRows(new Set());
                                 }}
-                                disabled={loading}
+                                disabled={isLoading}
                                 title={allBudgetsHidden ? "Mostrar todos" : "Ocultar todos"}
                               >
                                 {allBudgetsHidden ? (
@@ -507,7 +524,7 @@ const Plans = () => {
                               <Switch
                                 checked={plan.status === "activo"}
                                 onCheckedChange={() => handleToggleStatus(plan)}
-                                disabled={loading || togglingStatusId === plan.id}
+                                disabled={isLoading || togglingStatusId === plan.id}
                                 aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
                               />
                             </TableCell>
@@ -528,7 +545,7 @@ const Plans = () => {
                                     size="icon"
                                     className="size-6"
                                     onClick={() => toggleRowGoalHidden(plan.id)}
-                                    disabled={loading}
+                                    disabled={isLoading}
                                     title={isGoalHidden ? "Mostrar valor" : "Ocultar valor"}
                                   >
                                     {isGoalHidden ? (
@@ -551,7 +568,7 @@ const Plans = () => {
                                     size="icon"
                                     className="size-6"
                                     onClick={() => toggleRowBudgetHidden(plan.id)}
-                                    disabled={loading}
+                                    disabled={isLoading}
                                     title={isBudgetHidden ? "Mostrar valor" : "Ocultar valor"}
                                   >
                                     {isBudgetHidden ? (
@@ -570,7 +587,7 @@ const Plans = () => {
                                   size="icon"
                                   className="size-8"
                                   onClick={() => handleViewPlan(plan)}
-                                  disabled={loading}
+                                  disabled={isLoading}
                                   title="Ver detalles"
                                 >
                                   <Eye className="size-4" />
@@ -580,7 +597,7 @@ const Plans = () => {
                                   size="icon"
                                   className="size-8"
                                   onClick={() => handleEditPlan(plan)}
-                                  disabled={loading || plan.status === 'activo'}
+                                  disabled={isLoading || plan.status === 'activo'}
                                   title={plan.status === 'activo' ? 'Desactiva el plan para editarlo' : 'Editar'}
                                 >
                                   <Pencil className="size-4" />
@@ -590,7 +607,7 @@ const Plans = () => {
                                   size="icon"
                                   className="size-8 text-destructive hover:text-destructive"
                                   onClick={() => handleDeleteClick(plan)}
-                                  disabled={loading || plan.status === 'activo'}
+                                  disabled={isLoading || plan.status === 'activo'}
                                   title={plan.status === 'activo' ? 'Desactiva el plan para eliminarlo' : 'Eliminar'}
                                 >
                                   <Trash2 className="size-4" />
@@ -639,13 +656,13 @@ const Plans = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmDelete}
-                disabled={isDeleting}
+                disabled={deleteMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isDeleting ? "Eliminando…" : "Eliminar"}
+                {deleteMutation.isPending ? "Eliminando…" : "Eliminar"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

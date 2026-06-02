@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-import { Laboratory, LaboratoryWalletView, createWalletAdjustment, getLaboratoryWallet, listLaboratories } from '@/lib/api';
+import { createWalletAdjustment, getLaboratoryWallet, listLaboratories } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,121 +23,90 @@ import { cn } from '@/lib/utils';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
-import { formatApiErrorMessage } from '@/lib/errors';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function WalletPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
+  const queryClient = useQueryClient();
   const [selectedLabId, setSelectedLabId] = useState<string>('');
-  const selectedLabNameRef = useRef<string>('');
-  const [walletView, setWalletView] = useState<LaboratoryWalletView | null>(null);
-  const [isLoadingLabs, setIsLoadingLabs] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'ingreso' | 'egreso'>('ingreso');
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
   const [adjustmentDate, setAdjustmentDate] = useState<Date>(new Date());
-  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const canCreateAdjustments = user?.role === 'admin' || user?.role === 'superuser';
 
+  // Promotor always uses their own lab — no dropdown needed
   useEffect(() => {
-    void fetchLaboratories();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: mount-only fetch; fetchLaboratories is not useCallback
-  }, []);
-
-  useEffect(() => {
-    if (!selectedLabId) {
-      selectedLabNameRef.current = '';
-      setWalletView(null);
-      return;
-    }
-    const laboratory = laboratories.find((lab) => lab.id === selectedLabId);
-    selectedLabNameRef.current = laboratory?.name || '';
-    void fetchWalletData(selectedLabId);
-  }, [selectedLabId, laboratories]);
-
-  async function fetchLaboratories() {
-    setIsLoadingLabs(true);
-    setLoadError(null);
     if (user?.role === 'promotor' && user.laboratory_id) {
       setSelectedLabId(user.laboratory_id);
-      setIsLoadingLabs(false);
-      return;
     }
-    try {
-      const data = await listLaboratories();
-      setLaboratories(data);
-    } catch (error) {
-      console.error('Error fetching laboratories:', error);
-      setLoadError(formatApiErrorMessage(error));
-    } finally {
-      setIsLoadingLabs(false);
-    }
-  }
+  }, [user?.role, user?.laboratory_id]);
 
-  async function fetchWalletData(labId: string) {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const data = await getLaboratoryWallet(labId);
-      setWalletView(data);
-      selectedLabNameRef.current = data.laboratory.name;
-    } catch (error) {
-      console.error('Error fetching wallet data:', error);
-      setLoadError(formatApiErrorMessage(error));
-      setWalletView(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const {
+    data: laboratories = [],
+    isLoading: isLoadingLabs,
+    isError: isLabsError,
+    error: labsError,
+    refetch: refetchLabs,
+  } = useQuery({
+    queryKey: ['laboratories'],
+    queryFn: listLaboratories,
+    staleTime: 5 * 60_000,
+    enabled: user?.role !== 'promotor',
+  });
 
-  async function handleSaveAdjustment() {
-    if (!selectedLabId || !adjustmentReason.trim() || !adjustmentAmount) {
-      toast({
-        title: 'Campos incompletos',
-        description: 'Por favor completa todos los campos',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const {
+    data: walletView,
+    isLoading: isLoadingWallet,
+    isError: isWalletError,
+    error: walletError,
+    refetch: refetchWallet,
+  } = useQuery({
+    queryKey: ['laboratory-wallet', selectedLabId],
+    queryFn: () => getLaboratoryWallet(selectedLabId),
+    enabled: !!selectedLabId,
+    staleTime: 30_000,
+  });
 
-    setIsSavingAdjustment(true);
-    try {
-      await createWalletAdjustment(selectedLabId, {
-        type: adjustmentType,
-        amount: Math.abs(parseFloat(adjustmentAmount)),
-        description: adjustmentReason.trim(),
-        transaction_date: format(adjustmentDate, 'yyyy-MM-dd'),
-      });
-
-      toast({
-        title: 'Ajuste guardado',
-        description: 'El movimiento se registro correctamente',
-      });
-
+  const adjustmentMutation = useMutation({
+    mutationFn: () => createWalletAdjustment(selectedLabId, {
+      type: adjustmentType,
+      amount: Math.abs(parseFloat(adjustmentAmount)),
+      description: adjustmentReason.trim(),
+      transaction_date: format(adjustmentDate, 'yyyy-MM-dd'),
+    }),
+    onSuccess: () => {
+      toast({ title: 'Ajuste guardado', description: 'El movimiento se registro correctamente' });
       setAdjustmentReason('');
       setAdjustmentAmount('');
       setAdjustmentDate(new Date());
       setIsAdjustmentOpen(false);
-      await fetchWalletData(selectedLabId);
-    } catch (error) {
-      console.error('Error saving adjustment:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo guardar el ajuste en la API',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingAdjustment(false);
+      queryClient.invalidateQueries({ queryKey: ['laboratory-wallet', selectedLabId] });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'No se pudo guardar el ajuste en la API', variant: 'destructive' });
+    },
+  });
+
+  function handleSaveAdjustment() {
+    if (!selectedLabId || !adjustmentReason.trim() || !adjustmentAmount) {
+      toast({ title: 'Campos incompletos', description: 'Por favor completa todos los campos', variant: 'destructive' });
+      return;
     }
+    adjustmentMutation.mutate();
   }
+
+  const isLoading = isLoadingWallet;
+  const loadError = isLabsError
+    ? (labsError instanceof Error ? labsError.message : 'Error al cargar laboratorios')
+    : isWalletError
+      ? (walletError instanceof Error ? walletError.message : 'Error al cargar la billetera')
+      : null;
 
   function handleExportPDF() {
     if (!walletView || !selectedLabId) return;
@@ -154,7 +124,7 @@ export default function WalletPage() {
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Laboratorio: ${selectedLabNameRef.current}`, 14, 35);
+      doc.text(`Laboratorio: ${walletView?.laboratory.name ?? ''}`, 14, 35);
       doc.text(`Fecha de emision: ${format(new Date(), "dd 'de' MMMM, yyyy", { locale: es })}`, 14, 42);
       doc.setDrawColor(200);
       doc.line(14, 48, pageWidth - 14, 48);
@@ -220,7 +190,7 @@ export default function WalletPage() {
         styles: { fontSize: 9 },
       });
 
-      doc.save(`estado-cuenta-${selectedLabNameRef.current.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      doc.save(`estado-cuenta-${(walletView?.laboratory.name ?? '').replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
 
       toast({
         title: 'PDF generado',
@@ -286,7 +256,7 @@ export default function WalletPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Tipo de Ajuste</Label>
-                      <Select value={adjustmentType} onValueChange={(v) => setAdjustmentType(v as 'ingreso' | 'egreso')} disabled={isLoading || isSavingAdjustment}>
+                      <Select value={adjustmentType} onValueChange={(v) => setAdjustmentType(v as 'ingreso' | 'egreso')} disabled={isLoading || adjustmentMutation.isPending}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -304,7 +274,7 @@ export default function WalletPage() {
                         placeholder="0"
                         value={adjustmentAmount}
                         onChange={(e) => setAdjustmentAmount(e.target.value)}
-                        disabled={isLoading || isSavingAdjustment}
+                        disabled={isLoading || adjustmentMutation.isPending}
                       />
                     </div>
                     </div>
@@ -315,7 +285,7 @@ export default function WalletPage() {
                         placeholder="Ej: Apoyo evento ganadero WhatsApp, Glosa factura #123…"
                         value={adjustmentReason}
                         onChange={(e) => setAdjustmentReason(e.target.value)}
-                        disabled={isLoading || isSavingAdjustment}
+                        disabled={isLoading || adjustmentMutation.isPending}
                       />
                     </div>
 
@@ -325,7 +295,7 @@ export default function WalletPage() {
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            disabled={isLoading || isSavingAdjustment}
+                            disabled={isLoading || adjustmentMutation.isPending}
                             className={cn('w-full justify-start text-left font-normal', !adjustmentDate && 'text-muted-foreground')}
                           >
                             <CalendarIcon className="mr-2 size-4" />
@@ -346,11 +316,11 @@ export default function WalletPage() {
                   </div>
 
                   <DialogFooter className="border-t bg-muted/30 px-5 py-4">
-                    <Button variant="outline" onClick={() => setIsAdjustmentOpen(false)} disabled={isSavingAdjustment}>
+                    <Button variant="outline" onClick={() => setIsAdjustmentOpen(false)} disabled={adjustmentMutation.isPending}>
                       Cancelar
                     </Button>
-                    <Button onClick={() => void handleSaveAdjustment()} disabled={isLoading || isSavingAdjustment}>
-                      {isSavingAdjustment && <Loader2 className="size-4 mr-2 animate-spin" />}
+                    <Button onClick={() => void handleSaveAdjustment()} disabled={isLoading || adjustmentMutation.isPending}>
+                      {adjustmentMutation.isPending && <Loader2 className="size-4 mr-2 animate-spin" />}
                       Guardar Ajuste
                     </Button>
                   </DialogFooter>
@@ -370,7 +340,7 @@ export default function WalletPage() {
       {loadError && (
         <ModuleErrorCard
           message={loadError}
-          onRetry={() => selectedLabId ? void fetchWalletData(selectedLabId) : void fetchLaboratories()}
+          onRetry={() => selectedLabId ? void refetchWallet() : void refetchLabs()}
           loading={isLoading || isLoadingLabs}
         />
       )}

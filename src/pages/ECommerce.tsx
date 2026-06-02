@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
@@ -605,10 +606,6 @@ export default function ECommerce() {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  const [products, setProducts] = useState<EcommerceProduct[]>([]);
-  const [totalProducts, setTotalProducts] = useState<number | null>(null);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [productError, setProductError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -619,7 +616,6 @@ export default function ECommerce() {
   const [sort, setSort] = useState("name_asc");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [withPriceOnly, setWithPriceOnly] = useState(false);
-  const [filters, setFilters] = useState({ brands: [] as string[], categories: [] as string[] });
 
   const [cart, setCart] = useState<EcommerceCartItemInput[]>(() => loadStoredCart());
   const [cartOpen, setCartOpen] = useState(false);
@@ -720,46 +716,43 @@ export default function ECommerce() {
     [orders, orderStateFilter, orderDateFrom, orderDateTo],
   );
 
-  const fetchProducts = useCallback(async (page: number) => {
-    if (!token) return;
-    setLoadingProducts(true);
-    setProductError(null);
-    try {
-      const response = await getEcommerceProductsPage(token, {
-        search: search.trim() || undefined,
-        brand_name: brand === "all" ? undefined : brand,
-        category: category === "all" ? undefined : category,
-        in_stock_only: inStockOnly || undefined,
-        with_price_only: withPriceOnly || undefined,
-        ...sortParams,
-        limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
-      });
-      setProducts(response.data ?? []);
-      setTotalProducts(listTotal(response));
-    } catch (error) {
-      setProductError(formatApiErrorMessage(error));
-    } finally {
-      setLoadingProducts(false);
-    }
-  }, [brand, category, inStockOnly, withPriceOnly, search, sortParams, token]);
-
-  useEffect(() => {
-    if (!token) return;
-    const timer = window.setTimeout(() => void fetchProducts(currentPage), 250);
-    return () => window.clearTimeout(timer);
-  }, [fetchProducts, token, currentPage]);
-
+  // Reset page to 1 cuando los filtros cambian
   useEffect(() => {
     setCurrentPage(1);
   }, [search, brand, category, inStockOnly, withPriceOnly, sort]);
 
-  useEffect(() => {
-    if (!token) return;
-    getEcommerceFilterOptions(token)
-      .then((data) => setFilters({ brands: data.brands ?? [], categories: data.categories ?? [] }))
-      .catch(() => setFilters({ brands: [], categories: [] }));
-  }, [token]);
+  const {
+    data: productsResponse,
+    isLoading: loadingProducts,
+    isError: isProductError,
+    error: productsQueryError,
+    refetch: refetchProducts,
+  } = useQuery({
+    queryKey: ['ecommerce-products', token, { search, brand, category, inStockOnly, withPriceOnly, sortParams, currentPage }],
+    queryFn: () => getEcommerceProductsPage(token, {
+      search: search.trim() || undefined,
+      brand_name: brand === "all" ? undefined : brand,
+      category: category === "all" ? undefined : category,
+      in_stock_only: inStockOnly || undefined,
+      with_price_only: withPriceOnly || undefined,
+      ...sortParams,
+      limit: PAGE_SIZE,
+      offset: (currentPage - 1) * PAGE_SIZE,
+    }),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+  const products = productsResponse?.data ?? [];
+  const totalProducts = productsResponse ? listTotal(productsResponse) : null;
+  const productError = isProductError ? (productsQueryError instanceof Error ? productsQueryError.message : 'Error al cargar productos') : null;
+
+  const { data: filtersRaw } = useQuery({
+    queryKey: ['ecommerce-filter-options', token],
+    queryFn: () => getEcommerceFilterOptions(token),
+    enabled: !!token,
+    staleTime: 5 * 60_000,
+  });
+  const filters = { brands: filtersRaw?.brands ?? [], categories: filtersRaw?.categories ?? [] };
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -1362,7 +1355,7 @@ export default function ECommerce() {
             {productError && (
               <ModuleErrorCard
                 message={productError}
-                onRetry={() => void fetchProducts(currentPage)}
+                onRetry={() => void refetchProducts()}
                 loading={loadingProducts}
               />
             )}
