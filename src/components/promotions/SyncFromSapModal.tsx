@@ -218,8 +218,9 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
         } else if (res.status === 'failed') {
           if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
           const health = await healthPromise;
-          const info = inferSapErrorType({ message: res.error ?? 'Error desconocido' });
-          setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
+          const message = res.error ?? 'Error en la sincronización con SAP';
+          const info = { error_type: 'SAP_UNAVAILABLE' as const, is_retryable: true, message };
+          setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' as const } : info);
           setState('error');
         }
       } catch { /* network hiccup — keep polling */ }
