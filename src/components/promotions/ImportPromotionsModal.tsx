@@ -938,7 +938,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2.5">
                   <span className="flex size-7 items-center justify-center rounded-md bg-primary/10">
-                    <CheckCircle2 className="size-3.5 text-primary" />
+                    <FileSpreadsheet className="size-3.5 text-primary" />
                   </span>
                   <span className="text-sm">Campañas importadas</span>
                 </div>
@@ -983,10 +983,10 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 border-t">
-              <Button variant="outline" onClick={reset} className="gap-2">
+              <Button variant="outline" onClick={handleClose}>Cerrar</Button>
+              <Button onClick={reset} className="gap-2">
                 <Upload className="size-3.5" /> Importar otro
               </Button>
-              <Button onClick={handleClose}>Cerrar</Button>
             </div>
           </div>
         )}

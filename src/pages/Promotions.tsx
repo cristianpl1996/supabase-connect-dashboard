@@ -4,6 +4,8 @@ const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", curren
 import {
   clonePromotion,
   deletePromotion,
+  getAllCustomers,
+  getAllProducts,
   getSapAutoSyncStatus,
   listLaboratories,
   listPromotions,
@@ -136,6 +138,12 @@ const Promotions = () => {
     fetchData();
   }, [fetchData]);
 
+  // Warm the products/customers cache as soon as the module loads so that
+  // template download and Excel import feel instant when the user gets there.
+  useEffect(() => {
+    getAllProducts().catch(() => null);
+    getAllCustomers().catch(() => null);
+  }, []);
 
   // Auto-reopen sync modal when background operation completes
   useEffect(() => {
@@ -690,8 +698,8 @@ const Promotions = () => {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/5"
+                    variant="destructive"
+                    className="gap-1.5"
                     onClick={handleBulkDelete}
                     disabled={bulkLoading}
                   >
@@ -1111,9 +1119,6 @@ const Promotions = () => {
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p>
                     Vas a cancelar la promoción <strong className="text-foreground">"{cancelDialogPromo?.title}"</strong> en SAP (campaña #{cancelDialogPromo?.sap_campaign_number}).
-                  </p>
-                  <p>
-                    Esta acción es <strong className="text-foreground">irreversible</strong>. La promoción no podrá reactivarse.
                   </p>
                 </div>
               </AlertDialogDescription>

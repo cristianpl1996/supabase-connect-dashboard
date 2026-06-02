@@ -1286,7 +1286,7 @@ export function getProductFilterOptions(): Promise<ProductFilterOptions> {
 }
 
 // ─── In-memory TTL cache shared across all callers ───────────────────────────
-const CATALOG_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CATALOG_TTL_MS = 30 * 60 * 1000; // 30 minutes
 let _allProductsCache: ProductCatalogItem[] | null = null;
 let _allProductsCachedAt = 0;
 let _allProductsInflight: Promise<ProductCatalogItem[]> | null = null;
