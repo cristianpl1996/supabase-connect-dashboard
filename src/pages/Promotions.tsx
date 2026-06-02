@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, type ElementType, type ReactNode } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import {
@@ -12,10 +13,9 @@ import {
   updatePromotionStatus,
   bulkUpdatePromotionStatus,
   bulkDeletePromotions,
-  SapAutoSyncStatus,
   BulkActionResponse,
 } from '@/lib/api';
-import { Promotion, Laboratory } from '@/types/database';
+import { Promotion } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,6 @@ import { SapStatusBadge } from '@/components/promotions/SapStatusBadge';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
-import { formatApiErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -80,21 +79,46 @@ const MECHANIC_LABELS: Record<string, string> = {
 };
 
 const Promotions = () => {
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
+  // ── Queries ────────────────────────────────────────────────────────────────
+  const {
+    data: promotions = [],
+    isLoading,
+    isError,
+    error: promotionsError,
+    refetch: refetchPromotions,
+  } = useQuery({
+    queryKey: ['promotions'],
+    queryFn: listPromotions,
+    staleTime: 30_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as Promotion[] | undefined;
+      return data?.some((p) => p.sap_sync_status === 'pending') ? 8_000 : false;
+    },
+  });
+
+  const { data: laboratories = [] } = useQuery({
+    queryKey: ['laboratories'],
+    queryFn: listLaboratories,
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: autoSyncStatus } = useQuery({
+    queryKey: ['sap-auto-sync-status'],
+    queryFn: getSapAutoSyncStatus,
+    staleTime: 60_000,
+  });
+
+  // ── UI state ───────────────────────────────────────────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promoToDelete, setPromoToDelete] = useState<Promotion | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
-  const [isCloning, setIsCloning] = useState(false);
   const [promoToClone, setPromoToClone] = useState<Promotion | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -110,41 +134,122 @@ const Promotions = () => {
   const [sapStatusFilter, setSapStatusFilter] = useState('all');
   const [showCostColumn, setShowCostColumn] = useState(false);
   const [showSapColumn, setShowSapColumn] = useState(true);
-  const [autoSyncStatus, setAutoSyncStatus] = useState<SapAutoSyncStatus | null>(null);
   const [hiddenCostRows, setHiddenCostRows] = useState<Set<string>>(new Set());
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
   const [cancelDialogPromo, setCancelDialogPromo] = useState<Promotion | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkActivating, setBulkActivating] = useState(false);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkActionResponse | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [promosData, labsData] = await Promise.all([listPromotions(), listLaboratories()]);
-      setPromotions(promosData || []);
-      setLaboratories(labsData || []);
-    } catch (err) {
-      setError(formatApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-    getSapAutoSyncStatus().then(setAutoSyncStatus).catch(() => null);
-  }, []);
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePromotion(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+      toast.success('Promocion eliminada exitosamente');
+      setDeleteDialogOpen(false);
+      setPromoToDelete(null);
+    },
+    onError: (err) => toast.error(`Error al eliminar: ${err instanceof Error ? err.message : 'Error desconocido'}`),
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ promo, newStatus }: { promo: Promotion; newStatus: string }) => {
+      const updated = await updatePromotionStatus(promo.id, newStatus);
+      if (newStatus === 'activa' && updated.sap_sync_error) {
+        const reverted = await updatePromotionStatus(promo.id, 'borrador');
+        return { result: reverted, sapError: updated.sap_sync_error };
+      }
+      return { result: updated, sapError: null };
+    },
+    onMutate: async ({ promo, newStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['promotions'] });
+      const previous = queryClient.getQueryData<Promotion[]>(['promotions']);
+      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
+        prev?.map((p) => p.id === promo.id ? { ...p, status: newStatus as Promotion['status'] } : p) ?? []
+      );
+      return { previous };
+    },
+    onSuccess: ({ result, sapError }) => {
+      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
+        prev?.map((p) => p.id === result.id ? result : p) ?? []
+      );
+      if (sapError) {
+        toast.warning('No se pudo activar — error SAP', { description: sapError, duration: 8000 });
+      } else if (result.status === 'activa' && result.sap_sync_status === 'pending') {
+        toast.info('Activada · Sincronizando con SAP en segundo plano…', {
+          description: 'La columna SAP se actualizará automáticamente cuando finalice (1–2 min).',
+          duration: 7000,
+        });
+      } else if (result.sap_sync_status === 'failed') {
+        toast.warning('Activada, pero el sync con SAP falló', {
+          description: 'Abre la promoción para ver el error y reintentar.',
+          duration: 8000,
+        });
+      } else {
+        toast.success(`Promoción ${result.status === 'activa' ? 'activada' : 'desactivada'}`);
+      }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['promotions'], context.previous);
+      toast.error('Error al cambiar estado');
+    },
+    onSettled: () => setTogglingStatusId(null),
+  });
 
-  // Warm the products/customers cache as soon as the module loads so that
-  // template download and Excel import feel instant when the user gets there.
-  useEffect(() => {
-    getAllProducts().catch(() => null);
-    getAllCustomers().catch(() => null);
-  }, []);
+  const cloneMutation = useMutation({
+    mutationFn: (id: string) => clonePromotion(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+      toast.success('Promocion duplicada exitosamente');
+      setPromoToClone(null);
+    },
+    onError: (err) => toast.error(`Error al clonar: ${err instanceof Error ? err.message : 'Error desconocido'}`),
+  });
+
+  const bulkActivateMutation = useMutation({
+    mutationFn: (ids: string[]) => bulkUpdatePromotionStatus(ids, 'activa'),
+    onSuccess: (res) => {
+      setBulkResult(res);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+    },
+    onError: () => toast.error('Error al activar promociones'),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => bulkDeletePromotions(ids),
+    onSuccess: (res) => {
+      setBulkResult(res);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['promotions'] });
+    },
+    onError: () => toast.error('Error al eliminar promociones'),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => updatePromotionStatus(id, 'cancelada'),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['promotions'] });
+      const previous = queryClient.getQueryData<Promotion[]>(['promotions']);
+      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
+        prev?.map((p) => p.id === id ? { ...p, status: 'cancelada' as const } : p) ?? []
+      );
+      return { previous };
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
+        prev?.map((p) => p.id === updated.id ? updated : p) ?? []
+      );
+      toast.success('Promoción cancelada en SAP');
+      setCancelDialogPromo(null);
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(['promotions'], context.previous);
+      toast.error('Error al cancelar');
+    },
+    onSettled: () => setIsCancelling(false),
+  });
 
   // Auto-reopen sync modal when background operation completes
   useEffect(() => {
@@ -191,26 +296,16 @@ const Promotions = () => {
     });
   }, [visibleIds]);
 
-  const handleBulkActivate = useCallback(async () => {
+  const handleBulkActivate = useCallback(() => {
     const ids = [...selectedIds].filter((id) => {
       const p = promotions.find((pr) => pr.id === id);
       return p && p.status !== 'activa';
     });
     if (ids.length === 0) return;
-    setBulkActivating(true);
-    try {
-      const res = await bulkUpdatePromotionStatus(ids, 'activa');
-      setBulkResult(res);
-      setSelectedIds(new Set());
-      await fetchData();
-    } catch {
-      toast.error('Error al activar promociones');
-    } finally {
-      setBulkActivating(false);
-    }
-  }, [selectedIds, promotions, fetchData]);
+    bulkActivateMutation.mutate(ids);
+  }, [selectedIds, promotions, bulkActivateMutation]);
 
-  const handleBulkDelete = useCallback(async () => {
+  const handleBulkDelete = useCallback(() => {
     const ids = [...selectedIds].filter((id) => {
       const p = promotions.find((pr) => pr.id === id);
       return p && !p.sap_campaign_number;
@@ -219,18 +314,8 @@ const Promotions = () => {
       toast.error('Las promociones seleccionadas tienen campaña SAP y no pueden eliminarse');
       return;
     }
-    setBulkDeleting(true);
-    try {
-      const res = await bulkDeletePromotions(ids);
-      setBulkResult(res);
-      setSelectedIds(new Set());
-      await fetchData();
-    } catch {
-      toast.error('Error al eliminar promociones');
-    } finally {
-      setBulkDeleting(false);
-    }
-  }, [selectedIds, promotions, fetchData]);
+    bulkDeleteMutation.mutate(ids);
+  }, [selectedIds, promotions, bulkDeleteMutation]);
 
   const laboratoryOptions = useMemo(() => {
     const names = new Set<string>();
@@ -287,7 +372,7 @@ const Promotions = () => {
   const handlePromoSaved = () => {
     setSheetOpen(false);
     setEditingPromo(null);
-    fetchData();
+    queryClient.invalidateQueries({ queryKey: ['promotions'] });
   };
 
   const handleDeleteClick = (promo: Promotion) => {
@@ -295,47 +380,15 @@ const Promotions = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!promoToDelete) return;
-    setIsDeleting(true);
-    try {
-      await deletePromotion(promoToDelete.id);
-      toast.success('Promocion eliminada exitosamente');
-      fetchData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      toast.error(`Error al eliminar: ${errorMessage}`);
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setPromoToDelete(null);
-    }
+    deleteMutation.mutate(promoToDelete.id);
   };
 
-  const handleToggleStatus = async (promo: Promotion) => {
+  const handleToggleStatus = (promo: Promotion) => {
     const newStatus = promo.status === 'activa' ? 'borrador' : 'activa';
     setTogglingStatusId(promo.id);
-    try {
-      const updated = await updatePromotionStatus(promo.id, newStatus);
-
-      if (newStatus === 'activa' && updated.sap_sync_error) {
-        // El backend activó pero SAP falló — revertir a borrador
-        const reverted = await updatePromotionStatus(promo.id, 'borrador');
-        setPromotions((prev) => prev.map((p) => (p.id === promo.id ? reverted : p)));
-        toast.warning('No se pudo activar — error SAP', {
-          description: updated.sap_sync_error,
-          duration: 8000,
-        });
-      } else {
-        setPromotions((prev) => prev.map((p) => (p.id === promo.id ? updated : p)));
-        toast.success(`Promocion ${updated.status === 'activa' ? 'activada' : 'desactivada'}`);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      toast.error(`Error al cambiar estado: ${errorMessage}`);
-    } finally {
-      setTogglingStatusId(null);
-    }
+    toggleStatusMutation.mutate({ promo, newStatus });
   };
 
   const toggleRowCostHidden = (promoId: string) => {
@@ -351,20 +404,9 @@ const Promotions = () => {
     setPromoToClone(promo);
   };
 
-  const handleConfirmClone = async () => {
+  const handleConfirmClone = () => {
     if (!promoToClone) return;
-    setIsCloning(true);
-    try {
-      await clonePromotion(promoToClone.id);
-      toast.success('Promocion duplicada exitosamente');
-      fetchData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      toast.error(`Error al clonar: ${errorMessage}`);
-    } finally {
-      setIsCloning(false);
-      setPromoToClone(null);
-    }
+    cloneMutation.mutate(promoToClone.id);
   };
 
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);
@@ -387,40 +429,30 @@ const Promotions = () => {
     setCancelDialogPromo(promo);
   };
 
-  const handleConfirmCancel = async () => {
+  const handleConfirmCancel = () => {
     if (!cancelDialogPromo) return;
     setIsCancelling(true);
-    try {
-      const updated = await updatePromotionStatus(cancelDialogPromo.id, 'cancelada');
-      setPromotions((prev) => prev.map((p) => (p.id === cancelDialogPromo.id ? updated : p)));
-      toast.success('Promoción cancelada en SAP');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      toast.error(`Error al cancelar: ${errorMessage}`);
-    } finally {
-      setIsCancelling(false);
-      setCancelDialogPromo(null);
-    }
+    cancelMutation.mutate(cancelDialogPromo.id);
   };
 
   return (
     <div className="mx-auto max-w-screen-2xl space-y-6 sm:space-y-8">
-      <ErrorDisabledContent disabled={!!error}>
+      <ErrorDisabledContent disabled={isError}>
         <PageHeader
           icon={Tag}
           title="Gestion de Promociones"
           description="Crea y administra promociones comerciales"
           actions={(
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 md:w-auto">
-              <Button variant="outline" onClick={() => setShowSyncModal(true)} disabled={loading} className="w-full gap-2">
+              <Button variant="outline" onClick={() => setShowSyncModal(true)} disabled={isLoading} className="w-full gap-2">
                 {syncingFromSap ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 Sincronizar SAP
               </Button>
-              <Button variant="outline" onClick={() => setShowImportModal(true)} disabled={loading} className="w-full gap-2">
+              <Button variant="outline" onClick={() => { queryClient.prefetchQuery({ queryKey: ['products-all'], queryFn: getAllProducts }); queryClient.prefetchQuery({ queryKey: ['customers-all'], queryFn: getAllCustomers }); setShowImportModal(true); }} disabled={isLoading} className="w-full gap-2">
                 {(downloadingTemplate || parsingFile) ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                 Importar Excel
               </Button>
-              <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading} className="w-full gap-2">
+              <Button onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading} className="w-full gap-2">
                 <Plus className="size-4" />
                 Nueva Promocion
               </Button>
@@ -429,8 +461,12 @@ const Promotions = () => {
         />
       </ErrorDisabledContent>
 
-      {error && (
-        <ModuleErrorCard message={error} onRetry={fetchData} loading={loading} />
+      {isError && (
+        <ModuleErrorCard
+          message={promotionsError instanceof Error ? promotionsError.message : 'Error al cargar las promociones'}
+          onRetry={() => void refetchPromotions()}
+          loading={isLoading}
+        />
       )}
 
       {autoSyncStatus && autoSyncStatus.status !== 'never_run' && (() => {
@@ -468,7 +504,7 @@ const Promotions = () => {
         );
       })()}
 
-      <ErrorDisabledContent disabled={!!error} className="space-y-6 sm:space-y-8">
+      <ErrorDisabledContent disabled={isError} className="space-y-6 sm:space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -476,7 +512,7 @@ const Promotions = () => {
               <Zap className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              {loading ? <div className="h-8 bg-muted animate-pulse rounded" /> : <p className="text-2xl font-bold text-foreground">{activeCount}</p>}
+              {isLoading ? <div className="h-8 bg-muted animate-pulse rounded" /> : <p className="text-2xl font-bold text-foreground">{activeCount}</p>}
               <p className="mt-1 text-xs text-muted-foreground">{hasActiveFilters ? 'Segun filtros aplicados' : 'Vista actual'}</p>
             </CardContent>
           </Card>
@@ -486,7 +522,7 @@ const Promotions = () => {
               <Tag className="size-4 text-primary" />
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {isLoading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
                 <p className="text-2xl font-bold text-foreground">{filteredPromotions.length} / {promotions.length}</p>
@@ -500,7 +536,7 @@ const Promotions = () => {
               <DollarSign className="size-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {isLoading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : showCostColumn ? (
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(totalEstimatedCost)}</p>
@@ -518,7 +554,7 @@ const Promotions = () => {
           <CardHeader className="space-y-2 px-4 py-5 sm:px-5">
             <div className="grid gap-3 md:grid-cols-[minmax(320px,2.5fr)_minmax(160px,1fr)_auto_auto]">
               <div className="relative min-w-0">
-                <button type="button" onClick={commitSearch} disabled={loading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
+                <button type="button" onClick={commitSearch} disabled={isLoading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
                   <Search className="size-4" />
                 </button>
                 <Input
@@ -526,7 +562,7 @@ const Promotions = () => {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitSearch()}
-                  disabled={loading}
+                  disabled={isLoading}
                   className="h-10 bg-background pl-9 pr-9"
                 />
                 {searchQuery && (
@@ -535,7 +571,7 @@ const Promotions = () => {
                   </button>
                 )}
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={isLoading}>
                 <SelectTrigger className="h-10 bg-background">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
@@ -549,7 +585,7 @@ const Promotions = () => {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-10 w-full gap-2 md:w-auto" disabled={loading}>
+                  <Button variant="outline" className="h-10 w-full gap-2 md:w-auto" disabled={isLoading}>
                     <Columns3 className="size-4" />
                     Columnas
                   </Button>
@@ -595,7 +631,7 @@ const Promotions = () => {
               {/* ── Filtros avanzados ── */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant={advancedFilterCount > 0 ? 'default' : 'outline'} className="h-10 w-full gap-2 md:w-auto" disabled={loading}>
+                  <Button variant={advancedFilterCount > 0 ? 'default' : 'outline'} className="h-10 w-full gap-2 md:w-auto" disabled={isLoading}>
                     <SlidersHorizontal className="size-4" />
                     Filtros
                     {advancedFilterCount > 0 && (
@@ -611,7 +647,7 @@ const Promotions = () => {
                         <p className="text-sm text-muted-foreground">Filtra por laboratorio, mecánica comercial y estado de sincronización SAP.</p>
                       </div>
                       {advancedFilterCount > 0 && (
-                        <Button variant="ghost" size="sm" onClick={() => { setLaboratoryFilter('all'); setMechanicFilter('all'); setSapStatusFilter('all'); }} disabled={loading} className="w-full gap-2 sm:w-auto">
+                        <Button variant="ghost" size="sm" onClick={() => { setLaboratoryFilter('all'); setMechanicFilter('all'); setSapStatusFilter('all'); }} disabled={isLoading} className="w-full gap-2 sm:w-auto">
                           <X className="size-4" /> Limpiar todo
                         </Button>
                       )}
@@ -620,7 +656,7 @@ const Promotions = () => {
                   <div className="space-y-5 p-4">
                     <PromoFilterSection icon={Tag} title="Promoción">
                       <PromoFilterField label="Laboratorio">
-                        <Select value={laboratoryFilter} onValueChange={setLaboratoryFilter} disabled={loading}>
+                        <Select value={laboratoryFilter} onValueChange={setLaboratoryFilter} disabled={isLoading}>
                           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Todos los laboratorios</SelectItem>
@@ -631,7 +667,7 @@ const Promotions = () => {
                         </Select>
                       </PromoFilterField>
                       <PromoFilterField label="Mecánica">
-                        <Select value={mechanicFilter} onValueChange={setMechanicFilter} disabled={loading}>
+                        <Select value={mechanicFilter} onValueChange={setMechanicFilter} disabled={isLoading}>
                           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Todas las mecánicas</SelectItem>
@@ -645,7 +681,7 @@ const Promotions = () => {
                     <Separator />
                     <PromoFilterSection icon={RefreshCw} title="Sincronización SAP">
                       <PromoFilterField label="Estado SAP">
-                        <Select value={sapStatusFilter} onValueChange={setSapStatusFilter} disabled={loading}>
+                        <Select value={sapStatusFilter} onValueChange={setSapStatusFilter} disabled={isLoading}>
                           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Todos</SelectItem>
@@ -669,14 +705,14 @@ const Promotions = () => {
                     key={filter.key}
                     type="button"
                     onClick={filter.onRemove}
-                    disabled={loading}
+                    disabled={isLoading}
                     className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/15"
                   >
                     <span className="truncate">{filter.label}</span>
                     <X className="size-3 shrink-0" />
                   </button>
                 ))}
-                <button type="button" onClick={clearFilters} disabled={loading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={clearFilters} disabled={isLoading} className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground">
                   <X className="size-3" /> Limpiar
                 </button>
               </div>
@@ -694,7 +730,7 @@ const Promotions = () => {
                     size="sm"
                     variant="outline"
                     onClick={() => setSelectedIds(new Set())}
-                    disabled={bulkActivating || bulkDeleting}
+                    disabled={bulkActivateMutation.isPending || bulkDeleteMutation.isPending}
                     className="h-8 gap-1.5"
                   >
                     <X className="size-3.5" />
@@ -705,9 +741,9 @@ const Promotions = () => {
                     variant="destructive"
                     className="gap-1.5 h-8"
                     onClick={handleBulkDelete}
-                    disabled={bulkDeleting || bulkActivating}
+                    disabled={bulkDeleteMutation.isPending || bulkActivateMutation.isPending}
                   >
-                    {bulkDeleting
+                    {bulkDeleteMutation.isPending
                       ? <Loader2 className="size-3.5 animate-spin" />
                       : <Trash2 className="size-3.5" />}
                     Eliminar
@@ -715,10 +751,10 @@ const Promotions = () => {
                   <Button
                     size="sm"
                     onClick={handleBulkActivate}
-                    disabled={bulkActivating || bulkDeleting}
+                    disabled={bulkActivateMutation.isPending || bulkDeleteMutation.isPending}
                     className="gap-1.5 h-8"
                   >
-                    {bulkActivating
+                    {bulkActivateMutation.isPending
                       ? <Loader2 className="size-3.5 animate-spin" />
                       : <Zap className="size-3.5" />}
                     Activar
@@ -726,7 +762,7 @@ const Promotions = () => {
                 </div>
               </div>
             )}
-            {loading ? (
+            {isLoading ? (
                 <div className="space-y-3">{["promotion-1", "promotion-2", "promotion-3"].map((slot) => <div key={slot} className="h-12 bg-muted animate-pulse rounded" />)}</div>
             ) : filteredPromotions.length === 0 ? (
               <div className="text-center py-12">
@@ -735,12 +771,12 @@ const Promotions = () => {
                   {hasActiveFilters ? 'No se encontraron promociones con los filtros aplicados' : 'No hay promociones registradas'}
                 </p>
                 {hasActiveFilters ? (
-                  <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={loading}>
+                  <Button variant="outline" className="mt-4" onClick={clearFilters} disabled={isLoading}>
                     <X className="size-4 mr-2" />
                     Limpiar filtros
                   </Button>
                 ) : (
-                  <Button variant="outline" className="mt-4" onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={loading}>
+                  <Button variant="outline" className="mt-4" onClick={() => { setEditingPromo(null); setSheetOpen(true); }} disabled={isLoading}>
                     <Plus className="size-4 mr-2" />
                     Crear primera promocion
                   </Button>
@@ -764,7 +800,7 @@ const Promotions = () => {
                           <Switch
                             checked={promo.status === 'activa'}
                             onCheckedChange={() => handleToggleStatus(promo)}
-                            disabled={loading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
+                            disabled={isLoading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
                             aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                           />
                         </div>
@@ -775,6 +811,7 @@ const Promotions = () => {
                             campaignNumber={promo.sap_campaign_number}
                             syncedAt={promo.sap_synced_at}
                             syncError={promo.sap_sync_error}
+                            syncStatus={promo.sap_sync_status}
                           />
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -790,25 +827,25 @@ const Promotions = () => {
                           )}
                         </div>
                         <div className="mt-3 grid grid-cols-4 gap-1">
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning} title="Duplicar"><Copy className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={isLoading} title="Ver detalles"><Eye className="size-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={isLoading || cloneMutation.isPending} title="Duplicar"><Copy className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full"
                             onClick={() => canEdit(promo) && (setEditingPromo(promo), setSheetOpen(true))}
-                            disabled={loading || !canEdit(promo)}
+                            disabled={isLoading || !canEdit(promo)}
                             title="Editar">
                             <Pencil className="size-4" />
                           </Button>
                           {promo.sap_campaign_number ? (
                             <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
                               onClick={() => canCancel(promo) && handleCancelClick(promo)}
-                              disabled={loading || !canCancel(promo)}
+                              disabled={isLoading || !canCancel(promo)}
                               title="Cancelar en SAP">
                               <Ban className="size-4" />
                             </Button>
                           ) : (
                             <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
                               onClick={() => canDelete(promo) && handleDeleteClick(promo)}
-                              disabled={loading || !canDelete(promo)}
+                              disabled={isLoading || !canDelete(promo)}
                               title="Eliminar">
                               <Trash2 className="size-4" />
                             </Button>
@@ -859,7 +896,7 @@ const Promotions = () => {
                               <Switch
                                 checked={promo.status === 'activa'}
                                 onCheckedChange={() => handleToggleStatus(promo)}
-                                disabled={loading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
+                                disabled={isLoading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
                                 aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                               />
                             </TableCell>
@@ -892,7 +929,7 @@ const Promotions = () => {
                                     size="icon"
                                     className="size-6"
                                     onClick={() => toggleRowCostHidden(promo.id)}
-                                    disabled={loading}
+                                    disabled={isLoading}
                                     title={isCostHidden ? 'Mostrar valor' : 'Ocultar valor'}
                                   >
                                     {isCostHidden ? <EyeOff className="size-3 text-muted-foreground" /> : <Eye className="size-3 text-muted-foreground" />}
@@ -906,6 +943,7 @@ const Promotions = () => {
                                   campaignNumber={promo.sap_campaign_number}
                                   syncedAt={promo.sap_synced_at}
                                   syncError={promo.sap_sync_error}
+                                  syncStatus={promo.sap_sync_status}
                                 />
                               </TableCell>
                             )}
@@ -914,7 +952,7 @@ const Promotions = () => {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="size-8" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading}>
+                                      <Button variant="ghost" size="icon" className="size-8" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={isLoading}>
                                         <Eye className="size-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -929,7 +967,7 @@ const Promotions = () => {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="size-8" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning}>
+                                      <Button variant="ghost" size="icon" className="size-8" onClick={() => handleCloneClick(promo)} disabled={isLoading || cloneMutation.isPending}>
                                         <Copy className="size-4" />
                                       </Button>
                                     </TooltipTrigger>
@@ -947,7 +985,7 @@ const Promotions = () => {
                                       <span className="inline-flex">
                                         <Button variant="ghost" size="icon" className="size-8"
                                           onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
-                                          disabled={loading || !canEdit(promo)}>
+                                          disabled={isLoading || !canEdit(promo)}>
                                           <Pencil className="size-4" />
                                         </Button>
                                       </span>
@@ -968,7 +1006,7 @@ const Promotions = () => {
                                           <Button variant="ghost" size="icon"
                                             className={`size-8 ${canCancel(promo) ? 'text-destructive hover:text-destructive' : 'text-muted-foreground'}`}
                                             onClick={() => canCancel(promo) && handleCancelClick(promo)}
-                                            disabled={loading || !canCancel(promo)}>
+                                            disabled={isLoading || !canCancel(promo)}>
                                             <Ban className="size-4" />
                                           </Button>
                                         </span>
@@ -989,7 +1027,7 @@ const Promotions = () => {
                                           <Button variant="ghost" size="icon"
                                             className={`size-8 ${canDelete(promo) ? 'text-destructive hover:text-destructive' : 'text-muted-foreground'}`}
                                             onClick={() => canDelete(promo) && handleDeleteClick(promo)}
-                                            disabled={loading || !canDelete(promo)}>
+                                            disabled={isLoading || !canDelete(promo)}>
                                             <Trash2 className="size-4" />
                                           </Button>
                                         </span>
@@ -1019,7 +1057,7 @@ const Promotions = () => {
         <ImportPromotionsModal
           open={showImportModal}
           onClose={() => setShowImportModal(false)}
-          onSuccess={fetchData}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['promotions'] })}
           onDownloadingChange={setDownloadingTemplate}
           onBusyChange={setParsingFile}
           laboratories={laboratories}
@@ -1031,7 +1069,7 @@ const Promotions = () => {
             if (syncingFromSap) syncClosedWhileBusy.current = true;
             setShowSyncModal(false);
           }}
-          onImported={fetchData}
+          onImported={() => queryClient.invalidateQueries({ queryKey: ['promotions'] })}
           onBusyChange={setSyncingFromSap}
         />
 
@@ -1063,19 +1101,19 @@ const Promotions = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmDelete}
-                disabled={isDeleting}
+                disabled={deleteMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isDeleting ? 'Eliminando…' : 'Eliminar'}
+                {deleteMutation.isPending ? 'Eliminando…' : 'Eliminar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={!!promoToClone} onOpenChange={(open) => { if (!open && !isCloning) setPromoToClone(null); }}>
+        <AlertDialog open={!!promoToClone} onOpenChange={(open) => { if (!open && !cloneMutation.isPending) setPromoToClone(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Duplicar promocion?</AlertDialogTitle>
@@ -1084,9 +1122,9 @@ const Promotions = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isCloning}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmClone} disabled={isCloning}>
-                {isCloning ? 'Duplicando...' : 'Duplicar'}
+              <AlertDialogCancel disabled={cloneMutation.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmClone} disabled={cloneMutation.isPending}>
+                {cloneMutation.isPending ? 'Duplicando...' : 'Duplicar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

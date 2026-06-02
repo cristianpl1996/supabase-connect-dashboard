@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Promotion, PromoMechanic } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, ChevronDown, DollarSign, Info, Loader2, Megaphone, Package, RefreshCw, Users, WalletCards, Zap } from "lucide-react";
 import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { getAllProducts, getAllCustomers, getPromotion } from "@/lib/api";
+import { getAllProducts, getAllCustomers, getPromotion, updatePromotionStatus } from "@/lib/api";
 
 const EMPTY_STRING_ARRAY: string[] = [];
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -83,15 +84,22 @@ export function PromotionDetailsSheet({
   const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
   const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
 
-  // Live promotion state — updated by polling when sap_sync_status is pending
+  // Live promotion state — updated by polling and retry
   const [livePromotion, setLivePromotion] = useState<Promotion | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const current = livePromotion ?? promotion;
+  const currentSyncStatus = current?.sap_sync_status;
 
+  // Reset live state when a different promotion opens
   useEffect(() => {
     setLivePromotion(null);
+  }, [promotion?.id]);
+
+  // Poll every 8s while sap_sync_status === 'pending' (works for both initial and retry paths)
+  useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
-    if (!open || !promotion?.id || promotion.sap_sync_status !== 'pending') return;
+    if (!open || !promotion?.id || currentSyncStatus !== 'pending') return;
     pollRef.current = setInterval(async () => {
       try {
         const fresh = await getPromotion(promotion.id);
@@ -104,7 +112,17 @@ export function PromotionDetailsSheet({
     }, 8000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, promotion?.id, promotion?.sap_sync_status]);
+  }, [open, promotion?.id, currentSyncStatus]);
+
+  const handleRetrySap = async () => {
+    if (!promotion?.id) return;
+    setRetrying(true);
+    try {
+      const fresh = await updatePromotionStatus(promotion.id, 'activa');
+      setLivePromotion(fresh);
+    } catch { /* badge shows failed, user can try again */ }
+    finally { setRetrying(false); }
+  };
 
   useEffect(() => {
     if (!open || !promotion) return;
@@ -347,6 +365,22 @@ export function PromotionDetailsSheet({
                     <span className="text-xs text-muted-foreground">
                       {format(parseISO(current.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
                     </span>
+                  </div>
+                )}
+                {current?.sap_sync_status === 'failed' && (
+                  <div className="pt-1 flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      disabled={retrying}
+                      onClick={handleRetrySap}
+                    >
+                      {retrying
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <RefreshCw className="h-3 w-3" />}
+                      Reintentar sync SAP
+                    </Button>
                   </div>
                 )}
               </>
