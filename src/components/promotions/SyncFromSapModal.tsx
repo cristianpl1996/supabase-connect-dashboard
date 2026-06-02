@@ -410,15 +410,6 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
               progress={importProgress}
               label={IMPORTING_STEPS[importStep]}
             />
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Verificando estado cada 5 segundos…</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Cerrar y esperar en background
-              </Button>
-            </div>
           </div>
         )}
 
