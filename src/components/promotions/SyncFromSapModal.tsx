@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import {
-  previewSapCampaigns, importSapCampaigns, checkSapHealth, getSapAutoSyncStatus,
+  startSapPreview, getSapPreviewResult, importSapCampaigns, checkSapHealth, getSapAutoSyncStatus,
   inferSapErrorType,
   SapCampaignPreview, SapImportResult, SapErrorInfo, SapMessage,
 } from '@/lib/api';
@@ -124,6 +124,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
   const [importStep, setImportStep] = useState(0);
   const [importProgress, setImportProgress] = useState(0);
   const importStartTimeRef = useRef<number>(0);
+  const previewPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Animate loading steps
   useEffect(() => {
@@ -191,27 +192,38 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     setState('loading');
     setErrorInfo(null);
     setErrorsExpanded(false);
+    if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
 
-    const [healthSettled, previewSettled] = await Promise.allSettled([
-      checkSapHealth(),
-      previewSapCampaigns(),
-    ]);
+    const healthPromise = checkSapHealth().catch(() => null);
 
-    if (previewSettled.status === 'rejected') {
-      const info = inferSapErrorType(previewSettled.reason);
-      if (healthSettled.status === 'fulfilled' && healthSettled.value.status === 'unavailable') {
-        setErrorInfo({ ...info, error_type: 'NETWORK_ERROR' });
-      } else {
-        setErrorInfo(info);
-      }
+    try {
+      await startSapPreview();
+    } catch (err) {
+      const health = await healthPromise;
+      const info = inferSapErrorType(err);
+      setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
       setState('error');
       return;
     }
 
-    const data = previewSettled.value;
-    setCampaigns(data);
-    setSelected(new Set(data.map((c) => c.campaign_number)));
-    setState('preview');
+    previewPollRef.current = setInterval(async () => {
+      try {
+        const res = await getSapPreviewResult();
+        if (res.status === 'ready') {
+          if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
+          const data = res.data ?? [];
+          setCampaigns(data);
+          setSelected(new Set(data.map((c) => c.campaign_number)));
+          setState('preview');
+        } else if (res.status === 'failed') {
+          if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
+          const health = await healthPromise;
+          const info = inferSapErrorType({ message: res.error ?? 'Error desconocido' });
+          setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
+          setState('error');
+        }
+      } catch { /* network hiccup — keep polling */ }
+    }, 3000);
   }, []);
 
   // Start loading only when opened from idle (not during background op)
@@ -224,7 +236,8 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
 
   // Reset to idle when closed after seeing a final state (not during background op)
   useEffect(() => {
-    if (!open && (state === 'result' || state === 'error' || state === 'preview')) {
+    if (!open && (state === 'result' || state === 'error' || state === 'preview' || state === 'loading')) {
+      if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
       setState('idle');
     }
     // queued stays queued across close/reopen so polling survives

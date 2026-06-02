@@ -1640,6 +1640,22 @@ export function previewSapCampaigns(): Promise<SapCampaignPreview[]> {
   return apiList<SapCampaignPreview>("/api/v1/sap-sync/campaigns/from-sap/preview");
 }
 
+export function startSapPreview(): Promise<{ status: string }> {
+  return apiDetail<{ status: string }>("/api/v1/sap-sync/campaigns/from-sap/preview/start", {
+    method: "POST",
+  });
+}
+
+export interface SapPreviewResult {
+  status: "pending" | "ready" | "failed";
+  data?: SapCampaignPreview[];
+  error?: string;
+}
+
+export function getSapPreviewResult(): Promise<SapPreviewResult> {
+  return apiFetch<SapPreviewResult>("/api/v1/sap-sync/campaigns/from-sap/preview/result");
+}
+
 export interface SapImportQueued {
   status: "queued";
   message: string;
