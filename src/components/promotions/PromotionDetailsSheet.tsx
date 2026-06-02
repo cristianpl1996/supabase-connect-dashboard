@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Promotion, PromoMechanic } from "@/types/database";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { getAllProducts, getAllCustomers } from "@/lib/api";
+import { getAllProducts, getAllCustomers, getPromotion } from "@/lib/api";
 
 const EMPTY_STRING_ARRAY: string[] = [];
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -82,6 +82,29 @@ export function PromotionDetailsSheet({
 }: PromotionDetailsSheetProps) {
   const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
   const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
+
+  // Live promotion state — updated by polling when sap_sync_status is pending
+  const [livePromotion, setLivePromotion] = useState<Promotion | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const current = livePromotion ?? promotion;
+
+  useEffect(() => {
+    setLivePromotion(null);
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (!open || !promotion?.id || promotion.sap_sync_status !== 'pending') return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const fresh = await getPromotion(promotion.id);
+        if (fresh.sap_sync_status !== 'pending') {
+          setLivePromotion(fresh);
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+        }
+      } catch { /* keep polling */ }
+    }, 8000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, promotion?.id, promotion?.sap_sync_status]);
 
   useEffect(() => {
     if (!open || !promotion) return;
@@ -307,21 +330,22 @@ export function PromotionDetailsSheet({
             icon={<Megaphone className="size-4 text-primary" />}
             title="Sincronizacion SAP"
           >
-            {(promotion.sap_campaign_number || promotion.sap_sync_error) ? (
+            {(current?.sap_sync_status === 'pending' || current?.sap_campaign_number || current?.sap_sync_error) ? (
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Estado</span>
                   <SapStatusBadge
-                    campaignNumber={promotion.sap_campaign_number}
-                    syncedAt={promotion.sap_synced_at}
-                    syncError={promotion.sap_sync_error}
+                    campaignNumber={current?.sap_campaign_number}
+                    syncedAt={current?.sap_synced_at}
+                    syncError={current?.sap_sync_error}
+                    syncStatus={current?.sap_sync_status}
                   />
                 </div>
-                {promotion.sap_synced_at && !promotion.sap_sync_error && (
+                {current?.sap_synced_at && !current?.sap_sync_error && current?.sap_sync_status !== 'pending' && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Última sync</span>
                     <span className="text-xs text-muted-foreground">
-                      {format(parseISO(promotion.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                      {format(parseISO(current.sap_synced_at), 'dd MMM yyyy HH:mm', { locale: es })}
                     </span>
                   </div>
                 )}

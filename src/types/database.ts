@@ -205,6 +205,7 @@ export interface Promotion {
   sap_campaign_number?: number | null;
   sap_sync_error?: string | null;
   sap_synced_at?: string | null;
+  sap_sync_status?: string | null;
 }
 
 export interface PromoMechanic {

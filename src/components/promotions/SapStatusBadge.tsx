@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -10,9 +10,31 @@ interface SapStatusBadgeProps {
   campaignNumber?: number | null;
   syncedAt?: string | null;
   syncError?: string | null;
+  syncStatus?: string | null;
 }
 
-export function SapStatusBadge({ campaignNumber, syncedAt, syncError }: SapStatusBadgeProps) {
+export function SapStatusBadge({ campaignNumber, syncedAt, syncError, syncStatus }: SapStatusBadgeProps) {
+  // Pending async sync
+  if (syncStatus === 'pending') {
+    return (
+      <Tooltip>
+        <TooltipProvider>
+          <TooltipTrigger asChild>
+            <span className="flex items-center gap-1 cursor-default">
+              <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
+                Sincronizando…
+              </Badge>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p className="text-xs">Enviando a SAP en segundo plano. Actualiza en 1–2 min.</p>
+          </TooltipContent>
+        </TooltipProvider>
+      </Tooltip>
+    );
+  }
+
   // No sync at all
   if (!campaignNumber && !syncError) {
     return <span className="text-muted-foreground text-xs">—</span>;

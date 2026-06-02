@@ -1640,8 +1640,13 @@ export function previewSapCampaigns(): Promise<SapCampaignPreview[]> {
   return apiList<SapCampaignPreview>("/api/v1/sap-sync/campaigns/from-sap/preview");
 }
 
-export function importSapCampaigns(campaignNumbers: number[]): Promise<SapImportResult> {
-  return apiDetail<SapImportResult>("/api/v1/sap-sync/campaigns/from-sap/import", {
+export interface SapImportQueued {
+  status: "queued";
+  message: string;
+}
+
+export function importSapCampaigns(campaignNumbers: number[]): Promise<SapImportQueued> {
+  return apiDetail<SapImportQueued>("/api/v1/sap-sync/campaigns/from-sap/import", {
     method: "POST",
     body: JSON.stringify({ campaign_numbers: campaignNumbers }),
   });
