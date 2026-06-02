@@ -685,24 +685,21 @@ const Promotions = () => {
           <CardContent className="px-4 pb-5 pt-0 sm:px-5">
             {someSelected && (
               <div className="flex items-center gap-4 rounded-md border border-border bg-muted/30 px-4 py-2 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold tabular-nums">
-                    {selectedIds.size}
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    seleccionada{selectedIds.size !== 1 ? 's' : ''}
-                  </span>
-                </div>
+                <span className="text-sm font-medium text-foreground tabular-nums">
+                  {selectedIds.size} seleccionada{selectedIds.size !== 1 ? 's' : ''}
+                </span>
                 <div className="h-4 w-px bg-border" />
                 <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => setSelectedIds(new Set())}
                     disabled={bulkActivating || bulkDeleting}
-                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                    className="h-8 gap-1.5"
                   >
-                    Deseleccionar
-                  </button>
+                    <X className="size-3.5" />
+                    Cerrar
+                  </Button>
                   <Button
                     size="sm"
                     variant="destructive"
