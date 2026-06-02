@@ -419,31 +419,28 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
 
         {/* ── Queued (background processing) ── */}
         {state === 'queued' && (
-          <>
-            <style>{`@keyframes promo-stripes{from{background-position:28px 0}to{background-position:0 0}}.promo-progress-bar{background-image:repeating-linear-gradient(45deg,#1a5c38 0px,#1a5c38 10px,#2d8653 10px,#2d8653 20px);background-size:28px 28px;animation:promo-stripes .5s linear infinite}`}</style>
-            <div className="py-8 flex flex-col items-center gap-5 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
-                <RefreshCw className="h-8 w-8 text-primary animate-spin [animation-duration:2s]" />
-              </div>
-              <div className="space-y-1.5">
-                <p className="font-semibold text-base">Procesando en segundo plano</p>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Las campañas se están sincronizando. Con audiencias grandes esto
-                  puede tomar 1–2 minutos. Esta ventana se actualizará sola.
-                </p>
-              </div>
-              <div className="w-full max-w-xs h-3 rounded-full bg-muted/60 overflow-hidden">
-                <div className="promo-progress-bar h-full w-full rounded-full" />
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Verificando estado cada 5 segundos…</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Cerrar y esperar en background
-              </Button>
+          <div className="py-8 flex flex-col items-center gap-5 text-center">
+            <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
+              <RefreshCw className="h-8 w-8 text-primary animate-spin [animation-duration:2s]" />
             </div>
-          </>
+            <div className="space-y-1.5">
+              <p className="font-semibold text-base">Procesando en segundo plano</p>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Las campañas se están sincronizando. Con audiencias grandes esto
+                puede tomar 1–2 minutos. Esta ventana se actualizará sola.
+              </p>
+            </div>
+            <div className="w-full max-w-xs h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-primary/60 rounded-full animate-pulse" />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Verificando estado cada 5 segundos…</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Cerrar y esperar en background
+            </Button>
+          </div>
         )}
 
         {/* ── Result ── */}
