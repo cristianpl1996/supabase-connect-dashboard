@@ -24,7 +24,7 @@ interface SyncFromSapModalProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-type ModalState = 'idle' | 'loading' | 'preview' | 'importing' | 'result' | 'error';
+type ModalState = 'idle' | 'loading' | 'preview' | 'importing' | 'queued' | 'result' | 'error';
 
 const LOADING_STEPS = [
   'Verificando conexión con SAP…',
@@ -44,7 +44,7 @@ const SAP_ERROR_MAP: Record<
 > = {
   TIMEOUT: {
     title: 'SAP tardó demasiado en responder',
-    description: 'El servidor tardó más de lo esperado. Suele resolverse reintentando.',
+    description: 'El servidor tardó más de 30 segundos. Suele resolverse reintentando.',
     Icon: Clock,
     isWarning: true,
   },
@@ -118,18 +118,15 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
   const [result, setResult] = useState<SapImportResult | null>(null);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
 
+  // Progress state for loading and importing animations
   const [loadStep, setLoadStep] = useState(0);
   const [loadProgress, setLoadProgress] = useState(0);
   const [importStep, setImportStep] = useState(0);
   const [importProgress, setImportProgress] = useState(0);
-
   const importStartTimeRef = useRef<number>(0);
   const previewPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isStartingPreviewRef = useRef(false);
-  const previewPollAttemptsRef = useRef(0);
 
-  // Animate loading steps (preview fetch)
+  // Animate loading steps
   useEffect(() => {
     if (state !== 'loading') { setLoadStep(0); setLoadProgress(0); return; }
     setLoadStep(0); setLoadProgress(5);
@@ -151,80 +148,54 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
       window.setTimeout(() => setImportStep(2), 1800),
     ];
     let p = 5;
-    const ticker = setInterval(() => { p = Math.min(p + 0.3, 88); setImportProgress(Math.round(p)); }, 120);
+    const ticker = setInterval(() => { p = Math.min(p + 1.2, 90); setImportProgress(Math.round(p)); }, 120);
     return () => { stepTimers.forEach(clearTimeout); clearInterval(ticker); };
   }, [state]);
 
-  // Report busy state
+  // Report busy state independently of open — spinner persists in background
   useEffect(() => {
-    onBusyChange?.(state === 'loading' || state === 'importing');
+    onBusyChange?.(state === 'loading' || state === 'importing' || state === 'queued');
   }, [state, onBusyChange]);
 
-  const stopPreviewPoll = useCallback(() => {
-    if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
-    previewPollAttemptsRef.current = 0;
-    isStartingPreviewRef.current = false;
-  }, []);
-
-  const startPreviewPolling = useCallback((healthPromise: Promise<{ status: string } | null>) => {
-    if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
-    previewPollRef.current = setInterval(async () => {
-      previewPollAttemptsRef.current += 1;
-      if (previewPollAttemptsRef.current > 30) {
-        stopPreviewPoll();
-        setErrorInfo({ error_type: 'TIMEOUT', is_retryable: true, message: 'SAP tardó demasiado. Intenta de nuevo.' });
-        setState('error');
-        return;
-      }
+  // Poll /auto-status while in queued state to detect background import completion
+  useEffect(() => {
+    if (state !== 'queued') return;
+    const poll = setInterval(async () => {
       try {
-        const res = await getSapPreviewResult();
-        if (res.status === 'ready') {
-          stopPreviewPoll();
-          const data = res.data ?? [];
-          setCampaigns(data);
-          setSelected(new Set(data.map((c) => c.campaign_number)));
-          setState('preview');
-        } else if (res.status === 'failed') {
-          stopPreviewPoll();
-          const health = await healthPromise;
-          const message = res.error ?? 'Error en la sincronización con SAP';
-          const info = { error_type: 'SAP_UNAVAILABLE' as const, is_retryable: true, message };
-          setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' as const } : info);
-          setState('error');
+        const status = await getSapAutoSyncStatus();
+        if (!status.last_run_at) return;
+        const lastRun = new Date(status.last_run_at).getTime();
+        if (lastRun >= importStartTimeRef.current && status.status !== 'never_run') {
+          clearInterval(poll);
+          setResult({
+            imported_count: status.imported,
+            updated_count: status.updated,
+            skipped_count: status.skipped,
+            errors: status.errors,
+          });
+          setState('result');
+          onImported();
+          if (status.errors.length === 0) {
+            toast.success(`Sincronización completa: ${status.imported} creadas, ${status.updated} actualizadas`);
+          } else {
+            toast.warning(`Sincronización con ${status.errors.length} error(es)`);
+          }
         }
-      } catch { /* network hiccup */ }
-    }, 10000);
-  }, [stopPreviewPoll]);
+      } catch {
+        // network hiccup — keep polling
+      }
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [state, onImported]);
 
   const loadPreview = useCallback(async () => {
-    if (isStartingPreviewRef.current) return;
-    isStartingPreviewRef.current = true;
-    previewPollAttemptsRef.current = 0;
     setState('loading');
     setErrorInfo(null);
     setErrorsExpanded(false);
+    if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
 
     const healthPromise = checkSapHealth().catch(() => null);
 
-    // Check if backend already has a result (e.g. modal was closed and reopened)
-    try {
-      const existing = await getSapPreviewResult();
-      if (existing.status === 'ready') {
-        isStartingPreviewRef.current = false;
-        const data = existing.data ?? [];
-        setCampaigns(data);
-        setSelected(new Set(data.map((c) => c.campaign_number)));
-        setState('preview');
-        return;
-      }
-      if (existing.status === 'pending') {
-        // Backend task still running — just resume polling, don't call /start again
-        startPreviewPolling(healthPromise);
-        return;
-      }
-    } catch { /* network hiccup — fall through to start fresh */ }
-
-    // No cached result — start a new backend task
     try {
       await startSapPreview();
     } catch (err) {
@@ -232,14 +203,31 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
       const info = inferSapErrorType(err);
       setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' } : info);
       setState('error');
-      isStartingPreviewRef.current = false;
       return;
     }
 
-    startPreviewPolling(healthPromise);
-  }, [startPreviewPolling]);
+    previewPollRef.current = setInterval(async () => {
+      try {
+        const res = await getSapPreviewResult();
+        if (res.status === 'ready') {
+          if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
+          const data = res.data ?? [];
+          setCampaigns(data);
+          setSelected(new Set(data.map((c) => c.campaign_number)));
+          setState('preview');
+        } else if (res.status === 'failed') {
+          if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
+          const health = await healthPromise;
+          const message = res.error ?? 'Error en la sincronización con SAP';
+          const info = { error_type: 'SAP_UNAVAILABLE' as const, is_retryable: true, message };
+          setErrorInfo(health?.status === 'unavailable' ? { ...info, error_type: 'NETWORK_ERROR' as const } : info);
+          setState('error');
+        }
+      } catch { /* network hiccup — keep polling */ }
+    }, 10000);
+  }, []);
 
-  // Open → start preview
+  // Start loading only when opened from idle (not during background op)
   useEffect(() => {
     if (open && state === 'idle') {
       setResult(null);
@@ -247,14 +235,14 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     }
   }, [open, state, loadPreview]);
 
-  // Close → clean up everything
+  // Reset to idle when closed after seeing a final state (not during background op)
   useEffect(() => {
-    if (!open) {
-      stopPreviewPoll();
-      if (importPollRef.current) { clearInterval(importPollRef.current); importPollRef.current = null; }
+    if (!open && (state === 'result' || state === 'error' || state === 'preview' || state === 'loading')) {
+      if (previewPollRef.current) { clearInterval(previewPollRef.current); previewPollRef.current = null; }
       setState('idle');
     }
-  }, [open, stopPreviewPoll]);
+    // queued stays queued across close/reopen so polling survives
+  }, [open, state]);
 
   const allSelected = campaigns.length > 0 && selected.size === campaigns.length;
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(campaigns.map((c) => c.campaign_number)));
@@ -269,14 +257,14 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
   });
 
   const counts = useMemo(() => {
-    let create = 0; let update = 0;
+    let create = 0;
+    let update = 0;
     campaigns.forEach((c) => {
-      if (selected.has(c.campaign_number)) {
-        if (c.action === 'create') {
-          create++;
-        } else {
-          update++;
-        }
+      if (!selected.has(c.campaign_number)) return;
+      if (c.action === 'create') {
+        create += 1;
+      } else {
+        update += 1;
       }
     });
     return { create, update };
@@ -288,31 +276,10 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
     try {
       importStartTimeRef.current = Date.now();
       await importSapCampaigns(Array.from(selected));
-      if (importPollRef.current) clearInterval(importPollRef.current);
-      importPollRef.current = setInterval(async () => {
-        try {
-          const status = await getSapAutoSyncStatus();
-          if (!status.last_run_at) return;
-          const lastRun = new Date(status.last_run_at).getTime();
-          if (lastRun >= importStartTimeRef.current && status.status !== 'never_run') {
-            if (importPollRef.current) { clearInterval(importPollRef.current); importPollRef.current = null; }
-            setImportProgress(100);
-            setResult({
-              imported_count: status.imported,
-              updated_count: status.updated,
-              skipped_count: status.skipped,
-              errors: status.errors,
-            });
-            setState('result');
-            onImported();
-            if (status.errors.length === 0) {
-              toast.success(`Sincronización completa: ${status.imported} creadas, ${status.updated} actualizadas`);
-            } else {
-              toast.warning(`Sincronización con ${status.errors.length} error(es)`);
-            }
-          }
-        } catch { /* network hiccup */ }
-      }, 10000);
+      // API always returns queued — transition to background polling state
+      setImportProgress(100);
+      await new Promise((r) => setTimeout(r, 300));
+      setState('queued');
     } catch (err) {
       setErrorInfo(inferSapErrorType(err));
       setState('error');
@@ -326,7 +293,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
           <DialogTitle>Sincronizar promociones desde SAP</DialogTitle>
         </DialogHeader>
 
-        {/* ── Loading (preview fetch) ── */}
+        {/* ── Loading ── */}
         {state === 'loading' && (
           <div className="py-4">
             <StepsProgress
@@ -375,7 +342,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
           );
         })()}
 
-        {/* ── Preview (campaign table) ── */}
+        {/* ── Preview ── */}
         {state === 'preview' && (
           <>
             {campaigns.length === 0 ? (
@@ -434,7 +401,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
           </>
         )}
 
-        {/* ── Importing (animated strip, polls auto-status in background) ── */}
+        {/* ── Importing ── */}
         {state === 'importing' && (
           <div className="py-4">
             <StepsProgress
@@ -446,9 +413,36 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
           </div>
         )}
 
+        {/* ── Queued (background processing) ── */}
+        {state === 'queued' && (
+          <div className="py-8 flex flex-col items-center gap-5 text-center">
+            <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
+              <RefreshCw className="h-8 w-8 text-primary animate-spin [animation-duration:2s]" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="font-semibold text-base">Procesando en segundo plano</p>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Las campañas se están sincronizando. Con audiencias grandes esto
+                puede tomar 1–2 minutos. Esta ventana se actualizará sola.
+              </p>
+            </div>
+            <div className="w-full max-w-xs h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full bg-primary/60 rounded-full animate-pulse" />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Verificando estado cada 5 segundos…</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Cerrar y esperar en background
+            </Button>
+          </div>
+        )}
+
         {/* ── Result ── */}
         {state === 'result' && result && (
           <div className="py-2 space-y-5">
+            {/* Header */}
             <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
                 <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -459,6 +453,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
               </div>
             </div>
 
+            {/* Stats */}
             <div className="rounded-lg border divide-y">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2.5">
@@ -483,12 +478,13 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
                   <span className="flex size-7 items-center justify-center rounded-md bg-muted">
                     <Download className="size-3.5 text-muted-foreground" />
                   </span>
-                  <span className="text-muted-foreground text-sm">Omitidas</span>
+                  <span className="text-sm text-muted-foreground">Omitidas</span>
                 </div>
                 <span className="text-sm font-semibold tabular-nums text-muted-foreground">{result.skipped_count}</span>
               </div>
             </div>
 
+            {/* Errors */}
             {result.errors.length > 0 && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5">
                 <button
@@ -510,8 +506,11 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
               </div>
             )}
 
+            {/* Actions */}
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <Button variant="outline" onClick={onClose}>Cerrar</Button>
+              <Button variant="outline" onClick={onClose}>
+                Cerrar
+              </Button>
               <Button onClick={() => { setState('idle'); }} className="gap-2">
                 <RefreshCw className="h-3.5 w-3.5" /> Sincronizar de nuevo
               </Button>
