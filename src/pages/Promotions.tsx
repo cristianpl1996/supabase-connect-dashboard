@@ -773,31 +773,28 @@ const Promotions = () => {
                             </div>
                           )}
                         </div>
-                        <div className="mt-3 flex gap-1">
+                        <div className="mt-3 grid grid-cols-4 gap-1">
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning} title="Duplicar"><Copy className="size-4" /></Button>
-                          {canEdit(promo) && (
-                            <Button variant="outline" size="icon" className="h-9 w-full"
-                              onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
-                              disabled={loading}
-                              title="Editar">
-                              <Pencil className="size-4" />
-                            </Button>
-                          )}
-                          {canDelete(promo) && (
+                          <Button variant="outline" size="icon" className="h-9 w-full"
+                            onClick={() => canEdit(promo) && (setEditingPromo(promo), setSheetOpen(true))}
+                            disabled={loading || !canEdit(promo)}
+                            title="Editar">
+                            <Pencil className="size-4" />
+                          </Button>
+                          {promo.sap_campaign_number ? (
                             <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(promo)}
-                              disabled={loading}
-                              title="Eliminar">
-                              <Trash2 className="size-4" />
-                            </Button>
-                          )}
-                          {canCancel(promo) && (
-                            <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
-                              onClick={() => handleCancelClick(promo)}
-                              disabled={loading}
+                              onClick={() => canCancel(promo) && handleCancelClick(promo)}
+                              disabled={loading || !canCancel(promo)}
                               title="Cancelar en SAP">
                               <Ban className="size-4" />
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
+                              onClick={() => canDelete(promo) && handleDeleteClick(promo)}
+                              disabled={loading || !canDelete(promo)}
+                              title="Eliminar">
+                              <Trash2 className="size-4" />
                             </Button>
                           )}
                         </div>
@@ -928,60 +925,63 @@ const Promotions = () => {
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
-                                {canEdit(promo) && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-flex">
                                         <Button variant="ghost" size="icon" className="size-8"
                                           onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
-                                          disabled={loading}>
+                                          disabled={loading || !canEdit(promo)}>
                                           <Pencil className="size-4" />
                                         </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left">
+                                      <div className="flex items-center gap-1.5">
+                                        <Info className="size-3 shrink-0" />
+                                        {canEdit(promo) ? 'Editar promoción' : 'No se puede editar en este estado'}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                {promo.sap_campaign_number ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex">
+                                          <Button variant="ghost" size="icon"
+                                            className={`size-8 ${canCancel(promo) ? 'text-destructive hover:text-destructive' : 'text-muted-foreground'}`}
+                                            onClick={() => canCancel(promo) && handleCancelClick(promo)}
+                                            disabled={loading || !canCancel(promo)}>
+                                            <Ban className="size-4" />
+                                          </Button>
+                                        </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="left">
                                         <div className="flex items-center gap-1.5">
                                           <Info className="size-3 shrink-0" />
-                                          Editar promoción
+                                          {canCancel(promo) ? 'Cancelar en SAP (irreversible)' : 'Ya cancelada en SAP'}
                                         </div>
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
-                                )}
-                                {canDelete(promo) && (
+                                ) : (
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon"
-                                          className="size-8 text-destructive hover:text-destructive"
-                                          onClick={() => handleDeleteClick(promo)}
-                                          disabled={loading}>
-                                          <Trash2 className="size-4" />
-                                        </Button>
+                                        <span className="inline-flex">
+                                          <Button variant="ghost" size="icon"
+                                            className={`size-8 ${canDelete(promo) ? 'text-destructive hover:text-destructive' : 'text-muted-foreground'}`}
+                                            onClick={() => canDelete(promo) && handleDeleteClick(promo)}
+                                            disabled={loading || !canDelete(promo)}>
+                                            <Trash2 className="size-4" />
+                                          </Button>
+                                        </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="left">
                                         <div className="flex items-center gap-1.5">
                                           <Info className="size-3 shrink-0" />
-                                          Eliminar promoción
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                                {canCancel(promo) && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon"
-                                          className="size-8 text-destructive hover:text-destructive"
-                                          onClick={() => handleCancelClick(promo)}
-                                          disabled={loading}>
-                                          <Ban className="size-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="left">
-                                        <div className="flex items-center gap-1.5">
-                                          <Info className="size-3 shrink-0" />
-                                          Cancelar en SAP (irreversible)
+                                          {canDelete(promo) ? 'Eliminar promoción' : 'No se puede eliminar en este estado'}
                                         </div>
                                       </TooltipContent>
                                     </Tooltip>
