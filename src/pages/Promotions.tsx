@@ -116,7 +116,8 @@ const Promotions = () => {
   const [cancelDialogPromo, setCancelDialogPromo] = useState<Promotion | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkActivating, setBulkActivating] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkActionResponse | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -196,7 +197,7 @@ const Promotions = () => {
       return p && p.status !== 'activa';
     });
     if (ids.length === 0) return;
-    setBulkLoading(true);
+    setBulkActivating(true);
     try {
       const res = await bulkUpdatePromotionStatus(ids, 'activa');
       setBulkResult(res);
@@ -205,7 +206,7 @@ const Promotions = () => {
     } catch {
       toast.error('Error al activar promociones');
     } finally {
-      setBulkLoading(false);
+      setBulkActivating(false);
     }
   }, [selectedIds, promotions, fetchData]);
 
@@ -218,7 +219,7 @@ const Promotions = () => {
       toast.error('Las promociones seleccionadas tienen campaña SAP y no pueden eliminarse');
       return;
     }
-    setBulkLoading(true);
+    setBulkDeleting(true);
     try {
       const res = await bulkDeletePromotions(ids);
       setBulkResult(res);
@@ -227,7 +228,7 @@ const Promotions = () => {
     } catch {
       toast.error('Error al eliminar promociones');
     } finally {
-      setBulkLoading(false);
+      setBulkDeleting(false);
     }
   }, [selectedIds, promotions, fetchData]);
 
@@ -683,36 +684,46 @@ const Promotions = () => {
           </CardHeader>
           <CardContent className="px-4 pb-5 pt-0 sm:px-5">
             {someSelected && (
-              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-2.5 mb-4">
-                <span className="text-sm font-medium text-foreground">
-                  {selectedIds.size} seleccionada{selectedIds.size !== 1 ? 's' : ''}
-                </span>
+              <div className="flex items-center gap-4 rounded-md border border-border bg-muted/30 px-4 py-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold tabular-nums">
+                    {selectedIds.size}
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    seleccionada{selectedIds.size !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="h-4 w-px bg-border" />
                 <div className="ml-auto flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
+                    type="button"
                     onClick={() => setSelectedIds(new Set())}
-                    disabled={bulkLoading}
+                    disabled={bulkActivating || bulkDeleting}
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
                   >
-                    Cancelar
-                  </Button>
+                    Deseleccionar
+                  </button>
                   <Button
                     size="sm"
                     variant="destructive"
-                    className="gap-1.5"
+                    className="gap-1.5 h-8"
                     onClick={handleBulkDelete}
-                    disabled={bulkLoading}
+                    disabled={bulkDeleting || bulkActivating}
                   >
-                    {bulkLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    {bulkDeleting
+                      ? <Loader2 className="size-3.5 animate-spin" />
+                      : <Trash2 className="size-3.5" />}
                     Eliminar
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleBulkActivate}
-                    disabled={bulkLoading}
-                    className="gap-1.5"
+                    disabled={bulkActivating || bulkDeleting}
+                    className="gap-1.5 h-8"
                   >
-                    {bulkLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+                    {bulkActivating
+                      ? <Loader2 className="size-3.5 animate-spin" />
+                      : <Zap className="size-3.5" />}
                     Activar
                   </Button>
                 </div>
