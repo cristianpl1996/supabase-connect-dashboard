@@ -240,8 +240,12 @@ function validateAndGroup(
         errs.push(`Fila ${n}: Porcentaje_Descuento debe estar entre 0 y 100`);
     }
 
-    if (row.origin && !VALID_ORIGINS.includes(row.origin.trim().toLowerCase()))
-      errs.push(`Fila ${n}: Origen debe ser "Dinamica comercial" o "Recurso propio"`);
+    const originVal = (row.origin ?? '').trim().toLowerCase();
+    if (!originVal) {
+      errs.push(`Fila ${n}: Origen requerido ("Dinamica comercial" o "Recurso propio")`);
+    } else if (!VALID_ORIGINS.includes(originVal)) {
+      errs.push(`Fila ${n}: Origen debe ser "Dinamica comercial" o "Recurso propio" (recibido: "${row.origin}")`);
+    }
 
     const alcanceRaw = (row.alcance ?? '').trim().toLowerCase();
     if (alcanceRaw && resolveScope(row.alcance) === 'all' && !['toda la base', 'all', 'todos', ''].includes(alcanceRaw))
