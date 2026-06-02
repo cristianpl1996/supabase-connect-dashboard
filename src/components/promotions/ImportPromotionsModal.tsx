@@ -110,27 +110,6 @@ function nextMonthStr() {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-// ─── Module-level cache for products + customers ──────────────────────────────
-let _cachedProducts: ProductCatalogItem[] | null = null;
-let _cachedCustomers: CustomerRecord[] | null = null;
-let _productsCachedAt = 0;
-let _customersCachedAt = 0;
-const CATALOG_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-async function getCachedProducts(): Promise<ProductCatalogItem[]> {
-  if (_cachedProducts && Date.now() - _productsCachedAt < CATALOG_TTL_MS) return _cachedProducts;
-  _cachedProducts = await getAllProducts();
-  _productsCachedAt = Date.now();
-  return _cachedProducts;
-}
-
-async function getCachedCustomers(): Promise<CustomerRecord[]> {
-  if (_cachedCustomers && Date.now() - _customersCachedAt < CATALOG_TTL_MS) return _cachedCustomers;
-  _cachedCustomers = await getAllCustomers();
-  _customersCachedAt = Date.now();
-  return _cachedCustomers;
-}
-
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 const VALID_MECANICAS = ['bonificacion', 'descuento'];
@@ -623,7 +602,7 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     }, 500);
 
     try {
-      const [products, customers] = await Promise.all([getCachedProducts(), getCachedCustomers()]);
+      const [products, customers] = await Promise.all([getAllProducts(), getAllCustomers()]);
 
       clearInterval(ticker);
       setDownloadProgress(88);
@@ -654,8 +633,8 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
     try {
       const [parsedRows, products, customers] = await Promise.all([
         parseFile(file),
-        getCachedProducts(),
-        getCachedCustomers(),
+        getAllProducts(),
+        getAllCustomers(),
       ]);
       const productMap = buildProductMap(products);
       const customerMap = buildCustomerMap(customers);
@@ -942,19 +921,43 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
 
         {/* ── result ── */}
         {modalState === 'result' && result && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-lg border bg-green-50 px-4 py-3 dark:bg-green-950/20">
-              <CheckCircle2 className="size-5 shrink-0 text-green-600" />
+          <div className="py-2 space-y-5">
+            {/* Header */}
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                  {result.imported_count} {result.imported_count === 1 ? 'campana importada' : 'campanas importadas'} correctamente
-                </p>
-                {result.skipped_count > 0 && (
-                  <p className="text-xs text-muted-foreground">{result.skipped_count} filas omitidas por el servidor</p>
-                )}
+                <p className="font-semibold text-sm">Importación completada</p>
+                <p className="text-xs text-muted-foreground">Las campañas del Excel han sido procesadas correctamente</p>
               </div>
             </div>
 
+            {/* Stats */}
+            <div className="rounded-lg border divide-y">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-7 items-center justify-center rounded-md bg-primary/10">
+                    <CheckCircle2 className="size-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm">Campañas importadas</span>
+                </div>
+                <span className="text-sm font-semibold tabular-nums">{result.imported_count}</span>
+              </div>
+              {result.skipped_count > 0 && (
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex size-7 items-center justify-center rounded-md bg-muted">
+                      <AlertCircle className="size-3.5 text-muted-foreground" />
+                    </span>
+                    <span className="text-sm text-muted-foreground">Omitidas por el servidor</span>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-muted-foreground">{result.skipped_count}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Errors */}
             {result.errors.length > 0 && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5">
                 <button
@@ -964,12 +967,12 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
                 >
                   <span className="flex items-center gap-2 font-medium text-destructive">
                     <AlertCircle className="size-4" />
-                    {result.errors.length} {result.errors.length === 1 ? 'error del servidor' : 'errores del servidor'}
+                    {result.errors.length} {result.errors.length === 1 ? 'error en la importación' : 'errores en la importación'}
                   </span>
-                  {errorsExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                  {errorsExpanded ? <ChevronUp className="size-4 text-destructive" /> : <ChevronDown className="size-4 text-destructive" />}
                 </button>
                 {errorsExpanded && (
-                  <ul className="max-h-40 overflow-y-auto border-t px-4 py-2 text-xs text-destructive">
+                  <ul className="max-h-40 overflow-y-auto border-t px-4 py-2 space-y-1 text-xs text-destructive">
                     {result.errors.map((err, i) => (
                       <li key={`server-err-${i}`} className="py-0.5">• {err}</li>
                     ))}
@@ -978,9 +981,12 @@ export function ImportPromotionsModal({ open, onClose, onSuccess, onDownloadingC
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={reset}>Importar otro</Button>
-              <Button className="flex-1" onClick={handleClose}>Cerrar</Button>
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Button variant="outline" onClick={reset} className="gap-2">
+                <Upload className="size-3.5" /> Importar otro
+              </Button>
+              <Button onClick={handleClose}>Cerrar</Button>
             </div>
           </div>
         )}

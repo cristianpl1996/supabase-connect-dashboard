@@ -8,7 +8,10 @@ import {
   listLaboratories,
   listPromotions,
   updatePromotionStatus,
+  bulkUpdatePromotionStatus,
+  bulkDeletePromotions,
   SapAutoSyncStatus,
+  BulkActionResponse,
 } from '@/lib/api';
 import { Promotion, Laboratory } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,11 +20,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Search, Eye, EyeOff, Pencil, Trash2,
   Tag, Calendar, DollarSign, Zap, Copy, Upload, Columns3, SlidersHorizontal, X, Check, Loader2, RefreshCw,
-  AlertTriangle, XCircle, CheckCircle2, Lock, Info,
+  AlertTriangle, XCircle, CheckCircle2, Ban, Info,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
@@ -107,8 +111,11 @@ const Promotions = () => {
   const [autoSyncStatus, setAutoSyncStatus] = useState<SapAutoSyncStatus | null>(null);
   const [hiddenCostRows, setHiddenCostRows] = useState<Set<string>>(new Set());
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
-  const [sapLockedPromo, setSapLockedPromo] = useState<Promotion | null>(null);
-  const [isCancellingForEdit, setIsCancellingForEdit] = useState(false);
+  const [cancelDialogPromo, setCancelDialogPromo] = useState<Promotion | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkActionResponse | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -153,6 +160,68 @@ const Promotions = () => {
         || (sapStatusFilter === 'not_synced' && !promo.sap_campaign_number && !promo.sap_sync_error))
     ));
   }, [laboratoryFilter, mechanicFilter, promotions, sapStatusFilter, searchQuery, statusFilter]);
+
+  const visibleIds = filteredPromotions.map((p) => p.id);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (visibleIds.length > 0 && visibleIds.every((id) => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(visibleIds);
+    });
+  }, [visibleIds]);
+
+  const handleBulkActivate = useCallback(async () => {
+    const ids = [...selectedIds].filter((id) => {
+      const p = promotions.find((pr) => pr.id === id);
+      return p && p.status !== 'activa';
+    });
+    if (ids.length === 0) return;
+    setBulkLoading(true);
+    try {
+      const res = await bulkUpdatePromotionStatus(ids, 'activa');
+      setBulkResult(res);
+      setSelectedIds(new Set());
+      await fetchData();
+    } catch {
+      toast.error('Error al activar promociones');
+    } finally {
+      setBulkLoading(false);
+    }
+  }, [selectedIds, promotions, fetchData]);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = [...selectedIds].filter((id) => {
+      const p = promotions.find((pr) => pr.id === id);
+      return p && !p.sap_campaign_number;
+    });
+    if (ids.length === 0) {
+      toast.error('Las promociones seleccionadas tienen campaña SAP y no pueden eliminarse');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const res = await bulkDeletePromotions(ids);
+      setBulkResult(res);
+      setSelectedIds(new Set());
+      await fetchData();
+    } catch {
+      toast.error('Error al eliminar promociones');
+    } finally {
+      setBulkLoading(false);
+    }
+  }, [selectedIds, promotions, fetchData]);
 
   const laboratoryOptions = useMemo(() => {
     const names = new Set<string>();
@@ -301,29 +370,27 @@ const Promotions = () => {
     }
   };
 
-  const isSapSynced = (promo: Promotion) => !!promo.sap_campaign_number;
-  const isEditLocked = (promo: Promotion) => promo.status === 'activa' && isSapSynced(promo);
-  const isDeleteLocked = (promo: Promotion) => isSapSynced(promo);
+  const canEdit = (promo: Promotion) => promo.status === 'borrador' || promo.status === 'activa';
+  const canDelete = (promo: Promotion) => !promo.sap_campaign_number && canEdit(promo);
+  const canCancel = (promo: Promotion) => !!promo.sap_campaign_number && canEdit(promo);
 
-  const handleEditLockedPromo = (promo: Promotion) => {
-    setSapLockedPromo(promo);
+  const handleCancelClick = (promo: Promotion) => {
+    setCancelDialogPromo(promo);
   };
 
-  const handleCancelAndEdit = async () => {
-    if (!sapLockedPromo) return;
-    setIsCancellingForEdit(true);
+  const handleConfirmCancel = async () => {
+    if (!cancelDialogPromo) return;
+    setIsCancelling(true);
     try {
-      const updated = await updatePromotionStatus(sapLockedPromo.id, 'cancelada');
-      setPromotions((prev) => prev.map((p) => (p.id === sapLockedPromo.id ? updated : p)));
-      toast.success('Promoción cancelada. Ya puedes editarla.');
-      setEditingPromo(updated);
-      setSheetOpen(true);
+      const updated = await updatePromotionStatus(cancelDialogPromo.id, 'cancelada');
+      setPromotions((prev) => prev.map((p) => (p.id === cancelDialogPromo.id ? updated : p)));
+      toast.success('Promoción cancelada en SAP');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       toast.error(`Error al cancelar: ${errorMessage}`);
     } finally {
-      setIsCancellingForEdit(false);
-      setSapLockedPromo(null);
+      setIsCancelling(false);
+      setCancelDialogPromo(null);
     }
   };
 
@@ -607,6 +674,42 @@ const Promotions = () => {
             )}
           </CardHeader>
           <CardContent className="px-4 pb-5 pt-0 sm:px-5">
+            {someSelected && (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-2.5 mb-4">
+                <span className="text-sm font-medium text-foreground">
+                  {selectedIds.size} seleccionada{selectedIds.size !== 1 ? 's' : ''}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedIds(new Set())}
+                    disabled={bulkLoading}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/5"
+                    onClick={handleBulkDelete}
+                    disabled={bulkLoading}
+                  >
+                    {bulkLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    Eliminar
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleBulkActivate}
+                    disabled={bulkLoading}
+                    className="gap-1.5"
+                  >
+                    {bulkLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+                    Activar
+                  </Button>
+                </div>
+              </div>
+            )}
             {loading ? (
                 <div className="space-y-3">{["promotion-1", "promotion-2", "promotion-3"].map((slot) => <div key={slot} className="h-12 bg-muted animate-pulse rounded" />)}</div>
             ) : filteredPromotions.length === 0 ? (
@@ -645,7 +748,7 @@ const Promotions = () => {
                           <Switch
                             checked={promo.status === 'activa'}
                             onCheckedChange={() => handleToggleStatus(promo)}
-                            disabled={loading || togglingStatusId === promo.id}
+                            disabled={loading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
                             aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                           />
                         </div>
@@ -670,21 +773,33 @@ const Promotions = () => {
                             </div>
                           )}
                         </div>
-                        <div className="mt-3 grid grid-cols-4 gap-1">
+                        <div className="mt-3 flex gap-1">
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => { setViewingPromo(promo); setDetailsSheetOpen(true); }} disabled={loading} title="Ver detalles"><Eye className="size-4" /></Button>
                           <Button variant="outline" size="icon" className="h-9 w-full" onClick={() => handleCloneClick(promo)} disabled={loading || isCloning} title="Duplicar"><Copy className="size-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full"
-                            onClick={() => isEditLocked(promo) ? handleEditLockedPromo(promo) : (setEditingPromo(promo), setSheetOpen(true))}
-                            disabled={loading}
-                            title={isEditLocked(promo) ? 'Bloqueado — cancelar primero' : 'Editar'}>
-                            {isEditLocked(promo) ? <Lock className="size-4 text-amber-500" /> : <Pencil className="size-4" />}
-                          </Button>
-                          <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(promo)}
-                            disabled={loading || isDeleteLocked(promo)}
-                            title={isDeleteLocked(promo) ? 'No se puede eliminar' : 'Eliminar'}>
-                            <Trash2 className="size-4" />
-                          </Button>
+                          {canEdit(promo) && (
+                            <Button variant="outline" size="icon" className="h-9 w-full"
+                              onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
+                              disabled={loading}
+                              title="Editar">
+                              <Pencil className="size-4" />
+                            </Button>
+                          )}
+                          {canDelete(promo) && (
+                            <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClick(promo)}
+                              disabled={loading}
+                              title="Eliminar">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          )}
+                          {canCancel(promo) && (
+                            <Button variant="outline" size="icon" className="h-9 w-full text-destructive hover:text-destructive"
+                              onClick={() => handleCancelClick(promo)}
+                              disabled={loading}
+                              title="Cancelar en SAP">
+                              <Ban className="size-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -694,6 +809,13 @@ const Promotions = () => {
                   <Table className={showCostColumn && showSapColumn ? "min-w-[1380px]" : showCostColumn || showSapColumn ? "min-w-[1220px]" : "min-w-[1080px]"}>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10 px-3 py-3">
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={toggleAll}
+                            aria-label="Seleccionar todo"
+                          />
+                        </TableHead>
                         <TableHead className="w-20">Activa</TableHead>
                         <TableHead className="min-w-[220px]">Titulo</TableHead>
                         <TableHead className="min-w-[220px]">Laboratorio</TableHead>
@@ -713,11 +835,18 @@ const Promotions = () => {
                         const hasSapError = !!promo.sap_sync_error;
                         return (
                           <TableRow key={promo.id}>
+                            <TableCell className="px-3">
+                              <Checkbox
+                                checked={selectedIds.has(promo.id)}
+                                onCheckedChange={() => toggleOne(promo.id)}
+                                aria-label={`Seleccionar ${promo.title}`}
+                              />
+                            </TableCell>
                             <TableCell>
                               <Switch
                                 checked={promo.status === 'activa'}
                                 onCheckedChange={() => handleToggleStatus(promo)}
-                                disabled={loading || togglingStatusId === promo.id}
+                                disabled={loading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
                                 aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                               />
                             </TableCell>
@@ -799,45 +928,65 @@ const Promotions = () => {
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex">
+                                {canEdit(promo) && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon" className="size-8"
                                           onClick={() => { setEditingPromo(promo); setSheetOpen(true); }}
-                                          disabled={loading || isEditLocked(promo)}>
+                                          disabled={loading}>
                                           <Pencil className="size-4" />
                                         </Button>
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left">
-                                      <div className="flex items-center gap-1.5">
-                                        <Info className="size-3 shrink-0" />
-                                        {isEditLocked(promo) ? 'Desactiva la promoción primero para editarla' : 'Editar promoción'}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex">
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left">
+                                        <div className="flex items-center gap-1.5">
+                                          <Info className="size-3 shrink-0" />
+                                          Editar promoción
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {canDelete(promo) && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon"
-                                          className={`size-8 ${isDeleteLocked(promo) ? 'text-muted-foreground' : 'text-destructive hover:text-destructive'}`}
-                                          onClick={() => !isDeleteLocked(promo) && handleDeleteClick(promo)}
-                                          disabled={loading || isDeleteLocked(promo)}>
+                                          className="size-8 text-destructive hover:text-destructive"
+                                          onClick={() => handleDeleteClick(promo)}
+                                          disabled={loading}>
                                           <Trash2 className="size-4" />
                                         </Button>
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left">
-                                      <div className="flex items-center gap-1.5">
-                                        <Info className="size-3 shrink-0" />
-                                        {isDeleteLocked(promo) ? 'Sincronizada con SAP — no se puede eliminar' : 'Eliminar promoción'}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left">
+                                        <div className="flex items-center gap-1.5">
+                                          <Info className="size-3 shrink-0" />
+                                          Eliminar promoción
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {canCancel(promo) && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon"
+                                          className="size-8 text-destructive hover:text-destructive"
+                                          onClick={() => handleCancelClick(promo)}
+                                          disabled={loading}>
+                                          <Ban className="size-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left">
+                                        <div className="flex items-center gap-1.5">
+                                          <Info className="size-3 shrink-0" />
+                                          Cancelar en SAP (irreversible)
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -927,35 +1076,58 @@ const Promotions = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={!!sapLockedPromo} onOpenChange={(open) => { if (!open && !isCancellingForEdit) setSapLockedPromo(null); }}>
+        {bulkResult && (
+          <div className="fixed bottom-4 right-4 z-50 rounded-lg border bg-background shadow-lg p-4 space-y-2 w-72">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Resultado de acción masiva</p>
+              <button onClick={() => setBulkResult(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="flex gap-4 text-sm">
+              <span className="text-green-600 font-medium">✓ {bulkResult.success_count} exitosas</span>
+              {bulkResult.failure_count > 0 && (
+                <span className="text-destructive font-medium">✗ {bulkResult.failure_count} fallidas</span>
+              )}
+            </div>
+            {bulkResult.failure_count > 0 && (
+              <ul className="text-xs text-destructive space-y-0.5 max-h-28 overflow-y-auto">
+                {bulkResult.results.filter((r) => !r.success).map((r) => (
+                  <li key={r.id}>• {r.error ?? 'Error desconocido'}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <AlertDialog open={!!cancelDialogPromo} onOpenChange={(open) => { if (!open && !isCancelling) setCancelDialogPromo(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
-                <Lock className="size-4 text-amber-500" />
-                Promoción bloqueada por SAP
+                <Ban className="size-4 text-destructive" />
+                Cancelar promoción en SAP
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p>
-                    La promoción <strong className="text-foreground">"{sapLockedPromo?.title}"</strong> está
-                    activa y sincronizada con SAP (campaña #{sapLockedPromo?.sap_campaign_number}).
+                    Vas a cancelar la promoción <strong className="text-foreground">"{cancelDialogPromo?.title}"</strong> en SAP (campaña #{cancelDialogPromo?.sap_campaign_number}).
                   </p>
                   <p>
-                    Para editarla debes cancelarla primero. Esto cambiará su estado a <strong className="text-foreground">Cancelada</strong> y podrás modificarla.
+                    Esta acción es <strong className="text-foreground">irreversible</strong>. La promoción no podrá reactivarse.
                   </p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isCancellingForEdit}>Cerrar</AlertDialogCancel>
+              <AlertDialogCancel disabled={isCancelling}>Cerrar</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleCancelAndEdit}
-                disabled={isCancellingForEdit}
-                className="bg-amber-500 text-white hover:bg-amber-600"
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isCancellingForEdit
+                {isCancelling
                   ? <><Loader2 className="mr-2 size-4 animate-spin" />Cancelando...</>
-                  : 'Cancelar promoción y editar'}
+                  : 'Cancelar en SAP'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

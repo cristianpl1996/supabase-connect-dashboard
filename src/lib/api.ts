@@ -1285,38 +1285,78 @@ export function getProductFilterOptions(): Promise<ProductFilterOptions> {
   return apiDetail<ProductFilterOptions>("/api/v1/products/filter-options");
 }
 
+// ─── In-memory TTL cache shared across all callers ───────────────────────────
+const CATALOG_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let _allProductsCache: ProductCatalogItem[] | null = null;
+let _allProductsCachedAt = 0;
+let _allProductsInflight: Promise<ProductCatalogItem[]> | null = null;
+
+let _allCustomersCache: CustomerRecord[] | null = null;
+let _allCustomersCachedAt = 0;
+let _allCustomersInflight: Promise<CustomerRecord[]> | null = null;
+
 export async function getAllProducts(): Promise<ProductCatalogItem[]> {
-  const PAGE = 1000;
-  const first = await getProductsPage({ limit: PAGE, offset: 0, sort_by: 'sku', sort_dir: 'asc' });
-  const total = first.meta?.count ?? first.data.length;
-  const results: ProductCatalogItem[] = [...first.data];
-  const pages = Math.ceil(total / PAGE);
-  if (pages > 1) {
-    const rest = await Promise.all(
-      Array.from({ length: pages - 1 }, (_, i) =>
-        getProductsPage({ limit: PAGE, offset: (i + 1) * PAGE, sort_by: 'sku', sort_dir: 'asc' })
-      )
-    );
-    for (const res of rest) results.push(...res.data);
+  if (_allProductsCache && Date.now() - _allProductsCachedAt < CATALOG_TTL_MS) {
+    return _allProductsCache;
   }
-  return results;
+  if (_allProductsInflight) return _allProductsInflight;
+  _allProductsInflight = (async () => {
+    const PAGE = 1000;
+    const first = await getProductsPage({ limit: PAGE, offset: 0, sort_by: 'sku', sort_dir: 'asc' });
+    const total = first.meta?.count ?? first.data.length;
+    const results: ProductCatalogItem[] = [...first.data];
+    const pages = Math.ceil(total / PAGE);
+    if (pages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) =>
+          getProductsPage({ limit: PAGE, offset: (i + 1) * PAGE, sort_by: 'sku', sort_dir: 'asc' })
+        )
+      );
+      for (const res of rest) results.push(...res.data);
+    }
+    _allProductsCache = results;
+    _allProductsCachedAt = Date.now();
+    _allProductsInflight = null;
+    return results;
+  })();
+  return _allProductsInflight;
 }
 
 export async function getAllCustomers(): Promise<CustomerRecord[]> {
-  const PAGE = 1000;
-  const first = await getCustomersPage({ limit: PAGE, offset: 0 });
-  const total = first.meta?.count ?? first.data.length;
-  const results: CustomerRecord[] = [...first.data];
-  const pages = Math.ceil(total / PAGE);
-  if (pages > 1) {
-    const rest = await Promise.all(
-      Array.from({ length: pages - 1 }, (_, i) =>
-        getCustomersPage({ limit: PAGE, offset: (i + 1) * PAGE })
-      )
-    );
-    for (const res of rest) results.push(...res.data);
+  if (_allCustomersCache && Date.now() - _allCustomersCachedAt < CATALOG_TTL_MS) {
+    return _allCustomersCache;
   }
-  return results;
+  if (_allCustomersInflight) return _allCustomersInflight;
+  _allCustomersInflight = (async () => {
+    const PAGE = 1000;
+    const first = await getCustomersPage({ limit: PAGE, offset: 0 });
+    const total = first.meta?.count ?? first.data.length;
+    const results: CustomerRecord[] = [...first.data];
+    const pages = Math.ceil(total / PAGE);
+    if (pages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) =>
+          getCustomersPage({ limit: PAGE, offset: (i + 1) * PAGE })
+        )
+      );
+      for (const res of rest) results.push(...res.data);
+    }
+    _allCustomersCache = results;
+    _allCustomersCachedAt = Date.now();
+    _allCustomersInflight = null;
+    return results;
+  })();
+  return _allCustomersInflight;
+}
+
+export function invalidateAllProductsCache(): void {
+  _allProductsCache = null;
+  _allProductsCachedAt = 0;
+}
+
+export function invalidateAllCustomersCache(): void {
+  _allCustomersCache = null;
+  _allCustomersCachedAt = 0;
 }
 
 export interface ProductLightItem {
@@ -1489,6 +1529,32 @@ export function clonePromotion(id: string): Promise<Promotion> {
 
 export async function deletePromotion(id: string): Promise<void> {
   await apiDetail<Promotion>(`/api/v1/promotions/${id}`, { method: "DELETE" });
+}
+
+export interface BulkActionResultItem {
+  id: string;
+  success: boolean;
+  error: string | null;
+}
+
+export interface BulkActionResponse {
+  results: BulkActionResultItem[];
+  success_count: number;
+  failure_count: number;
+}
+
+export function bulkUpdatePromotionStatus(ids: string[], status: PromoStatus): Promise<BulkActionResponse> {
+  return apiFetch<BulkActionResponse>('/api/v1/promotions/bulk-status', {
+    method: 'POST',
+    body: JSON.stringify({ ids, status }),
+  });
+}
+
+export function bulkDeletePromotions(ids: string[]): Promise<BulkActionResponse> {
+  return apiFetch<BulkActionResponse>('/api/v1/promotions/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
 }
 
 export async function importPromotions(rows: PromotionImportRowPayload[]): Promise<{ imported_count: number; skipped_count: number; errors: string[] }> {
