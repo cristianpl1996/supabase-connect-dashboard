@@ -451,8 +451,8 @@ const Promotions = () => {
                   ? formatDistanceToNow(parseISO(last_run_at), { addSuffix: true, locale: es })
                   : '';
                 if (status === 'ok') return (
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-700 shrink-0" />
                     <span>Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
                   </span>
                 );
