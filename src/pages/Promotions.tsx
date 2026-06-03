@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, type ElementType, type ReactNode } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import {
@@ -9,11 +9,14 @@ import {
   getAllProducts,
   getSapAutoSyncStatus,
   listLaboratories,
-  listPromotions,
+  getPromotionsPage,
+  listTotal,
   updatePromotionStatus,
   bulkUpdatePromotionStatus,
   bulkDeletePromotions,
   BulkActionResponse,
+  type ApiListResponse,
+  type PromotionListParams,
 } from '@/lib/api';
 import { Promotion } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,23 +81,53 @@ const MECHANIC_LABELS: Record<string, string> = {
   combo: 'Combo Productos',
 };
 
+const PAGE_SIZE = 50;
+
 const Promotions = () => {
   const queryClient = useQueryClient();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ── UI state (declared early — used in queryKey) ───────────────────────────
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [laboratoryFilter, setLaboratoryFilter] = useState('all');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   // ── Queries ────────────────────────────────────────────────────────────────
+  const buildParams = (offset: number): PromotionListParams => ({
+    search: searchQuery.trim() || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter as Promotion['status'],
+    lab_id: laboratoryFilter === 'all' ? undefined : laboratoryFilter,
+    sort_dir: sortDir,
+    limit: PAGE_SIZE,
+    offset,
+  });
+
   const {
-    data: promotions = [],
+    data: promotionsData,
     isLoading,
     isError,
     error: promotionsError,
+    isFetchingNextPage: loadingMore,
+    fetchNextPage,
+    hasNextPage,
     refetch: refetchPromotions,
-  } = useQuery({
-    queryKey: ['promotions'],
-    queryFn: listPromotions,
+  } = useInfiniteQuery({
+    queryKey: ['promotions', { search: searchQuery, status: statusFilter, lab: laboratoryFilter, sortDir }],
+    queryFn: ({ pageParam }) => getPromotionsPage(buildParams(pageParam as number)),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.flatMap((p) => p.data ?? []).length;
+      const total = listTotal(lastPage);
+      if (total === null) return (lastPage.data?.length ?? 0) === PAGE_SIZE ? fetched : undefined;
+      return fetched < total ? fetched : undefined;
+    },
     staleTime: 30_000,
     refetchInterval: (query) => {
-      const data = query.state.data as Promotion[] | undefined;
-      return data?.some((p) => p.sap_sync_status === 'pending') ? 8_000 : false;
+      const pages = (query.state.data as InfiniteData<ApiListResponse<Promotion>> | undefined)?.pages ?? [];
+      const allItems = pages.flatMap((p) => p.data ?? []);
+      return allItems.some((p) => p.sap_sync_status === 'pending') ? 8_000 : false;
     },
   });
 
@@ -115,8 +148,6 @@ const Promotions = () => {
   const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promoToDelete, setPromoToDelete] = useState<Promotion | null>(null);
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
   const [promoToClone, setPromoToClone] = useState<Promotion | null>(null);
@@ -128,8 +159,6 @@ const Promotions = () => {
   const importClosedWhileBusy = useRef(false);
   const syncClosedWhileBusy = useRef(false);
 
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [laboratoryFilter, setLaboratoryFilter] = useState('all');
   const [mechanicFilter, setMechanicFilter] = useState('all');
   const [sapStatusFilter, setSapStatusFilter] = useState('all');
   const [showCostColumn, setShowCostColumn] = useState(false);
@@ -160,16 +189,18 @@ const Promotions = () => {
     },
     onMutate: async ({ promo, newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['promotions'] });
-      const previous = queryClient.getQueryData<Promotion[]>(['promotions']);
-      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
-        prev?.map((p) => p.id === promo.id ? { ...p, status: newStatus as Promotion['status'] } : p) ?? []
-      );
+      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions']);
+      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+        if (!prev) return prev;
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === promo.id ? { ...p, status: newStatus as Promotion['status'] } : p) })) };
+      });
       return { previous };
     },
     onSuccess: ({ result, sapError }) => {
-      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
-        prev?.map((p) => p.id === result.id ? result : p) ?? []
-      );
+      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+        if (!prev) return prev;
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === result.id ? result : p) })) };
+      });
       if (sapError) {
         toast.warning('No se pudo activar — error SAP', { description: sapError, duration: 8000 });
       } else if (result.status === 'activa' && result.sap_sync_status === 'pending') {
@@ -227,16 +258,18 @@ const Promotions = () => {
     mutationFn: (id: string) => updatePromotionStatus(id, 'cancelada'),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['promotions'] });
-      const previous = queryClient.getQueryData<Promotion[]>(['promotions']);
-      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
-        prev?.map((p) => p.id === id ? { ...p, status: 'cancelada' as const } : p) ?? []
-      );
+      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions']);
+      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+        if (!prev) return prev;
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === id ? { ...p, status: 'cancelada' as const } : p) })) };
+      });
       return { previous };
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData<Promotion[]>(['promotions'], (prev) =>
-        prev?.map((p) => p.id === updated.id ? updated : p) ?? []
-      );
+      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+        if (!prev) return prev;
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === updated.id ? updated : p) })) };
+      });
       toast.success('Promoción cancelada en SAP');
       setCancelDialogPromo(null);
     },
@@ -255,21 +288,43 @@ const Promotions = () => {
     }
   }, [syncingFromSap]);
 
+  // Infinite scroll — load next page when sentinel enters viewport
+  useEffect(() => {
+    const target = sentinelRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasNextPage && !isLoading && !loadingMore) {
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: '240px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isLoading, loadingMore]);
+
+  // Flatten all fetched pages into a single list
+  const promotions = useMemo(
+    () => (promotionsData?.pages ?? []).flatMap((p) => p.data ?? []),
+    [promotionsData],
+  );
+
+  const totalPromotions = useMemo(() => {
+    const lastPage = promotionsData?.pages.at(-1);
+    return lastPage ? listTotal(lastPage) : null;
+  }, [promotionsData]);
+
+  // search/status/lab are server-side; mechanic + SAP status remain client-side
   const filteredPromotions = useMemo(() => {
-    const query = searchQuery.toLowerCase();
     return promotions.filter((promo) => (
-      (!query.trim()
-        || (promo.laboratory_name || '').toLowerCase().includes(query)
-        || promo.title.toLowerCase().includes(query))
-      && (statusFilter === 'all' || promo.status === statusFilter)
-      && (laboratoryFilter === 'all' || (promo.laboratory_name || 'Sin laboratorio') === laboratoryFilter)
-      && (mechanicFilter === 'all' || (promo.mechanic?.promotion_type || 'N/A') === mechanicFilter)
+      (mechanicFilter === 'all' || (promo.mechanic?.promotion_type || 'N/A') === mechanicFilter)
       && (sapStatusFilter === 'all'
         || (sapStatusFilter === 'synced' && !!promo.sap_campaign_number && !promo.sap_sync_error)
         || (sapStatusFilter === 'error' && !!promo.sap_sync_error)
         || (sapStatusFilter === 'not_synced' && !promo.sap_campaign_number && !promo.sap_sync_error))
     ));
-  }, [laboratoryFilter, mechanicFilter, promotions, sapStatusFilter, searchQuery, statusFilter]);
+  }, [mechanicFilter, promotions, sapStatusFilter]);
 
   const visibleIds = filteredPromotions.map((p) => p.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
@@ -314,13 +369,10 @@ const Promotions = () => {
   }, [selectedIds, promotions, bulkDeleteMutation]);
 
   const laboratoryOptions = useMemo(() => {
-    const names = new Set<string>();
-    laboratories.forEach((lab) => {
-      if (lab.name) names.add(lab.name);
-    });
-    promotions.forEach((promo) => names.add(promo.laboratory_name || 'Sin laboratorio'));
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [laboratories, promotions]);
+    return [...laboratories]
+      .filter((lab) => lab.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [laboratories]);
 
   const mechanicOptions = useMemo(() => {
     const values = new Set<string>();
@@ -342,7 +394,8 @@ const Promotions = () => {
       tags.push({ key: 'status', label: `Estado: ${STATUS_CONFIG[statusFilter]?.label || statusFilter}`, onRemove: () => setStatusFilter('all') });
     }
     if (laboratoryFilter !== 'all') {
-      tags.push({ key: 'laboratory', label: `Laboratorio: ${laboratoryFilter}`, onRemove: () => setLaboratoryFilter('all') });
+      const labName = laboratories.find((l) => l.id === laboratoryFilter)?.name ?? laboratoryFilter;
+      tags.push({ key: 'laboratory', label: `Laboratorio: ${labName}`, onRemove: () => setLaboratoryFilter('all') });
     }
     if (mechanicFilter !== 'all') {
       tags.push({ key: 'mechanic', label: `Mecánica: ${MECHANIC_LABELS[mechanicFilter] || mechanicFilter}`, onRemove: () => setMechanicFilter('all') });
@@ -352,7 +405,7 @@ const Promotions = () => {
       tags.push({ key: 'sap', label: `SAP: ${sapLabels[sapStatusFilter] || sapStatusFilter}`, onRemove: () => setSapStatusFilter('all') });
     }
     return tags;
-  }, [laboratoryFilter, mechanicFilter, sapStatusFilter, searchQuery, statusFilter]);
+  }, [laboratories, laboratoryFilter, mechanicFilter, sapStatusFilter, searchQuery, statusFilter]);
 
   const commitSearch = () => setSearchQuery(searchInput.trim());
 
@@ -371,9 +424,9 @@ const Promotions = () => {
   };
 
   const handlePromoSaved = () => {
+    void queryClient.invalidateQueries({ queryKey: ['promotions'] });
     setSheetOpen(false);
     setEditingPromo(null);
-    queryClient.invalidateQueries({ queryKey: ['promotions'] });
   };
 
   const handleDeleteClick = (promo: Promotion) => {
@@ -529,7 +582,12 @@ const Promotions = () => {
               {isLoading ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : (
-                <p className="text-2xl font-bold text-foreground">{filteredPromotions.length} / {promotions.length}</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {promotions.length}
+                  {totalPromotions !== null && (
+                    <span className="text-base font-normal text-muted-foreground"> / {totalPromotions}</span>
+                  )}
+                </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">Segun filtros actuales</p>
             </CardContent>
@@ -556,7 +614,7 @@ const Promotions = () => {
 
         <Card className="border-border/50 shadow-sm pt-1">
           <CardHeader className="space-y-2 px-4 py-5 sm:px-5">
-            <div className="grid gap-3 md:grid-cols-[minmax(320px,2.5fr)_minmax(160px,1fr)_auto_auto]">
+            <div className="grid gap-3 md:grid-cols-[minmax(280px,2.5fr)_minmax(140px,1fr)_minmax(160px,1fr)_auto_auto]">
               <div className="relative min-w-0">
                 <button type="button" onClick={commitSearch} disabled={isLoading} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40">
                   <Search className="size-4" />
@@ -584,6 +642,16 @@ const Promotions = () => {
                   {Object.entries(STATUS_CONFIG).map(([value, config]) => (
                     <SelectItem key={value} value={value}>{config.label}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={sortDir} onValueChange={(v) => setSortDir(v as 'asc' | 'desc')} disabled={isLoading}>
+                <SelectTrigger className="h-10 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Más recientes primero</SelectItem>
+                  <SelectItem value="asc">Más antiguas primero</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -664,8 +732,8 @@ const Promotions = () => {
                           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Todos los laboratorios</SelectItem>
-                            {laboratoryOptions.map((name) => (
-                              <SelectItem key={name} value={name}>{name}</SelectItem>
+                            {laboratoryOptions.map((lab) => (
+                              <SelectItem key={lab.id} value={lab.id}>{lab.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1052,6 +1120,12 @@ const Promotions = () => {
                       })}
                     </TableBody>
                   </Table>
+                  <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+                  {loadingMore && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
                 </div>
               </>
             )}

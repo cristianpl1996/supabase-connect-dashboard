@@ -1179,6 +1179,8 @@ export interface PromotionListParams {
   created_by_role?: SourceRole;
   start_date_from?: string;
   start_date_to?: string;
+  sort_by?: string;
+  sort_dir?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
@@ -1518,6 +1520,21 @@ export function listPromotions(params: PromotionListParams = {}): Promise<Promot
     start_date_from: params.start_date_from,
     start_date_to: params.start_date_to,
     limit: params.limit ?? 500,
+    offset: params.offset ?? 0,
+  }));
+}
+
+export function getPromotionsPage(params: PromotionListParams = {}): Promise<ApiListResponse<Promotion>> {
+  return apiFetch<ApiListResponse<Promotion>>(withQuery("/api/v1/promotions", {
+    search: params.search,
+    status: params.status,
+    lab_id: params.lab_id,
+    created_by_role: params.created_by_role,
+    start_date_from: params.start_date_from,
+    start_date_to: params.start_date_to,
+    sort_by: params.sort_by,
+    sort_dir: params.sort_dir ?? 'desc',
+    limit: params.limit ?? 50,
     offset: params.offset ?? 0,
   }));
 }
