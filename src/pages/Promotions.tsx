@@ -1122,8 +1122,9 @@ const Promotions = () => {
                   </Table>
                   <div ref={sentinelRef} className="h-px" aria-hidden="true" />
                   {loadingMore && (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      Cargando siguiente lote...
                     </div>
                   )}
                 </div>
