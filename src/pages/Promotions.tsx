@@ -173,8 +173,8 @@ const Promotions = () => {
       if (sapError) {
         toast.warning('No se pudo activar — error SAP', { description: sapError, duration: 8000 });
       } else if (result.status === 'activa' && result.sap_sync_status === 'pending') {
-        toast.info('Activada · Sincronizando con SAP en segundo plano…', {
-          description: 'La columna SAP se actualizará automáticamente cuando finalice (1–2 min).',
+        toast.warning('Activando sincronización con SAP', {
+          description: 'Se actualizará automáticamente cuando finalice.',
           duration: 7000,
         });
       } else if (result.sap_sync_status === 'failed') {
@@ -442,7 +442,45 @@ const Promotions = () => {
         <PageHeader
           icon={Tag}
           title="Gestion de Promociones"
-          description="Crea y administra promociones comerciales"
+          description={
+            <span className="flex flex-col gap-1">
+              <span>Crea y administra promociones comerciales</span>
+              {autoSyncStatus && autoSyncStatus.status !== 'never_run' && (() => {
+                const { status, last_run_at, imported, updated, errors } = autoSyncStatus;
+                const timeAgo = last_run_at
+                  ? formatDistanceToNow(parseISO(last_run_at), { addSuffix: true, locale: es })
+                  : '';
+                if (status === 'ok') return (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span>Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
+                  </span>
+                );
+                if (status === 'errors') return (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>Auto-sync SAP: {timeAgo} · {errors.length} error(es) — Ver detalles</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-3" align="start">
+                      <p className="text-xs font-medium mb-1.5">Errores en última sincronización automática:</p>
+                      <ul className="space-y-1 text-xs text-red-700 max-h-40 overflow-y-auto">
+                        {errors.map((e, i) => <li key={i} className="break-words">• {e}</li>)}
+                      </ul>
+                    </PopoverContent>
+                  </Popover>
+                );
+                return (
+                  <span className="flex items-center gap-1.5 text-xs text-red-600">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Auto-sync SAP: falló {timeAgo}</span>
+                  </span>
+                );
+              })()}
+            </span>
+          }
           actions={(
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 md:w-auto">
               <Button variant="outline" onClick={() => { prefetchProductsAndCustomers(); setShowSyncModal(true); }} disabled={isLoading} className="w-full gap-2">
@@ -469,41 +507,6 @@ const Promotions = () => {
           loading={isLoading}
         />
       )}
-
-      {autoSyncStatus && autoSyncStatus.status !== 'never_run' && (() => {
-        const { status, last_run_at, imported, updated, errors } = autoSyncStatus;
-        const timeAgo = last_run_at
-          ? formatDistanceToNow(parseISO(last_run_at), { addSuffix: true, locale: es })
-          : '';
-        if (status === 'ok') return (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1">
-            <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-            <span>Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
-          </div>
-        );
-        if (status === 'errors') return (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button type="button" className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 px-1">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <span>Auto-sync SAP: {timeAgo} · {errors.length} error(es) — Ver detalles</span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-3" align="start">
-              <p className="text-xs font-medium mb-1.5">Errores en última sincronización automática:</p>
-              <ul className="space-y-1 text-xs text-red-700 max-h-40 overflow-y-auto">
-                {errors.map((e, i) => <li key={i} className="break-words">• {e}</li>)}
-              </ul>
-            </PopoverContent>
-          </Popover>
-        );
-        return (
-          <div className="flex items-center gap-1.5 text-xs text-red-600 px-1">
-            <XCircle className="h-3.5 w-3.5 shrink-0" />
-            <span>Auto-sync SAP: falló {timeAgo}</span>
-          </div>
-        );
-      })()}
 
       <ErrorDisabledContent disabled={isError} className="space-y-6 sm:space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

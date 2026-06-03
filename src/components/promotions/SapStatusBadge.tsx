@@ -28,7 +28,7 @@ export function SapStatusBadge({ campaignNumber, syncedAt, syncError, syncStatus
             </span>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p className="text-xs">Enviando a SAP en segundo plano. Actualiza en 1–2 min.</p>
+            <p className="text-xs">Enviando promoción a SAP</p>
           </TooltipContent>
         </TooltipProvider>
       </Tooltip>
