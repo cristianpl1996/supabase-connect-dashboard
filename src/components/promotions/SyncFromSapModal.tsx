@@ -184,7 +184,7 @@ export default function SyncFromSapModal({ open, onClose, onImported, onBusyChan
       } catch {
         // network hiccup — keep polling
       }
-    }, 5000);
+    }, 10000);
     return () => clearInterval(poll);
   }, [state, onImported]);
 
