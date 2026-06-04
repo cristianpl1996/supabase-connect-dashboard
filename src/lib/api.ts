@@ -1069,10 +1069,6 @@ export interface CalendarPromotion {
   title: string;
   lab_id: string;
   laboratory_name: string | null;
-  created_by_role?: SourceRole;
-  created_by_identifier?: string | null;
-  created_by_responsible?: string | null;
-  created_by_brand?: string | null;
   start_date: string;
   end_date: string;
   status: PromoStatus;
@@ -1081,6 +1077,19 @@ export interface CalendarPromotion {
   derived_category: string;
   has_conflict: boolean;
   conflict_with: string[];
+}
+
+export interface MarketingPromotion {
+  id: string;
+  title: string;
+  laboratory_name: string | null;
+  status: PromoStatus;
+  start_date: string;
+  end_date: string;
+  description: string | null;
+  flash_card_url: string | null;
+  marketing_copy: string | null;
+  mechanic: PromoMechanic | null;
 }
 
 export interface AiGenerateRequest {
@@ -1744,8 +1753,8 @@ export function listCalendarPromotions(params: CalendarPromotionListParams = {})
   }));
 }
 
-export function listMarketingPromotions(params: PromotionListParams = {}): Promise<Promotion[]> {
-  return apiList<Promotion>(withQuery("/api/v1/marketing/promotions", {
+export function listMarketingPromotions(params: PromotionListParams = {}): Promise<MarketingPromotion[]> {
+  return apiList<MarketingPromotion>(withQuery("/api/v1/marketing/promotions", {
     search: params.search,
     status: params.status,
     lab_id: params.lab_id,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { generateAiText, listMarketingPromotions, Promotion, uploadMarketingFlashcard } from "@/lib/api";
+import { generateAiText, listMarketingPromotions, MarketingPromotion, uploadMarketingFlashcard } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -91,7 +91,7 @@ export default function Marketing() {
   });
 
   const [selectedPromoId, setSelectedPromoId] = useState<string>("");
-  const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
+  const [selectedPromo, setSelectedPromo] = useState<MarketingPromotion | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState("");
   const [displayedCopy, setDisplayedCopy] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -154,7 +154,7 @@ export default function Marketing() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: promo is derived from existing deps; handleGenerateCopy is not useCallback
   }, [selectedPromoId, promotions, isGenerating, isTypingCopy]);
 
-  function getMechanicDescription(promo: Promotion): string {
+  function getMechanicDescription(promo: MarketingPromotion): string {
     if (!promo.mechanic) return "Promocion Especial";
     const condition = promo.mechanic.condition_config ?? {};
     const reward = promo.mechanic.reward_config ?? {};
@@ -170,7 +170,7 @@ export default function Marketing() {
     return "Promocion Especial";
   }
 
-  function getDiscountDisplay(promo: Promotion): string {
+  function getDiscountDisplay(promo: MarketingPromotion): string {
     if (!promo.mechanic) return "";
     const reward = promo.mechanic.reward_config ?? {};
     if (promo.mechanic.reward_type === "discount_percent") {
@@ -182,7 +182,7 @@ export default function Marketing() {
     return "";
   }
 
-  function buildMarketingUserInput(promo: Promotion): string {
+  function buildMarketingUserInput(promo: MarketingPromotion): string {
     const labName = promo.laboratory_name || "Laboratorio";
     const description = promo.description || "N/A";
     const mechanicDescription = promo.mechanic?.summary || getMechanicDescription(promo) || "Promocion especial";
@@ -200,7 +200,7 @@ export default function Marketing() {
     ].join(" ");
   }
 
-  async function handleGenerateCopy(promo: Promotion) {
+  async function handleGenerateCopy(promo: MarketingPromotion) {
     setIsGenerating(true);
     try {
       const response = await generateAiText({
@@ -213,7 +213,7 @@ export default function Marketing() {
       setGeneratedCopy(response.text);
       setDisplayedCopy("");
       setIsTypingCopy(true);
-      queryClient.setQueryData<Promotion[]>(['marketing-promotions'], (prev) =>
+      queryClient.setQueryData<MarketingPromotion[]>(['marketing-promotions'], (prev) =>
         prev?.map((item) => item.id === promo.id ? { ...item, marketing_copy: response.text } : item) ?? []
       );
     } catch (error) {
@@ -319,7 +319,7 @@ export default function Marketing() {
         `flashcard-${selectedPromo.id}-${Date.now()}.png`,
         generatedCopy,
       );
-      queryClient.setQueryData<Promotion[]>(['marketing-promotions'], (prev) =>
+      queryClient.setQueryData<MarketingPromotion[]>(['marketing-promotions'], (prev) =>
         prev?.map((promo) =>
           promo.id === selectedPromo.id
             ? { ...promo, flash_card_url: payload.flash_card_url, marketing_copy: payload.marketing_copy }

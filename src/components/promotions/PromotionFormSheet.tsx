@@ -3,6 +3,8 @@ import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'rea
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 import {
   createPromotion,
+  getAllCustomers,
+  getAllProducts,
   getAllRepresentatives,
   getCustomerFilterOptions,
   getProductFilterOptions,
@@ -313,27 +315,30 @@ export function PromotionFormSheet({
           setSegment(String(cf.segment_preset || 'custom'));
           setScope(details.audience_scope || 'customers');
           setProductApplicationMode(details.product_mode || 'specific');
-          setSelectedProductSkus(details.product_skus || []);
+          const productSkus = details.product_skus || [];
+          setSelectedProductSkus(productSkus);
           const customerIds = details.customer_ids || [];
           setSelectedCustomerIds(customerIds);
-          if (customerIds.length > 0) {
-            Promise.allSettled(customerIds.map((nit) =>
-              getCustomersPage({ search: nit, limit: 20 })
-            )).then((results) => {
-              const names: Record<string, string> = {};
-              results.forEach((res, i) => {
-                if (res.status === 'fulfilled') {
-                  const nit = customerIds[i];
-                  const match = (res.value.data ?? []).find(
-                    (c) => String(c['customer_government_id'] ?? '') === nit
-                  );
-                  const name = match
-                    ? String(match['customer_full_name'] ?? match['customer_name'] ?? '').trim()
-                    : '';
-                  names[nit] = name || nit;
+          if (productSkus.length > 0 || customerIds.length > 0) {
+            Promise.all([getAllProducts(), getAllCustomers()]).then(([allProducts, allCustomers]) => {
+              if (productSkus.length > 0) {
+                const names: Record<string, string> = {};
+                for (const sku of productSkus) {
+                  const name = allProducts.find((p) => p.product_sku === sku)?.product_commercial_name?.trim() ?? '';
+                  if (name) names[sku] = name;
                 }
-              });
-              if (Object.keys(names).length > 0) setCustomerNameMap((prev) => ({ ...prev, ...names }));
+                if (Object.keys(names).length > 0) setProductNameMap((prev) => ({ ...prev, ...names }));
+              }
+              if (customerIds.length > 0) {
+                const names: Record<string, string> = {};
+                for (const nit of customerIds) {
+                  const match = allCustomers.find((c) => String(c['customer_government_id'] ?? '') === nit);
+                  names[nit] = match
+                    ? String(match['customer_full_name'] ?? match['customer_name'] ?? '').trim() || nit
+                    : nit;
+                }
+                setCustomerNameMap((prev) => ({ ...prev, ...names }));
+              }
             });
           }
           setProductFilterBrand(String(pf.brand_name || ''));
