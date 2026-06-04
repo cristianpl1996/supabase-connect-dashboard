@@ -307,6 +307,12 @@ export function PromotionDetailsSheet({
             icon={<Megaphone className="size-4 text-primary" />}
             title="Sincronizacion SAP"
           >
+            {promotion?.origin && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Origen</span>
+                <span className="text-xs font-medium capitalize">{promotion.origin}</span>
+              </div>
+            )}
             {(promotion?.sap_sync_status === 'pending' || promotion?.sap_campaign_number || promotion?.sap_sync_error) ? (
               <>
                 <div className="flex items-center justify-between">

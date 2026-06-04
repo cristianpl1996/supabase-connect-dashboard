@@ -202,6 +202,7 @@ export interface Promotion {
     negative_adjustments: number;
   };
   requires_manager_approval?: boolean;
+  origin?: string | null;
   sap_campaign_number?: number | null;
   sap_sync_error?: string | null;
   sap_synced_at?: string | null;
