@@ -81,7 +81,7 @@ const MECHANIC_LABELS: Record<string, string> = {
   combo: 'Combo Productos',
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 const Promotions = () => {
   const queryClient = useQueryClient();
