@@ -30,12 +30,22 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
 
 const STATUS_STYLES: Record<string, string> = {
   activa:     'bg-emerald-50 text-emerald-700 border-emerald-300',
-  borrador:   'bg-gray-100 text-gray-600 border-gray-300',
+  borrador:   'bg-white text-gray-900 border-gray-300',
   cancelada:  'bg-red-50 text-red-700 border-red-300',
   finalizada: 'bg-slate-100 text-slate-500 border-slate-300',
   revision:   'bg-amber-50 text-amber-700 border-amber-300',
   aprobada:   'bg-blue-50 text-blue-700 border-blue-300',
   pausada:    'bg-orange-50 text-orange-700 border-orange-300',
+};
+
+const BAR_STATUS_STYLES: Record<string, { bg: string; border: string; text: string }> = {
+  activa:     { bg: 'bg-primary/10',  border: 'border-primary',     text: 'text-primary' },
+  borrador:   { bg: 'bg-gray-100',    border: 'border-gray-300',    text: 'text-gray-700' },
+  cancelada:  { bg: 'bg-red-50',      border: 'border-red-400',     text: 'text-red-700' },
+  finalizada: { bg: 'bg-slate-100',   border: 'border-slate-400',   text: 'text-slate-600' },
+  revision:   { bg: 'bg-amber-50',    border: 'border-amber-400',   text: 'text-amber-700' },
+  aprobada:   { bg: 'bg-blue-50',     border: 'border-blue-400',    text: 'text-blue-700' },
+  pausada:    { bg: 'bg-orange-50',   border: 'border-orange-400',  text: 'text-orange-700' },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -102,7 +112,7 @@ const Calendar = () => {
     const items: GanttPromo[] = promotions.map((promo) => ({
       id: promo.id,
       title: promo.title,
-      labName: promo.laboratory_name || 'Sin Lab',
+      labName: promo.laboratory_name || 'Sin Laboratorio',
       category: promo.derived_category,
       startDate: parseISO(promo.start_date),
       endDate: parseISO(promo.end_date),
@@ -323,7 +333,7 @@ const Calendar = () => {
                       <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[row.status] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
                         {STATUS_LABELS[row.status] ?? row.status}
                       </span>
-                      <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${row.labName === 'Sin Laboratorio' ? 'bg-white text-gray-900 border-gray-300' : 'border-primary/30 bg-primary/8 text-primary'}`}>
                         {row.labName}
                       </span>
                     </div>
@@ -389,7 +399,7 @@ const Calendar = () => {
                               <TooltipTrigger asChild>
                                 <button
                                   type="button"
-                                  className={`h-9 appearance-none border-x-0 border-y-2 p-0 text-left font-[inherit] cursor-pointer transition-all hover:opacity-80 ${row.status === 'revision' ? 'bg-muted text-muted-foreground' : `${row.colors.bg} ${row.colors.text}`} ${row.hasConflict ? 'border-destructive' : row.status === 'revision' ? 'border-muted-foreground/40' : row.colors.border} ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''} ${isBarEnd ? 'rounded-r-md border-r-2' : ''} flex items-center overflow-hidden`}
+                                  className={`h-9 appearance-none border-x-0 border-y-2 p-0 text-left font-[inherit] cursor-pointer transition-all hover:opacity-80 ${(() => { const s = BAR_STATUS_STYLES[row.status] ?? BAR_STATUS_STYLES.borrador; return `${s.bg} ${s.text}`; })()} ${row.hasConflict ? 'border-destructive' : (BAR_STATUS_STYLES[row.status] ?? BAR_STATUS_STYLES.borrador).border} ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''} ${isBarEnd ? 'rounded-r-md border-r-2' : ''} flex items-center overflow-hidden`}
                                   onClick={() => {
                                     setSelectedPromoId(row.promotion.id);
                                     setDetailsOpen(true);

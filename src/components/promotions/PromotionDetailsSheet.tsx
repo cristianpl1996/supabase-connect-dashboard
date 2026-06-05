@@ -161,7 +161,6 @@ export function PromotionDetailsSheet({
                     <div className="h-6 w-40 rounded-full bg-muted" />
                   </div>
                   <div className="h-8 w-80 rounded-md bg-muted" />
-                  <div className="h-3.5 w-56 rounded bg-muted" />
                   <div className="h-3 w-44 rounded bg-muted" />
                 </div>
               ) : (
