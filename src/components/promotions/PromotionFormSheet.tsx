@@ -85,7 +85,7 @@ interface PromotionFormSheetProps {
   onOpenChange: (open: boolean) => void;
   laboratories: Laboratory[];
   onSuccess: () => void;
-  editingPromo?: { id: string } | null;
+  editingPromo?: { id: string; sap_campaign_number?: number | null; status?: string } | null;
 }
 
 const SEGMENT_OPTIONS = [
@@ -202,6 +202,7 @@ export function PromotionFormSheet({
   editingPromo
 }: PromotionFormSheetProps) {
   const isEditing = !!editingPromo;
+  const isActiveSynced = isEditing && editingPromo?.status === 'activa' && !!editingPromo?.sap_campaign_number;
   const { promoter, isPromoter } = usePromoter();
 
   const [approvalWarning, setApprovalWarning] = useState<string | null>(null);
@@ -1104,6 +1105,10 @@ export function PromotionFormSheet({
   };
 
   const goNext = () => {
+    if (isActiveSynced && currentStep === 1) {
+      setCurrentStep(5);
+      return;
+    }
     if (currentStep < 5) {
       setCurrentStep((s) => s + 1);
     } else {
@@ -1117,6 +1122,10 @@ export function PromotionFormSheet({
   };
 
   const goPrev = () => {
+    if (isActiveSynced && currentStep === 5) {
+      setCurrentStep(1);
+      return;
+    }
     if (currentStep > 1) setCurrentStep((s) => s - 1);
     else onOpenChange(false);
   };
@@ -1140,15 +1149,18 @@ export function PromotionFormSheet({
                 const isActive = step.id === currentStep;
                 const isDone = step.id < currentStep;
                 const hasError = submitted && stepHasErrors(step.id);
+                const isLocked = isActiveSynced && step.id > 1 && step.id < 5;
                 return (
                   <Fragment key={step.id}>
                     <div className="flex flex-col items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setCurrentStep(step.id)}
-                        title={step.label}
+                        onClick={() => !isLocked && setCurrentStep(step.id)}
+                        disabled={isLocked}
+                        title={isLocked ? 'No editable — sincronizado en SAP' : step.label}
                         className={[
-                          'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all cursor-pointer hover:opacity-80 sm:size-9 sm:text-sm',
+                          'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all sm:size-9 sm:text-sm',
+                          isLocked ? 'cursor-not-allowed opacity-35' : 'cursor-pointer hover:opacity-80',
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30'
                             : hasError
@@ -1976,6 +1988,11 @@ export function PromotionFormSheet({
               {/* STEP 5: Resumen */}
               {currentStep === 5 && (
                 <div className="space-y-3">
+                  {isActiveSynced && (
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Solo se pueden editar datos generales — productos, alcance y mecánica están sincronizados en SAP.
+                    </div>
+                  )}
                   {submitted && [1, 2, 3, 4].some((s) => stepHasErrors(s)) && (
                     <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
                       <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15">
