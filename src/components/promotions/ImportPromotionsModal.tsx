@@ -117,6 +117,14 @@ const TITLE_FORBIDDEN = /[%\[\]{}<>@#&*^~`\\|]/;
 const VALID_ORIGINS = ['dinamica comercial', 'recurso propio'];
 const SCOPE_CUSTOMERS_VALUES = ['clientes especificos', 'clientes_especificos', 'customers', 'especificos'];
 
+function normalizeOrigin(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const lower = val.trim().toLowerCase();
+  if (lower === 'dinamica comercial') return 'Dinamica comercial';
+  if (lower === 'recurso propio') return 'Recurso propio';
+  return val.trim();
+}
+
 function resolveScope(alcance: string | null | undefined): 'all' | 'customers' {
   return SCOPE_CUSTOMERS_VALUES.includes((alcance ?? '').trim().toLowerCase()) ? 'customers' : 'all';
 }
@@ -504,7 +512,7 @@ function parseFile(file: File): Promise<ParsedImportRow[]> {
         const rows: ParsedImportRow[] = jsonData.map((row, index) => ({
           laboratory: String(row['Laboratorio'] ?? '').trim(),
           title: String(row['Titulo'] ?? '').trim(),
-          origin: row['Origen'] ? String(row['Origen']).trim() : null,
+          origin: normalizeOrigin(row['Origen'] ? String(row['Origen']) : null),
           start_date: formatExcelDate(row['Fecha_Inicio']),
           end_date: formatExcelDate(row['Fecha_Fin']),
           productos_raw: String(row['Productos'] ?? '').trim(),

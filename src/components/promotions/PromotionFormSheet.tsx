@@ -186,6 +186,14 @@ const STEP_META: Record<number, { icon: React.ElementType; description: string }
   5: { icon: CheckCircle2, description: 'Revisa los datos y confirma la promocion' },
 };
 
+function normalizeOrigin(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const lower = val.trim().toLowerCase();
+  if (lower === 'dinamica comercial') return 'Dinamica comercial';
+  if (lower === 'recurso propio') return 'Recurso propio';
+  return val.trim();
+}
+
 export function PromotionFormSheet({
   open,
   onOpenChange,
@@ -305,7 +313,7 @@ export function PromotionFormSheet({
         try {
           const details = await getPromotion(editingPromo.id);
           setLabId(details.lab_id);
-          setOrigin(details.origin || '');
+          setOrigin(normalizeOrigin(details.origin) || '');
           setTitle(details.title);
           setDescription(details.description || '');
           setStartDate(details.start_date);
