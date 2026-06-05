@@ -3,16 +3,28 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { generateAiText, listMarketingPromotions, MarketingPromotion, uploadMarketingFlashcard } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { ModuleErrorCard } from "@/components/common/ModuleErrorCard";
 import { ErrorDisabledContent } from "@/components/common/ErrorDisabledContent";
 import { PageHeader } from "@/components/common/PageHeader";
-import { Megaphone, Copy, Download, Sparkles, Loader2, ImageIcon, Save, Camera } from "lucide-react";
+import { Megaphone, Copy, Download, Sparkles, Loader2, ImageIcon, Save, Camera, ChevronsUpDown, Check } from "lucide-react";
 import { format } from "date-fns";
 import html2canvas from "html2canvas";
+import { cn } from "@/lib/utils";
+
+const STATUS_DOT: Record<string, string> = {
+  activa:     'bg-emerald-500',
+  borrador:   'bg-gray-400',
+  cancelada:  'bg-red-500',
+  finalizada: 'bg-slate-400',
+  revision:   'bg-amber-500',
+  aprobada:   'bg-blue-500',
+  pausada:    'bg-orange-500',
+};
 
 const MARKETING_AI_MODEL = (import.meta.env.VITE_MARKETING_AI_MODEL as string | undefined) ?? "gpt-4o-mini";
 const MARKETING_SYSTEM_PROMPT =
@@ -79,7 +91,7 @@ export default function Marketing() {
   const previousSelectedPromoIdRef = useRef<string>("");
 
   const {
-    data: promotions = [],
+    data: allPromotions = [],
     isLoading: isLoadingPromotions,
     isError,
     error: promotionsError,
@@ -90,7 +102,10 @@ export default function Marketing() {
     staleTime: 30_000,
   });
 
+  const promotions = allPromotions.filter((p) => p.status !== 'cancelada' && p.status !== 'finalizada');
+
   const [selectedPromoId, setSelectedPromoId] = useState<string>("");
+  const [comboOpen, setComboOpen] = useState(false);
   const [selectedPromo, setSelectedPromo] = useState<MarketingPromotion | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState("");
   const [displayedCopy, setDisplayedCopy] = useState("");
@@ -370,21 +385,52 @@ export default function Marketing() {
             <CardDescription>Elige una promocion para generar materiales</CardDescription>
           </CardHeader>
           <CardContent>
-            <Select value={selectedPromoId} onValueChange={setSelectedPromoId} disabled={isLoadingPromotions}>
-              <SelectTrigger className="w-full md:w-[400px]">
-                <SelectValue placeholder="Seleccionar promocion…" />
-              </SelectTrigger>
-              <SelectContent>
-                {promotions.map((promo) => (
-                  <SelectItem key={promo.id} value={promo.id}>
-                    <span className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${promo.status === "activa" ? "bg-green-500" : "bg-yellow-500"}`} />
-                      {promo.title} - {promo.laboratory_name || "Sin lab"}
+            <Popover open={comboOpen} onOpenChange={setComboOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={comboOpen}
+                  disabled={isLoadingPromotions}
+                  className="w-full md:w-[480px] justify-between font-normal"
+                >
+                  {selectedPromoId && selectedPromo ? (
+                    <span className="flex items-center gap-2 truncate">
+                      <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[selectedPromo.status] ?? 'bg-gray-400'}`} />
+                      <span className="truncate">{selectedPromo.title} — {selectedPromo.laboratory_name || 'Sin Laboratorio'}</span>
                     </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  ) : (
+                    <span className="text-muted-foreground">Seleccionar promocion…</span>
+                  )}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[480px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar promocion…" />
+                  <CommandList className="max-h-72">
+                    <CommandEmpty>No se encontraron promociones.</CommandEmpty>
+                    <CommandGroup>
+                      {promotions.map((promo) => (
+                        <CommandItem
+                          key={promo.id}
+                          value={`${promo.id} ${promo.title} ${promo.laboratory_name ?? ''} ${promo.status}`}
+                          onSelect={() => {
+                            setSelectedPromoId(promo.id);
+                            setComboOpen(false);
+                          }}
+                          className="gap-2.5"
+                        >
+                          <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[promo.status] ?? 'bg-gray-400'}`} />
+                          <span className="flex-1 truncate">{promo.title} — {promo.laboratory_name || 'Sin Laboratorio'}</span>
+                          <Check className={cn('size-4 shrink-0 text-primary', selectedPromoId === promo.id ? 'opacity-100' : 'opacity-0')} />
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </CardContent>
         </Card>
 

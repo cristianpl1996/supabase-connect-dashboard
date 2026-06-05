@@ -2,19 +2,34 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-import { CalendarPromotion, listCalendarPromotions } from '@/lib/api';
+import { listCalendarPromotions } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PromotionDetailsSheet } from '@/components/promotions/PromotionDetailsSheet';
 import { ModuleErrorCard } from '@/components/common/ModuleErrorCard';
 import { ErrorDisabledContent } from '@/components/common/ErrorDisabledContent';
 import { PageHeader } from '@/components/common/PageHeader';
-import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, Layers, Info } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addMonths, subMonths, differenceInDays, isBefore, isAfter } from 'date-fns';
+import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, Layers, ChevronsUpDown, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addMonths, subMonths, differenceInDays, isBefore, isAfter, getMonth, getYear, setMonth, setYear } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 1 + i);
+
+const MECHANIC_TYPE_LABELS: Record<string, string> = {
+  descuento_linea:        'Descuento en Línea',
+  bonificacion_cantidad:  'Bonificación',
+  precio_especial:        'Precio Especial',
+  descuento_volumen:      'Desc. por Volumen',
+  bonificacion_volumen:   'Bonif. por Volumen',
+  combo:                  'Combo',
+};
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   Antipulgas:     { bg: 'bg-sky-100 dark:bg-sky-900/30',      border: 'border-sky-400',     text: 'text-sky-800 dark:text-sky-200' },
@@ -29,7 +44,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  activa:     'bg-emerald-50 text-emerald-700 border-emerald-300',
+  activa:     'bg-primary/10 text-primary border-primary',
   borrador:   'bg-white text-gray-900 border-gray-300',
   cancelada:  'bg-red-50 text-red-700 border-red-300',
   finalizada: 'bg-slate-100 text-slate-500 border-slate-300',
@@ -40,7 +55,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 const BAR_STATUS_STYLES: Record<string, { bg: string; border: string; text: string }> = {
   activa:     { bg: 'bg-primary/10',  border: 'border-primary',     text: 'text-primary' },
-  borrador:   { bg: 'bg-gray-100',    border: 'border-gray-300',    text: 'text-gray-700' },
+  borrador:   { bg: 'bg-gray-200',    border: 'border-gray-400',    text: 'text-gray-600' },
   cancelada:  { bg: 'bg-red-50',      border: 'border-red-400',     text: 'text-red-700' },
   finalizada: { bg: 'bg-slate-100',   border: 'border-slate-400',   text: 'text-slate-600' },
   revision:   { bg: 'bg-amber-50',    border: 'border-amber-400',   text: 'text-amber-700' },
@@ -79,6 +94,7 @@ interface GanttPromo {
   title: string;
   labName: string;
   category: string;
+  mechanicType: string;
   startDate: Date;
   endDate: Date;
   status: string;
@@ -92,20 +108,27 @@ const Calendar = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedLab, setSelectedLab] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedMechanic, setSelectedMechanic] = useState<string>('all');
+  const [selectedPromoFilter, setSelectedPromoFilter] = useState<string>('all');
+  const [promoComboOpen, setPromoComboOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedPromoId, setSelectedPromoId] = useState<string | null>(null);
 
   const {
-    data: promotions = [],
+    data: allCalendarPromotions = [],
     isLoading,
     isError,
     error,
     refetch,
   } = useQuery({
     queryKey: ['calendar-promotions'],
-    queryFn: listCalendarPromotions,
+    queryFn: () => listCalendarPromotions(),
     staleTime: 60_000,
   });
+
+  const promotions = allCalendarPromotions.filter(
+    (p) => p.status === 'activa' || p.status === 'borrador',
+  );
 
   const ganttItems = useMemo(() => {
     const dynamicColorMap = new Map<string, typeof CATEGORY_COLORS.default>();
@@ -114,6 +137,7 @@ const Calendar = () => {
       title: promo.title,
       labName: promo.laboratory_name || 'Sin Laboratorio',
       category: promo.derived_category,
+      mechanicType: promo.mechanic?.promotion_type_label || MECHANIC_TYPE_LABELS[promo.mechanic?.promotion_type ?? ''] || 'Sin mecánica',
       startDate: parseISO(promo.start_date),
       endDate: parseISO(promo.end_date),
       status: promo.status,
@@ -137,13 +161,41 @@ const Calendar = () => {
       ganttItems.items.filter((item) => {
         if (selectedLab !== 'all' && item.labName !== selectedLab) return false;
         if (selectedStatus !== 'all' && item.status !== selectedStatus) return false;
+        if (selectedMechanic !== 'all' && item.mechanicType !== selectedMechanic) return false;
+        if (selectedPromoFilter !== 'all' && item.id !== selectedPromoFilter) return false;
         return !(isAfter(item.startDate, monthEnd) || isBefore(item.endDate, monthStart));
       }),
-    [ganttItems.items, selectedLab, selectedStatus, monthEnd, monthStart],
+    [ganttItems.items, selectedLab, selectedStatus, selectedMechanic, selectedPromoFilter, monthEnd, monthStart],
   );
 
-  const allLabs = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.labName))).filter(Boolean).sort(), [ganttItems.items]);
-  const allStatuses = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.status))).sort(), [ganttItems.items]);
+
+  const monthItems = useMemo(
+    () => ganttItems.items.filter((item) => !(isAfter(item.startDate, monthEnd) || isBefore(item.endDate, monthStart))),
+    [ganttItems.items, monthStart, monthEnd],
+  );
+
+  const promoOptions = useMemo(
+    () => monthItems.map((item) => ({ id: item.id, label: `${item.title} — ${item.labName}` })),
+    [monthItems],
+  );
+
+  const allLabs = useMemo(() => {
+    const base = selectedStatus === 'all' ? monthItems : monthItems.filter((item) => item.status === selectedStatus);
+    const names = Array.from(new Set(base.map((item) => item.labName))).filter(Boolean);
+    return names.sort((a, b) => a === 'Sin Laboratorio' ? 1 : b === 'Sin Laboratorio' ? -1 : a.localeCompare(b));
+  }, [monthItems, selectedStatus]);
+
+  const allStatuses = useMemo(() => {
+    const base = selectedLab === 'all' ? monthItems : monthItems.filter((item) => item.labName === selectedLab);
+    return Array.from(new Set(base.map((item) => item.status))).sort();
+  }, [monthItems, selectedLab]);
+
+  const allMechanics = useMemo(() => {
+    const base = monthItems
+      .filter((item) => selectedLab === 'all' || item.labName === selectedLab)
+      .filter((item) => selectedStatus === 'all' || item.status === selectedStatus);
+    return Array.from(new Set(base.map((item) => item.mechanicType))).filter(Boolean).sort();
+  }, [monthItems, selectedLab, selectedStatus]);
   const conflictCount = useMemo(() => ganttItems.items.filter((item) => item.hasConflict).length, [ganttItems.items]);
 
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);
@@ -176,34 +228,6 @@ const Calendar = () => {
         icon={CalendarDays}
         title="Calendario Comercial"
         description="Linea de tiempo de promociones con deteccion de canibalizacion"
-        actions={(
-          <div className="flex items-center gap-2">
-            <Select value={selectedLab} onValueChange={setSelectedLab} disabled={isLoading}>
-              <SelectTrigger className="w-full sm:w-52">
-                <SelectValue placeholder="Todos los laboratorios" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border border-border shadow-md z-50">
-                <SelectItem value="all">Todos los laboratorios</SelectItem>
-                {allLabs.map((lab) => (
-                  <SelectItem key={lab} value={lab}>{lab}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus} disabled={isLoading}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Todos los estados" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border border-border shadow-md z-50">
-                <SelectItem value="all">Todos los estados</SelectItem>
-                {allStatuses.map((st) => (
-                  <SelectItem key={st} value={st}>
-                    {STATUS_LABELS[st] ?? st}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       />
       </ErrorDisabledContent>
 
@@ -265,33 +289,128 @@ const Calendar = () => {
 
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center justify-between gap-2 sm:justify-start">
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={isLoading}>
-                <ChevronLeft className="size-4" />
-              </Button>
-              <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-foreground sm:min-w-[200px] sm:text-xl">
-                {format(currentMonth, 'MMMM yyyy', { locale: es })}
-              </h2>
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={isLoading}>
-                <ChevronRight className="size-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={isLoading} className="text-xs text-muted-foreground">
-                Hoy
-              </Button>
+          <div className="flex flex-col gap-3">
+            {/* Filter row — full width, filters first */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[2fr_0.8fr_0.6fr_1.3fr_1fr_1fr]">
+              <Popover open={promoComboOpen} onOpenChange={setPromoComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={promoComboOpen} className="w-full justify-between text-sm font-normal" disabled={isLoading}>
+                    <span className="truncate">
+                      {selectedPromoFilter === 'all'
+                        ? 'Buscar promoción...'
+                        : promoOptions.find((p) => p.id === selectedPromoFilter)?.label ?? 'Buscar promoción...'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start" style={{ width: 'var(--radix-popover-trigger-width)' }}>
+                  <Command>
+                    <CommandInput placeholder="Buscar promoción..." />
+                    <CommandList>
+                      <CommandEmpty>Sin resultados.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="all" onSelect={() => { setSelectedPromoFilter('all'); setPromoComboOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', selectedPromoFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                          Todas las promociones
+                        </CommandItem>
+                        {promoOptions.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={`${p.id} ${p.label}`}
+                            onSelect={() => { setSelectedPromoFilter(p.id); setPromoComboOpen(false); }}
+                          >
+                            <Check className={cn('mr-2 size-4', selectedPromoFilter === p.id ? 'opacity-100' : 'opacity-0')} />
+                            {p.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              <Select value={String(getMonth(currentMonth))} onValueChange={(v) => setCurrentMonth((prev) => setMonth(prev, Number(v)))} disabled={isLoading}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_NAMES.map((name, idx) => (
+                    <SelectItem key={idx} value={String(idx)}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={String(getYear(currentMonth))} onValueChange={(v) => setCurrentMonth((prev) => setYear(prev, Number(v)))} disabled={isLoading}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {YEAR_OPTIONS.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedLab} onValueChange={setSelectedLab} disabled={isLoading}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Laboratorio" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border border-border shadow-md z-50">
+                  <SelectItem value="all">Todos los laboratorios</SelectItem>
+                  {allLabs.map((lab) => (
+                    <SelectItem key={lab} value={lab}>{lab}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedStatus} onValueChange={setSelectedStatus} disabled={isLoading}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border border-border shadow-md z-50">
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {allStatuses.map((st) => (
+                    <SelectItem key={st} value={st}>{STATUS_LABELS[st] ?? st}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedMechanic} onValueChange={setSelectedMechanic} disabled={isLoading}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Mecánica" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border border-border shadow-md z-50">
+                  <SelectItem value="all">Todas las mecánicas</SelectItem>
+                  {allMechanics.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="hidden lg:flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Info className="size-3" />
-                <span>Estados:</span>
+
+            {/* Nav row */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
+                <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))} disabled={isLoading}>
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <h2 className="min-w-0 flex-1 text-center text-base font-semibold capitalize text-foreground sm:min-w-[200px] sm:text-xl">
+                  {format(currentMonth, 'MMMM yyyy', { locale: es })}
+                </h2>
+                <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))} disabled={isLoading}>
+                  <ChevronRight className="size-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date())} disabled={isLoading} className="text-xs text-muted-foreground">
+                  Hoy
+                </Button>
               </div>
-              {allStatuses.map((st) => (
-                <div key={st} className="flex items-center gap-1.5">
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[st] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
+              <div className="hidden lg:flex items-center gap-3 flex-wrap">
+                {allStatuses.map((st) => (
+                  <span key={st} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[st] ?? 'bg-white text-gray-900 border-gray-300'}`}>
                     {STATUS_LABELS[st] ?? st}
                   </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -348,7 +467,7 @@ const Calendar = () => {
             <div className="hidden overflow-x-auto md:block">
               <div className="min-w-[900px]">
                 <div className="grid gap-px mb-1" style={{ gridTemplateColumns: `180px repeat(${daysInMonth.length}, 1fr)` }}>
-                  <div className="text-xs font-medium text-muted-foreground p-2">Promocion</div>
+                  <div className="text-xs font-medium text-muted-foreground p-2">Laboratorios</div>
                   {daysInMonth.map((day) => {
                     const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                     const isWeekend = getDay(day) === 0 || getDay(day) === 6;
@@ -421,7 +540,7 @@ const Calendar = () => {
                                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[row.status] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
                                       {STATUS_LABELS[row.status] ?? row.status}
                                     </span>
-                                    <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                    <span className="inline-flex items-center rounded-full border  px-2 py-0.5 text-[10px] font-medium text-gray-900 border-gray-300}">
                                       {row.labName}
                                     </span>
                                   </div>
