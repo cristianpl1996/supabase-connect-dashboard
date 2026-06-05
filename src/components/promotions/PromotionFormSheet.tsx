@@ -1324,7 +1324,7 @@ export function PromotionFormSheet({
                       )}
 
                       {/* Selected products card */}
-                      <div className={cn("rounded-lg border", selectedProductSkus.length === 0 && "border-dashed")}>
+                      <div className={cn("rounded-lg border", selectedProductSkus.length === 0 && "border-dashed", isActiveSynced && "pointer-events-auto")}>
                         <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                           <div className="flex items-center gap-2">
                             <Package className={cn("size-4 shrink-0", selectedProductSkus.length === 0 ? "text-muted-foreground/50" : "text-primary")} />
@@ -1355,7 +1355,7 @@ export function PromotionFormSheet({
                                   <button
                                     type="button"
                                     onClick={() => setSelectedProductSkus((prev) => prev.filter((item) => item !== sku))}
-                                    className="text-muted-foreground transition-colors hover:text-destructive"
+                                    className={cn("text-muted-foreground transition-colors hover:text-destructive", isActiveSynced && "pointer-events-none")}
                                   >
                                     <X className="size-3.5" />
                                   </button>
@@ -1408,7 +1408,7 @@ export function PromotionFormSheet({
                           ? allSorted.filter((p) => (p.product_commercial_name || p.product_sku).toLowerCase().includes(searchTerm) || p.product_sku.toLowerCase().includes(searchTerm))
                           : allSorted;
                         return (
-                          <div className={cn("rounded-lg border", !hasProductFilters && "border-dashed")}>
+                          <div className={cn("rounded-lg border", !hasProductFilters && "border-dashed", isActiveSynced && "pointer-events-auto")}>
                             <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 {productFilterFetching
@@ -1464,11 +1464,11 @@ export function PromotionFormSheet({
                                         <div className="flex shrink-0 items-center gap-2">
                                           <span className="font-mono text-xs text-muted-foreground">{p.product_sku}</span>
                                           {isExcluded ? (
-                                            <button type="button" title="Volver a incluir" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: st.filterExcludedSkus.filter((s) => s !== p.product_sku) }))} className="text-muted-foreground hover:text-primary">
+                                            <button type="button" title="Volver a incluir" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: st.filterExcludedSkus.filter((s) => s !== p.product_sku) }))} className={cn("text-muted-foreground hover:text-primary", isActiveSynced && "pointer-events-none")}>
                                               <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                                             </button>
                                           ) : (
-                                            <button type="button" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: [...st.filterExcludedSkus, p.product_sku] }))} className="text-muted-foreground transition-colors hover:text-destructive">
+                                            <button type="button" onClick={() => setProdFilterState((st) => ({ ...st, filterExcludedSkus: [...st.filterExcludedSkus, p.product_sku] }))} className={cn("text-muted-foreground transition-colors hover:text-destructive", isActiveSynced && "pointer-events-none")}>
                                               <X className="size-3.5" />
                                             </button>
                                           )}
@@ -1534,7 +1534,7 @@ export function PromotionFormSheet({
                           {loadingMoreCustomers && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Cargando más…</div>}
                         </div>
                       )}
-                      <div className={cn("rounded-lg border", selectedCustomerIds.length === 0 && "border-dashed")}>
+                      <div className={cn("rounded-lg border", selectedCustomerIds.length === 0 && "border-dashed", isActiveSynced && "pointer-events-auto")}>
                         <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                           <div className="flex items-center gap-2">
                             <Users className={cn("size-4 shrink-0", selectedCustomerIds.length === 0 ? "text-muted-foreground/50" : "text-primary")} />
@@ -1556,7 +1556,7 @@ export function PromotionFormSheet({
                                 <span className="min-w-0 truncate">{customerNameMap[id] ?? `Cliente ${id}`}</span>
                                 <div className="flex shrink-0 items-center gap-2">
                                   <span className="font-mono text-xs text-muted-foreground">{id}</span>
-                                  <button type="button" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))}><X className="size-3.5 text-muted-foreground hover:text-foreground" /></button>
+                                  <button type="button" onClick={() => setSelectedCustomerIds((prev) => prev.filter((item) => item !== id))} className={isActiveSynced ? 'pointer-events-none' : ''}><X className="size-3.5 text-muted-foreground hover:text-foreground" /></button>
                                 </div>
                               </div>
                             ))}
@@ -1656,7 +1656,7 @@ export function PromotionFormSheet({
                                 })
                               : allSortedC;
                             return (
-                              <div className={cn("rounded-lg border", !hasCustomerFilters && "border-dashed")}>
+                              <div className={cn("rounded-lg border", !hasCustomerFilters && "border-dashed", isActiveSynced && "pointer-events-auto")}>
                                 <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                                   <div className="flex items-center gap-2">
                                     {customerFilterFetching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <SlidersHorizontal className={cn("size-4 shrink-0", !hasCustomerFilters ? "text-muted-foreground/50" : isZero ? "text-destructive" : "text-primary")} />}
@@ -1695,11 +1695,11 @@ export function PromotionFormSheet({
                                             <div className="flex shrink-0 items-center gap-2">
                                               <span className="font-mono text-xs text-muted-foreground">{nit}</span>
                                               {isExcluded ? (
-                                                <button type="button" title="Volver a incluir" onClick={() => setCustFilterState((s) => ({ ...s, customerExcludedIds: s.customerExcludedIds.filter((id) => id !== nit) }))} className="text-muted-foreground hover:text-primary">
+                                                <button type="button" title="Volver a incluir" onClick={() => setCustFilterState((s) => ({ ...s, customerExcludedIds: s.customerExcludedIds.filter((id) => id !== nit) }))} className={cn("text-muted-foreground hover:text-primary", isActiveSynced && "pointer-events-none")}>
                                                   <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                                                 </button>
                                               ) : (
-                                                <button type="button" title="Excluir" onClick={() => { if (nit) setCustFilterState((s) => ({ ...s, customerExcludedIds: [...s.customerExcludedIds, nit] })); }}><X className="size-3.5 text-muted-foreground hover:text-destructive" /></button>
+                                                <button type="button" title="Excluir" onClick={() => { if (nit) setCustFilterState((s) => ({ ...s, customerExcludedIds: [...s.customerExcludedIds, nit] })); }} className={isActiveSynced ? 'pointer-events-none' : ''}><X className="size-3.5 text-muted-foreground hover:text-destructive" /></button>
                                               )}
                                             </div>
                                           </div>
@@ -1731,7 +1731,7 @@ export function PromotionFormSheet({
                               <X className="size-3" />Limpiar
                             </button>
                           </div>
-                          <div className={cn("rounded-lg border", customerFilterCount === null && "border-dashed")}>
+                          <div className={cn("rounded-lg border", customerFilterCount === null && "border-dashed", isActiveSynced && "pointer-events-auto")}>
                             <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                               <div className="flex items-center gap-2">
                                 {customerFilterFetching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <SlidersHorizontal className={cn("size-4 shrink-0", customerFilterCount === null ? "text-muted-foreground/50" : customerFilterCount === 0 ? "text-destructive" : "text-primary")} />}
@@ -1981,7 +1981,7 @@ export function PromotionFormSheet({
                   {isActiveSynced && (
                     <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                       <Info className="size-4 shrink-0" />
-                      Solo se pueden editar datos generales — productos, alcance y mecánica están sincronizados en SAP.
+                      Solo se pueden editar datos generales, productos, alcance y regla comercial están sincronizados en SAP.
                     </div>
                   )}
                   {submitted && [1, 2, 3, 4].some((s) => stepHasErrors(s)) && (
