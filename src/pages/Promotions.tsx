@@ -192,24 +192,61 @@ const Promotions = () => {
       const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions']);
       queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
-        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === promo.id ? { ...p, status: newStatus as PromotionListItem['status'] } : p) })) };
+        return {
+          ...prev,
+          pages: prev.pages.map((page) => ({
+            ...page,
+            data: page.data.map((p) =>
+              p.id === promo.id
+                ? {
+                    ...p,
+                    status: newStatus as PromotionListItem['status'],
+                    // Mostrar "Sincronizando…" en el badge mientras dura la llamada API
+                    sap_sync_status: newStatus === 'activa' ? 'pending' : p.sap_sync_status,
+                  }
+                : p
+            ),
+          })),
+        };
       });
       return { previous };
     },
     onSuccess: ({ result, sapError }) => {
       queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
-        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === result.id ? { ...p, status: result.status as PromotionListItem['status'], sap_sync_status: (result as Record<string, unknown>).sap_sync_status as string | null } : p) })) };
+        return {
+          ...prev,
+          pages: prev.pages.map((page) => ({
+            ...page,
+            data: page.data.map((p) =>
+              p.id === result.id
+                ? {
+                    ...p,
+                    status: result.status as PromotionListItem['status'],
+                    sap_sync_status: result.sap_sync_status ?? null,
+                    sap_campaign_number: result.sap_campaign_number ?? null,
+                    sap_sync_error: result.sap_sync_error ?? null,
+                  }
+                : p
+            ),
+          })),
+        };
       });
       if (sapError) {
         toast.warning('No se pudo activar — error SAP', { description: sapError, duration: 8000 });
+      } else if (result.status === 'borrador' && result.sap_sync_status === 'pending') {
+        // >500 clientes: la campaña quedó en borrador mientras Celery sincroniza con SAP
+        toast.warning('Sincronizando con SAP', {
+          description: 'La campaña se activará automáticamente cuando finalice.',
+          duration: 7000,
+        });
       } else if (result.status === 'activa' && result.sap_sync_status === 'pending') {
         toast.warning('Activando sincronización con SAP', {
           description: 'Se actualizará automáticamente cuando finalice.',
           duration: 7000,
         });
       } else if (result.sap_sync_status === 'failed') {
-        toast.warning('Activada, pero el sync con SAP falló', {
+        toast.warning('Sync con SAP falló', {
           description: 'Abre la promoción para ver el error y reintentar.',
           duration: 8000,
         });
@@ -872,7 +909,15 @@ const Promotions = () => {
                           <Switch
                             checked={promo.status === 'activa'}
                             onCheckedChange={() => handleToggleStatus(promo)}
-                            disabled={isLoading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
+                            disabled={
+                            isLoading ||
+                            togglingStatusId === promo.id ||
+                            promo.status === 'cancelada' ||
+                            promo.status === 'finalizada' ||
+                            (promo.status === 'activa' && !!promo.sap_campaign_number) ||
+                            promo.sap_sync_status === 'pending' ||
+                            promo.sap_sync_status === 'processing'
+                          }
                             aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                           />
                         </div>
@@ -968,7 +1013,15 @@ const Promotions = () => {
                               <Switch
                                 checked={promo.status === 'activa'}
                                 onCheckedChange={() => handleToggleStatus(promo)}
-                                disabled={isLoading || togglingStatusId === promo.id || promo.status === 'cancelada' || promo.status === 'finalizada'}
+                                disabled={
+                            isLoading ||
+                            togglingStatusId === promo.id ||
+                            promo.status === 'cancelada' ||
+                            promo.status === 'finalizada' ||
+                            (promo.status === 'activa' && !!promo.sap_campaign_number) ||
+                            promo.sap_sync_status === 'pending' ||
+                            promo.sap_sync_status === 'processing'
+                          }
                                 aria-label={`${promo.status === 'activa' ? 'Desactivar' : 'Activar'} promocion`}
                               />
                             </TableCell>
