@@ -17,15 +17,35 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, 
 import { es } from 'date-fns/locale';
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  Antipulgas: { bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-400', text: 'text-blue-800 dark:text-blue-200' },
-  Antibioticos: { bg: 'bg-amber-100 dark:bg-amber-900/30', border: 'border-amber-400', text: 'text-amber-800 dark:text-amber-200' },
-  Nutricion: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', border: 'border-emerald-400', text: 'text-emerald-800 dark:text-emerald-200' },
-  Vacunas: { bg: 'bg-purple-100 dark:bg-purple-900/30', border: 'border-purple-400', text: 'text-purple-800 dark:text-purple-200' },
-  Desparasitantes: { bg: 'bg-rose-100 dark:bg-rose-900/30', border: 'border-rose-400', text: 'text-rose-800 dark:text-rose-200' },
-  Dermatologia: { bg: 'bg-cyan-100 dark:bg-cyan-900/30', border: 'border-cyan-400', text: 'text-cyan-800 dark:text-cyan-200' },
-  Analgesicos: { bg: 'bg-orange-100 dark:bg-orange-900/30', border: 'border-orange-400', text: 'text-orange-800 dark:text-orange-200' },
-  Suplementos: { bg: 'bg-teal-100 dark:bg-teal-900/30', border: 'border-teal-400', text: 'text-teal-800 dark:text-teal-200' },
-  default: { bg: 'bg-muted', border: 'border-muted-foreground/30', text: 'text-muted-foreground' },
+  Antipulgas:     { bg: 'bg-sky-100 dark:bg-sky-900/30',      border: 'border-sky-400',     text: 'text-sky-800 dark:text-sky-200' },
+  Antibioticos:   { bg: 'bg-amber-100 dark:bg-amber-900/30',  border: 'border-amber-400',   text: 'text-amber-800 dark:text-amber-200' },
+  Nutricion:      { bg: 'bg-lime-100 dark:bg-lime-900/30',    border: 'border-lime-500',    text: 'text-lime-800 dark:text-lime-200' },
+  Vacunas:        { bg: 'bg-violet-100 dark:bg-violet-900/30',border: 'border-violet-400',  text: 'text-violet-800 dark:text-violet-200' },
+  Desparasitantes:{ bg: 'bg-rose-100 dark:bg-rose-900/30',    border: 'border-rose-400',    text: 'text-rose-800 dark:text-rose-200' },
+  Dermatologia:   { bg: 'bg-cyan-100 dark:bg-cyan-900/30',    border: 'border-cyan-400',    text: 'text-cyan-800 dark:text-cyan-200' },
+  Analgesicos:    { bg: 'bg-orange-100 dark:bg-orange-900/30',border: 'border-orange-400',  text: 'text-orange-800 dark:text-orange-200' },
+  Suplementos:    { bg: 'bg-teal-100 dark:bg-teal-900/30',    border: 'border-teal-400',    text: 'text-teal-800 dark:text-teal-200' },
+  default:        { bg: 'bg-primary/10 dark:bg-primary/20',   border: 'border-primary/50',  text: 'text-primary' },
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  activa:     'bg-emerald-50 text-emerald-700 border-emerald-300',
+  borrador:   'bg-gray-100 text-gray-600 border-gray-300',
+  cancelada:  'bg-red-50 text-red-700 border-red-300',
+  finalizada: 'bg-slate-100 text-slate-500 border-slate-300',
+  revision:   'bg-amber-50 text-amber-700 border-amber-300',
+  aprobada:   'bg-blue-50 text-blue-700 border-blue-300',
+  pausada:    'bg-orange-50 text-orange-700 border-orange-300',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  activa:     'Activa',
+  borrador:   'Borrador',
+  cancelada:  'Cancelada',
+  finalizada: 'Finalizada',
+  revision:   'En revisión',
+  aprobada:   'Aprobada',
+  pausada:    'Pausada',
 };
 
 const FALLBACK_COLORS = [
@@ -55,12 +75,13 @@ interface GanttPromo {
   estimatedCost: number;
   hasConflict: boolean;
   conflictWith: string[];
-  promotion: Promotion;
+  promotion: { id: string };
 }
 
 const Calendar = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedLab, setSelectedLab] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedPromoId, setSelectedPromoId] = useState<string | null>(null);
 
@@ -89,25 +110,7 @@ const Calendar = () => {
       estimatedCost: promo.estimated_cost || 0,
       hasConflict: promo.has_conflict,
       conflictWith: promo.conflict_with,
-      promotion: {
-        id: promo.id,
-        lab_id: promo.lab_id,
-        laboratory_name: promo.laboratory_name,
-        created_by_role: 'admin',
-        title: promo.title,
-        description: null,
-        start_date: promo.start_date,
-        end_date: promo.end_date,
-        status: promo.status,
-        estimated_cost: promo.estimated_cost,
-        max_redemptions: null,
-        current_redemptions: 0,
-        target_segment: promo.derived_category === 'General' ? { type: 'todo' } : { category: promo.derived_category },
-        flash_card_url: null,
-        marketing_copy: null,
-        created_at: promo.start_date,
-        mechanic: promo.mechanic,
-      },
+      promotion: { id: promo.id },
     }));
     items.forEach((item) => {
       getCategoryColor(item.category, dynamicColorMap);
@@ -122,13 +125,15 @@ const Calendar = () => {
   const visibleItems = useMemo(
     () =>
       ganttItems.items.filter((item) => {
-        if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
+        if (selectedLab !== 'all' && item.labName !== selectedLab) return false;
+        if (selectedStatus !== 'all' && item.status !== selectedStatus) return false;
         return !(isAfter(item.startDate, monthEnd) || isBefore(item.endDate, monthStart));
       }),
-    [ganttItems.items, selectedCategory, monthEnd, monthStart],
+    [ganttItems.items, selectedLab, selectedStatus, monthEnd, monthStart],
   );
 
-  const allCategories = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.category))).sort(), [ganttItems.items]);
+  const allLabs = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.labName))).filter(Boolean).sort(), [ganttItems.items]);
+  const allStatuses = useMemo(() => Array.from(new Set(ganttItems.items.map((item) => item.status))).sort(), [ganttItems.items]);
   const conflictCount = useMemo(() => ganttItems.items.filter((item) => item.hasConflict).length, [ganttItems.items]);
 
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);
@@ -162,20 +167,31 @@ const Calendar = () => {
         title="Calendario Comercial"
         description="Linea de tiempo de promociones con deteccion de canibalizacion"
         actions={(
-          <div className="flex items-center gap-3">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isLoading}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filtrar categoria" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover border border-border shadow-md z-50">
-              <SelectItem value="all">Todas las categorias</SelectItem>
-              {allCategories.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {cat}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={selectedLab} onValueChange={setSelectedLab} disabled={isLoading}>
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue placeholder="Todos los laboratorios" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border border-border shadow-md z-50">
+                <SelectItem value="all">Todos los laboratorios</SelectItem>
+                {allLabs.map((lab) => (
+                  <SelectItem key={lab} value={lab}>{lab}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus} disabled={isLoading}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Todos los estados" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border border-border shadow-md z-50">
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {allStatuses.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {STATUS_LABELS[st] ?? st}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
       />
@@ -257,17 +273,15 @@ const Calendar = () => {
             <div className="hidden lg:flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Info className="size-3" />
-                <span>Leyenda:</span>
+                <span>Estados:</span>
               </div>
-              {allCategories.slice(0, 6).map((cat) => {
-                const colors = getCategoryColor(cat, ganttItems.dynamicColorMap);
-                return (
-                  <div key={cat} className="flex items-center gap-1.5">
-                    <div className={`h-3 w-8 rounded-sm border ${colors.bg} ${colors.border}`} />
-                    <span className="text-xs text-muted-foreground">{cat}</span>
-                  </div>
-                );
-              })}
+              {allStatuses.map((st) => (
+                <div key={st} className="flex items-center gap-1.5">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[st] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
+                    {STATUS_LABELS[st] ?? st}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </CardHeader>
@@ -306,8 +320,12 @@ const Calendar = () => {
                       {row.hasConflict && <AlertTriangle className="size-4 shrink-0 text-destructive" />}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Badge variant="outline">{row.category}</Badge>
-                      <Badge variant={row.status === 'revision' ? 'destructive' : 'secondary'}>{row.status}</Badge>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[row.status] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
+                        {STATUS_LABELS[row.status] ?? row.status}
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        {row.labName}
+                      </span>
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">
                       {format(row.startDate, 'dd MMM', { locale: es })} - {format(row.endDate, 'dd MMM yyyy', { locale: es })} ({row.totalDays} dias)
@@ -386,28 +404,23 @@ const Calendar = () => {
                                   )}
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs z-50">
-                                <div className="space-y-1.5">
-                                  <p className="font-semibold">
-                                    {row.labName} - {row.title}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-[10px]">
-                                      {row.category}
-                                    </Badge>
-                                    <Badge variant={row.status === 'revision' ? 'destructive' : 'outline'} className="text-[10px]">
-                                      {row.status}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    {format(row.startDate, 'dd MMM', { locale: es })} - {format(row.endDate, 'dd MMM yyyy', { locale: es })} ({row.totalDays} dias)
-                                  </p>
-                                  <div className="flex gap-3 text-xs">
-                                    <span>
-                                      Costo Est: <strong>{formatCurrency(row.estimatedCost)}</strong>
+                              <TooltipContent side="top" className="max-w-xs z-50 p-3">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-semibold leading-tight">{row.title}</p>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[row.status] ?? 'bg-gray-100 text-gray-600 border-gray-300'}`}>
+                                      {STATUS_LABELS[row.status] ?? row.status}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                      {row.labName}
                                     </span>
                                   </div>
-                                  {row.hasConflict && <p className="text-xs text-destructive font-medium">Conflicto con: {row.conflictWith.join(', ')}</p>}
+                                  <p className="text-xs text-muted-foreground">
+                                    {format(row.startDate, 'dd MMM', { locale: es })} — {format(row.endDate, 'dd MMM yyyy', { locale: es })} · {row.totalDays} días
+                                  </p>
+                                  {row.hasConflict && (
+                                    <p className="text-xs font-medium text-destructive">⚠ Conflicto con: {row.conflictWith.join(', ')}</p>
+                                  )}
                                 </div>
                               </TooltipContent>
                             </Tooltip>

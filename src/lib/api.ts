@@ -1337,30 +1337,47 @@ export function getProductFilterOptions(): Promise<ProductFilterOptions> {
 
 // ─── In-memory TTL cache shared across all callers ───────────────────────────
 const CATALOG_TTL_MS = 30 * 60 * 1000; // 30 minutes
-let _allProductsCache: ProductCatalogItem[] | null = null;
+
+export interface ProductNameItem {
+  product_sku: string;
+  product_commercial_name: string | null;
+}
+
+export interface CustomerNameItem {
+  customer_government_id: string;
+  customer_full_name: string | null;
+}
+
+function getProductNamesPage(limit: number, offset: number): Promise<ApiListResponse<ProductNameItem>> {
+  return apiFetch<ApiListResponse<ProductNameItem>>(withQuery("/api/v1/products/names", { limit, offset }));
+}
+
+function getCustomerNamesPage(limit: number, offset: number): Promise<ApiListResponse<CustomerNameItem>> {
+  return apiFetch<ApiListResponse<CustomerNameItem>>(withQuery("/api/v1/customers/names", { limit, offset }));
+}
+
+let _allProductsCache: ProductNameItem[] | null = null;
 let _allProductsCachedAt = 0;
-let _allProductsInflight: Promise<ProductCatalogItem[]> | null = null;
+let _allProductsInflight: Promise<ProductNameItem[]> | null = null;
 
-let _allCustomersCache: CustomerRecord[] | null = null;
+let _allCustomersCache: CustomerNameItem[] | null = null;
 let _allCustomersCachedAt = 0;
-let _allCustomersInflight: Promise<CustomerRecord[]> | null = null;
+let _allCustomersInflight: Promise<CustomerNameItem[]> | null = null;
 
-export async function getAllProducts(): Promise<ProductCatalogItem[]> {
+export async function getAllProducts(): Promise<ProductNameItem[]> {
   if (_allProductsCache && Date.now() - _allProductsCachedAt < CATALOG_TTL_MS) {
     return _allProductsCache;
   }
   if (_allProductsInflight) return _allProductsInflight;
   _allProductsInflight = (async () => {
     const PAGE = 1000;
-    const first = await getProductsPage({ limit: PAGE, offset: 0, sort_by: 'sku', sort_dir: 'asc' });
+    const first = await getProductNamesPage(PAGE, 0);
     const total = first.meta?.count ?? first.data.length;
-    const results: ProductCatalogItem[] = [...first.data];
+    const results: ProductNameItem[] = [...first.data];
     const pages = Math.ceil(total / PAGE);
     if (pages > 1) {
       const rest = await Promise.all(
-        Array.from({ length: pages - 1 }, (_, i) =>
-          getProductsPage({ limit: PAGE, offset: (i + 1) * PAGE, sort_by: 'sku', sort_dir: 'asc' })
-        )
+        Array.from({ length: pages - 1 }, (_, i) => getProductNamesPage(PAGE, (i + 1) * PAGE))
       );
       for (const res of rest) results.push(...res.data);
     }
@@ -1372,22 +1389,20 @@ export async function getAllProducts(): Promise<ProductCatalogItem[]> {
   return _allProductsInflight;
 }
 
-export async function getAllCustomers(): Promise<CustomerRecord[]> {
+export async function getAllCustomers(): Promise<CustomerNameItem[]> {
   if (_allCustomersCache && Date.now() - _allCustomersCachedAt < CATALOG_TTL_MS) {
     return _allCustomersCache;
   }
   if (_allCustomersInflight) return _allCustomersInflight;
   _allCustomersInflight = (async () => {
     const PAGE = 1000;
-    const first = await getCustomersPage({ limit: PAGE, offset: 0 });
+    const first = await getCustomerNamesPage(PAGE, 0);
     const total = first.meta?.count ?? first.data.length;
-    const results: CustomerRecord[] = [...first.data];
+    const results: CustomerNameItem[] = [...first.data];
     const pages = Math.ceil(total / PAGE);
     if (pages > 1) {
       const rest = await Promise.all(
-        Array.from({ length: pages - 1 }, (_, i) =>
-          getCustomersPage({ limit: PAGE, offset: (i + 1) * PAGE })
-        )
+        Array.from({ length: pages - 1 }, (_, i) => getCustomerNamesPage(PAGE, (i + 1) * PAGE))
       );
       for (const res of rest) results.push(...res.data);
     }
