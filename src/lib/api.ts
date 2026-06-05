@@ -960,6 +960,23 @@ export interface Promotion {
   sap_synced_at?: string | null;
 }
 
+export interface PromotionListItem {
+  id: string;
+  lab_id: string;
+  laboratory_name: string | null;
+  title: string;
+  status: PromoStatus;
+  start_date: string;
+  end_date: string;
+  estimated_cost: number;
+  created_at: string;
+  created_by_role: SourceRole;
+  sap_campaign_number: number | null;
+  sap_sync_status: string | null;
+  sap_sync_error: string | null;
+  mechanic: PromoMechanic | null;
+}
+
 export interface PromotionBudgetSummary {
   lab_id: string;
   spendable_balance: number;
@@ -1533,8 +1550,8 @@ export function listPromotions(params: PromotionListParams = {}): Promise<Promot
   }));
 }
 
-export function getPromotionsPage(params: PromotionListParams = {}): Promise<ApiListResponse<Promotion>> {
-  return apiFetch<ApiListResponse<Promotion>>(withQuery("/api/v1/promotions", {
+export function getPromotionsPage(params: PromotionListParams = {}): Promise<ApiListResponse<PromotionListItem>> {
+  return apiFetch<ApiListResponse<PromotionListItem>>(withQuery("/api/v1/promotions", {
     search: params.search,
     status: params.status,
     lab_id: params.lab_id,

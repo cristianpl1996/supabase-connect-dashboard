@@ -17,8 +17,8 @@ import {
   BulkActionResponse,
   type ApiListResponse,
   type PromotionListParams,
+  type PromotionListItem,
 } from '@/lib/api';
-import { Promotion } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,7 @@ const Promotions = () => {
   // ── Queries ────────────────────────────────────────────────────────────────
   const buildParams = (offset: number): PromotionListParams => ({
     search: searchQuery.trim() || undefined,
-    status: statusFilter === 'all' ? undefined : statusFilter as Promotion['status'],
+    status: statusFilter === 'all' ? undefined : statusFilter as PromotionListItem['status'],
     lab_id: laboratoryFilter === 'all' ? undefined : laboratoryFilter,
     sort_dir: sortDir,
     limit: PAGE_SIZE,
@@ -125,7 +125,7 @@ const Promotions = () => {
     },
     staleTime: 30_000,
     refetchInterval: (query) => {
-      const pages = (query.state.data as InfiniteData<ApiListResponse<Promotion>> | undefined)?.pages ?? [];
+      const pages = (query.state.data as InfiniteData<ApiListResponse<PromotionListItem>> | undefined)?.pages ?? [];
       const allItems = pages.flatMap((p) => p.data ?? []);
       return allItems.some((p) => p.sap_sync_status === 'pending') ? 8_000 : false;
     },
@@ -145,12 +145,12 @@ const Promotions = () => {
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingPromo, setEditingPromo] = useState<Promotion | null>(null);
+  const [editingPromo, setEditingPromo] = useState<PromotionListItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [promoToDelete, setPromoToDelete] = useState<Promotion | null>(null);
+  const [promoToDelete, setPromoToDelete] = useState<PromotionListItem | null>(null);
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
-  const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
-  const [promoToClone, setPromoToClone] = useState<Promotion | null>(null);
+  const [viewingPromo, setViewingPromo] = useState<PromotionListItem | null>(null);
+  const [promoToClone, setPromoToClone] = useState<PromotionListItem | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -165,7 +165,7 @@ const Promotions = () => {
   const [showSapColumn, setShowSapColumn] = useState(true);
   const [hiddenCostRows, setHiddenCostRows] = useState<Set<string>>(new Set());
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
-  const [cancelDialogPromo, setCancelDialogPromo] = useState<Promotion | null>(null);
+  const [cancelDialogPromo, setCancelDialogPromo] = useState<PromotionListItem | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkResult, setBulkResult] = useState<BulkActionResponse | null>(null);
@@ -183,23 +183,23 @@ const Promotions = () => {
   });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: async ({ promo, newStatus }: { promo: Promotion; newStatus: string }) => {
+    mutationFn: async ({ promo, newStatus }: { promo: PromotionListItem; newStatus: string }) => {
       const updated = await updatePromotionStatus(promo.id, newStatus);
       return { result: updated, sapError: null };
     },
     onMutate: async ({ promo, newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['promotions'] });
-      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions']);
-      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions']);
+      queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
-        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === promo.id ? { ...p, status: newStatus as Promotion['status'] } : p) })) };
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === promo.id ? { ...p, status: newStatus as PromotionListItem['status'] } : p) })) };
       });
       return { previous };
     },
     onSuccess: ({ result, sapError }) => {
-      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+      queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
-        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === result.id ? result : p) })) };
+        return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === result.id ? { ...p, status: result.status as PromotionListItem['status'], sap_sync_status: (result as Record<string, unknown>).sap_sync_status as string | null } : p) })) };
       });
       if (sapError) {
         toast.warning('No se pudo activar — error SAP', { description: sapError, duration: 8000 });
@@ -258,15 +258,15 @@ const Promotions = () => {
     mutationFn: (id: string) => updatePromotionStatus(id, 'cancelada'),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['promotions'] });
-      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions']);
-      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+      const previous = queryClient.getQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions']);
+      queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
         return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === id ? { ...p, status: 'cancelada' as const } : p) })) };
       });
       return { previous };
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData<InfiniteData<ApiListResponse<Promotion>>>(['promotions'], (prev) => {
+      queryClient.setQueryData<InfiniteData<ApiListResponse<PromotionListItem>>>(['promotions'], (prev) => {
         if (!prev) return prev;
         return { ...prev, pages: prev.pages.map((page) => ({ ...page, data: page.data.map((p) => p.id === updated.id ? updated : p) })) };
       });
@@ -429,7 +429,7 @@ const Promotions = () => {
     setEditingPromo(null);
   };
 
-  const handleDeleteClick = (promo: Promotion) => {
+  const handleDeleteClick = (promo: PromotionListItem) => {
     setPromoToDelete(promo);
     setDeleteDialogOpen(true);
   };
@@ -439,7 +439,7 @@ const Promotions = () => {
     deleteMutation.mutate(promoToDelete.id);
   };
 
-  const handleToggleStatus = (promo: Promotion) => {
+  const handleToggleStatus = (promo: PromotionListItem) => {
     const newStatus = promo.status === 'activa' ? 'borrador' : 'activa';
     setTogglingStatusId(promo.id);
     toggleStatusMutation.mutate({ promo, newStatus });
@@ -454,7 +454,7 @@ const Promotions = () => {
     });
   };
 
-  const handleCloneClick = (promo: Promotion) => {
+  const handleCloneClick = (promo: PromotionListItem) => {
     setPromoToClone(promo);
   };
 
@@ -475,11 +475,11 @@ const Promotions = () => {
     }
   };
 
-  const canEdit = (promo: Promotion) => promo.status === 'borrador' || promo.status === 'activa';
-  const canDelete = (promo: Promotion) => !promo.sap_campaign_number && canEdit(promo);
-  const canCancel = (promo: Promotion) => !!promo.sap_campaign_number && canEdit(promo);
+  const canEdit = (promo: PromotionListItem) => promo.status === 'borrador' || promo.status === 'activa';
+  const canDelete = (promo: PromotionListItem) => !promo.sap_campaign_number && canEdit(promo);
+  const canCancel = (promo: PromotionListItem) => !!promo.sap_campaign_number && canEdit(promo);
 
-  const handleCancelClick = (promo: Promotion) => {
+  const handleCancelClick = (promo: PromotionListItem) => {
     setCancelDialogPromo(promo);
   };
 
@@ -1166,9 +1166,7 @@ const Promotions = () => {
         <PromotionDetailsSheet
           open={detailsSheetOpen}
           onOpenChange={setDetailsSheetOpen}
-          promotion={viewingPromo}
-          mechanic={viewingPromo?.mechanic || undefined}
-          labName={viewingPromo?.laboratory_name || undefined}
+          promotionId={viewingPromo?.id ?? null}
         />
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

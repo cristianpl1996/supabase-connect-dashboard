@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Promotion, PromoMechanic } from "@/types/database";
+import { Promotion, PromoMechanic, getAllProducts, getAllCustomers, getPromotion } from "@/lib/api";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
@@ -7,7 +7,6 @@ import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { getAllProducts, getAllCustomers } from "@/lib/api";
 
 const EMPTY_STRING_ARRAY: string[] = [];
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -15,9 +14,7 @@ const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", curren
 interface PromotionDetailsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  promotion: Promotion | null;
-  mechanic?: PromoMechanic;
-  labName?: string;
+  promotionId: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -76,12 +73,18 @@ const STRIPED_BAR_CLASS = [
 export function PromotionDetailsSheet({
   open,
   onOpenChange,
-  promotion,
-  mechanic,
-  labName,
+  promotionId,
 }: PromotionDetailsSheetProps) {
+  const [promotion, setPromotion] = useState<Promotion | null>(null);
+  const [loadingPromo, setLoadingPromo] = useState(false);
   const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
   const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
+
+  useEffect(() => {
+    if (!open || !promotionId) { setPromotion(null); return; }
+    setLoadingPromo(true);
+    getPromotion(promotionId).then(setPromotion).catch(() => {}).finally(() => setLoadingPromo(false));
+  }, [open, promotionId]);
 
   useEffect(() => {
     if (!open || !promotion) return;
@@ -89,8 +92,6 @@ export function PromotionDetailsSheet({
 
     const skus = Array.isArray(promotion.product_skus) ? promotion.product_skus : [];
     const nits = Array.isArray(promotion.customer_ids) ? promotion.customer_ids : [];
-    const pf = (promotion.product_filters || {}) as Record<string, string>;
-    const cf = (promotion.customer_filters || {}) as Record<string, unknown>;
 
     const fetchProducts = skus.length > 0
       ? getAllProducts()
@@ -131,18 +132,19 @@ export function PromotionDetailsSheet({
     catch { return date; }
   };
 
-  if (!promotion) return null;
+  if (!promotionId) return null;
 
-  const statusConfig = STATUS_CONFIG[promotion.status] || STATUS_CONFIG.borrador;
-  const productMode    = String(promotion.product_mode || "specific");
-  const productSkus    = Array.isArray(promotion.product_skus) ? promotion.product_skus : [];
-  const productFilters = (promotion.product_filters || {}) as Record<string, unknown>;
-  const audienceScope  = String(promotion.audience_scope || "all");
-  const customerIds    = Array.isArray(promotion.customer_ids) ? promotion.customer_ids : [];
-  const audienceFilters = (promotion.customer_filters || {}) as Record<string, unknown>;
+  const mechanic = promotion?.mechanic ?? null;
+  const statusConfig = promotion ? (STATUS_CONFIG[promotion.status] || STATUS_CONFIG.borrador) : STATUS_CONFIG.borrador;
+  const productMode    = String(promotion?.product_mode || "specific");
+  const productSkus    = Array.isArray(promotion?.product_skus) ? promotion.product_skus : [];
+  const productFilters = (promotion?.product_filters || {}) as Record<string, unknown>;
+  const audienceScope  = String(promotion?.audience_scope || "all");
+  const customerIds    = Array.isArray(promotion?.customer_ids) ? promotion.customer_ids : [];
+  const audienceFilters = (promotion?.customer_filters || {}) as Record<string, unknown>;
 
-  const maxRedemptions  = promotion.max_redemptions || 0;
-  const redemptionPercent = maxRedemptions > 0 ? Math.min((promotion.current_redemptions / maxRedemptions) * 100, 100) : 0;
+  const maxRedemptions  = promotion?.max_redemptions || 0;
+  const redemptionPercent = maxRedemptions > 0 ? Math.min(((promotion?.current_redemptions ?? 0) / maxRedemptions) * 100, 100) : 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -152,19 +154,25 @@ export function PromotionDetailsSheet({
         <div className="border-b bg-background px-4 pb-4 pt-5 sm:px-6">
           <SheetHeader className="text-left">
             <div className="pr-8">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
-                {(labName || promotion.laboratory_name) && (
-                  <Badge variant="outline">{labName || promotion.laboratory_name}</Badge>
-                )}
-              </div>
-              <SheetTitle className="text-xl font-bold sm:text-2xl">{promotion.title}</SheetTitle>
-              {promotion.description && (
-                <SheetDescription className="mt-1 line-clamp-2 text-sm">{promotion.description}</SheetDescription>
+              {loadingPromo ? (
+                <div className="h-6 w-48 animate-pulse rounded bg-muted mb-2" />
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                    {promotion?.laboratory_name && (
+                      <Badge variant="outline">{promotion.laboratory_name}</Badge>
+                    )}
+                  </div>
+                  <SheetTitle className="text-xl font-bold sm:text-2xl">{promotion?.title}</SheetTitle>
+                  {promotion?.description && (
+                    <SheetDescription className="mt-1 line-clamp-2 text-sm">{promotion.description}</SheetDescription>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Creado por {promotion?.created_by_responsible || promotion?.created_by_role} · {promotion?.created_at ? formatDate(promotion.created_at) : ''}
+                  </p>
+                </>
               )}
-              <p className="mt-1 text-xs text-muted-foreground">
-                Creado por {promotion.created_by_responsible || promotion.created_by_role} · {formatDate(promotion.created_at)}
-              </p>
             </div>
           </SheetHeader>
         </div>
@@ -176,8 +184,9 @@ export function PromotionDetailsSheet({
             <PromoMetric
               icon={Calendar}
               label="Vigencia"
-              value={`${formatDate(promotion.start_date)} — ${formatDate(promotion.end_date)}`}
+              value={promotion ? `${formatDate(promotion.start_date)} — ${formatDate(promotion.end_date)}` : '—'}
               note={(() => {
+                if (!promotion) return '';
                 try {
                   const diff = Math.ceil((new Date(promotion.end_date).getTime() - new Date(promotion.start_date).getTime()) / 86400000) + 1;
                   return `${diff} ${diff === 1 ? 'dia' : 'dias'}`;
@@ -187,14 +196,14 @@ export function PromotionDetailsSheet({
             <PromoMetric
               icon={DollarSign}
               label="Costo estimado"
-              value={promotion.estimated_cost ? formatCurrency(promotion.estimated_cost) : "Sin definir"}
+              value={promotion?.estimated_cost ? formatCurrency(promotion.estimated_cost) : "Sin definir"}
               note="Presupuesto promocional"
             />
             <PromoMetric
               icon={WalletCards}
               label="Redenciones"
-              value={`${promotion.current_redemptions}${promotion.max_redemptions ? ` / ${promotion.max_redemptions}` : ""}`}
-              note={promotion.max_redemptions ? `${redemptionPercent.toFixed(0)}% usado` : "Sin limite configurado"}
+              value={promotion ? `${promotion.current_redemptions}${promotion.max_redemptions ? ` / ${promotion.max_redemptions}` : ""}` : '—'}
+              note={promotion?.max_redemptions ? `${redemptionPercent.toFixed(0)}% usado` : "Sin limite configurado"}
             />
           </div>
 
@@ -294,11 +303,11 @@ export function PromotionDetailsSheet({
             icon={<DollarSign className="size-4 text-primary" />}
             title="Control financiero"
           >
-            <FinancialProgress percent={redemptionPercent} current={promotion.current_redemptions} max={promotion.max_redemptions} />
+            <FinancialProgress percent={redemptionPercent} current={promotion?.current_redemptions ?? 0} max={promotion?.max_redemptions ?? null} />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <PromoFact label="Costo estimado"      value={promotion.estimated_cost ? formatCurrency(promotion.estimated_cost) : "N/A"} />
-              <PromoFact label="Redenciones actuales" value={promotion.current_redemptions} />
-              <PromoFact label="Maximo redenciones"   value={promotion.max_redemptions || "Sin limite"} />
+              <PromoFact label="Costo estimado"      value={promotion?.estimated_cost ? formatCurrency(promotion.estimated_cost) : "N/A"} />
+              <PromoFact label="Redenciones actuales" value={promotion?.current_redemptions ?? 0} />
+              <PromoFact label="Maximo redenciones"   value={promotion?.max_redemptions || "Sin limite"} />
             </div>
           </SectionCard>
 
@@ -318,13 +327,13 @@ export function PromotionDetailsSheet({
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Estado</span>
                   <SapStatusBadge
-                    campaignNumber={promotion?.sap_campaign_number}
-                    syncedAt={promotion?.sap_synced_at}
-                    syncError={promotion?.sap_sync_error}
-                    syncStatus={promotion?.sap_sync_status}
+                    campaignNumber={promotion.sap_campaign_number}
+                    syncedAt={promotion.sap_synced_at}
+                    syncError={promotion.sap_sync_error}
+                    syncStatus={promotion.sap_sync_status}
                   />
                 </div>
-                {promotion?.sap_synced_at && !promotion?.sap_sync_error && promotion?.sap_sync_status !== 'pending' && (
+                {promotion.sap_synced_at && !promotion.sap_sync_error && promotion.sap_sync_status !== 'pending' && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Última sync</span>
                     <span className="text-xs text-muted-foreground">

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-import { CalendarPromotion, listCalendarPromotions, Promotion } from '@/lib/api';
+import { CalendarPromotion, listCalendarPromotions } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,7 @@ const Calendar = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
+  const [selectedPromoId, setSelectedPromoId] = useState<string | null>(null);
 
   const {
     data: promotions = [],
@@ -294,7 +294,7 @@ const Calendar = () => {
                     type="button"
                     className="w-full rounded-md border bg-card p-3 text-left"
                     onClick={() => {
-                      setSelectedPromo(row.promotion);
+                      setSelectedPromoId(row.promotion.id);
                       setDetailsOpen(true);
                     }}
                   >
@@ -373,7 +373,7 @@ const Calendar = () => {
                                   type="button"
                                   className={`h-9 appearance-none border-x-0 border-y-2 p-0 text-left font-[inherit] cursor-pointer transition-all hover:opacity-80 ${row.status === 'revision' ? 'bg-muted text-muted-foreground' : `${row.colors.bg} ${row.colors.text}`} ${row.hasConflict ? 'border-destructive' : row.status === 'revision' ? 'border-muted-foreground/40' : row.colors.border} ${isBarStart ? 'rounded-l-md border-l-2 pl-1.5' : ''} ${isBarEnd ? 'rounded-r-md border-r-2' : ''} flex items-center overflow-hidden`}
                                   onClick={() => {
-                                    setSelectedPromo(row.promotion);
+                                    setSelectedPromoId(row.promotion.id);
                                     setDetailsOpen(true);
                                   }}
                                 >
@@ -427,9 +427,7 @@ const Calendar = () => {
       <PromotionDetailsSheet
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
-        promotion={selectedPromo}
-        mechanic={selectedPromo?.mechanic ?? undefined}
-        labName={selectedPromo?.laboratory_name || undefined}
+        promotionId={selectedPromoId}
       />
       </ErrorDisabledContent>
     </div>

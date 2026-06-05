@@ -85,7 +85,7 @@ interface PromotionFormSheetProps {
   onOpenChange: (open: boolean) => void;
   laboratories: Laboratory[];
   onSuccess: () => void;
-  editingPromo?: Promotion | null;
+  editingPromo?: { id: string } | null;
 }
 
 const SEGMENT_OPTIONS = [
