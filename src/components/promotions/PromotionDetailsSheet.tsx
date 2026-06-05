@@ -155,7 +155,14 @@ export function PromotionDetailsSheet({
           <SheetHeader className="text-left">
             <div className="pr-8">
               {loadingPromo ? (
-                <div className="h-6 w-48 animate-pulse rounded bg-muted mb-2" />
+                <div className="animate-pulse space-y-2">
+                  <div className="flex gap-2 mb-2">
+                    <div className="h-5 w-16 rounded-full bg-muted" />
+                    <div className="h-5 w-32 rounded-full bg-muted" />
+                  </div>
+                  <div className="h-7 w-64 rounded bg-muted" />
+                  <div className="h-3 w-48 rounded bg-muted" />
+                </div>
               ) : (
                 <>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -181,31 +188,62 @@ export function PromotionDetailsSheet({
 
           {/* ── Métricas ── */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <PromoMetric
-              icon={Calendar}
-              label="Vigencia"
-              value={promotion ? `${formatDate(promotion.start_date)} — ${formatDate(promotion.end_date)}` : '—'}
-              note={(() => {
-                if (!promotion) return '';
-                try {
-                  const diff = Math.ceil((new Date(promotion.end_date).getTime() - new Date(promotion.start_date).getTime()) / 86400000) + 1;
-                  return `${diff} ${diff === 1 ? 'dia' : 'dias'}`;
-                } catch { return ''; }
-              })()}
-            />
-            <PromoMetric
-              icon={DollarSign}
-              label="Costo estimado"
-              value={promotion?.estimated_cost ? formatCurrency(promotion.estimated_cost) : "Sin definir"}
-              note="Presupuesto promocional"
-            />
-            <PromoMetric
-              icon={WalletCards}
-              label="Redenciones"
-              value={promotion ? `${promotion.current_redemptions}${promotion.max_redemptions ? ` / ${promotion.max_redemptions}` : ""}` : '—'}
-              note={promotion?.max_redemptions ? `${redemptionPercent.toFixed(0)}% usado` : "Sin limite configurado"}
-            />
+            {loadingPromo ? (
+              <>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-lg border bg-card p-4 animate-pulse">
+                    <div className="h-3 w-20 bg-muted rounded mb-3" />
+                    <div className="h-5 w-32 bg-muted rounded mb-2" />
+                    <div className="h-3 w-24 bg-muted rounded" />
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                <PromoMetric
+                  icon={Calendar}
+                  label="Vigencia"
+                  value={promotion ? `${formatDate(promotion.start_date)} — ${formatDate(promotion.end_date)}` : '—'}
+                  note={(() => {
+                    if (!promotion) return '';
+                    try {
+                      const diff = Math.ceil((new Date(promotion.end_date).getTime() - new Date(promotion.start_date).getTime()) / 86400000) + 1;
+                      return `${diff} ${diff === 1 ? 'dia' : 'dias'}`;
+                    } catch { return ''; }
+                  })()}
+                />
+                <PromoMetric
+                  icon={DollarSign}
+                  label="Costo estimado"
+                  value={promotion?.estimated_cost ? formatCurrency(promotion.estimated_cost) : "Sin definir"}
+                  note="Presupuesto promocional"
+                />
+                <PromoMetric
+                  icon={WalletCards}
+                  label="Redenciones"
+                  value={promotion ? `${promotion.current_redemptions}${promotion.max_redemptions ? ` / ${promotion.max_redemptions}` : ""}` : '—'}
+                  note={promotion?.max_redemptions ? `${redemptionPercent.toFixed(0)}% usado` : "Sin limite configurado"}
+                />
+              </>
+            )}
           </div>
+
+          {/* ── Secciones: skeleton o contenido real ── */}
+          {loadingPromo ? (
+            <div className="space-y-4 animate-pulse">
+              {/* Productos */}
+              <SkeletonSection lines={3} />
+              {/* Alcance */}
+              <SkeletonSection lines={2} />
+              {/* Regla comercial */}
+              <SkeletonSection lines={4} />
+              {/* Control financiero */}
+              <SkeletonSection lines={2} />
+              {/* SAP */}
+              <SkeletonSection lines={1} />
+            </div>
+          ) : (
+            <>
 
           {/* ── Productos ── */}
           <SectionCard
@@ -350,6 +388,9 @@ export function PromotionDetailsSheet({
             )}
           </SectionCard>
 
+            </>
+          )}
+
         </div>
       </SheetContent>
     </Sheet>
@@ -357,6 +398,22 @@ export function PromotionDetailsSheet({
 }
 
 // ─── Helper components ────────────────────────────────────────────────────────
+
+function SkeletonSection({ lines }: { lines: number }) {
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center gap-2 border-b px-4 py-2.5">
+        <div className="h-4 w-4 rounded bg-muted" />
+        <div className="h-3 w-28 rounded bg-muted" />
+      </div>
+      <div className="p-3 space-y-2.5">
+        {Array.from({ length: lines }).map((_, i) => (
+          <div key={i} className={`h-4 rounded bg-muted ${i % 2 === 0 ? 'w-full' : 'w-3/4'}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function SectionCard({
   icon, title, subtitle, count, children, defaultOpen = true,
