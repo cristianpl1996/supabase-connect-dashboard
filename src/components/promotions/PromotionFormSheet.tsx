@@ -1072,6 +1072,11 @@ export function PromotionFormSheet({
         });
       } else if (result.requires_manager_approval) {
         toast.success('Promocion creada - Requiere Aprobacion de Gerencia');
+      } else if (isEditing && result.sap_sync_status === 'pending') {
+        toast.success('Cambios guardados — sincronizando con SAP', {
+          description: 'El badge se actualizará automáticamente al completar.',
+          duration: 6000,
+        });
       } else {
         toast.success(isEditing ? 'Promocion actualizada exitosamente' : 'Promocion creada exitosamente');
       }
