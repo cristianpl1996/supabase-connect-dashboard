@@ -59,6 +59,7 @@ import {
   Search,
   X,
   SlidersHorizontal,
+  Info,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 import { cn } from '@/lib/utils';
@@ -1990,6 +1991,7 @@ export function PromotionFormSheet({
                 <div className="space-y-3">
                   {isActiveSynced && (
                     <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <Info className="size-4 shrink-0" />
                       Solo se pueden editar datos generales — productos, alcance y mecánica están sincronizados en SAP.
                     </div>
                   )}

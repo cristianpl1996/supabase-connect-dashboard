@@ -201,8 +201,8 @@ export default function Marketing() {
     const labName = promo.laboratory_name || "Laboratorio";
     const description = promo.description || "N/A";
     const mechanicDescription = promo.mechanic?.summary || getMechanicDescription(promo) || "Promocion especial";
-    const start = format(new Date(promo.start_date), "dd/MM/yyyy");
-    const end = format(new Date(promo.end_date), "dd/MM/yyyy");
+    const start = format(new Date(promo.start_date + 'T00:00:00'), "dd/MM/yyyy");
+    const end = format(new Date(promo.end_date + 'T00:00:00'), "dd/MM/yyyy");
 
     return [
       "Actua como un experto en marketing B2B veterinario.",
@@ -557,7 +557,7 @@ export default function Marketing() {
 
                     <div className="text-center text-white/70 text-xs space-y-1">
                       <p>
-                        Valido del {format(new Date(selectedPromo.start_date), "dd/MM/yyyy")} al {format(new Date(selectedPromo.end_date), "dd/MM/yyyy")}
+                        Valido del {format(new Date(selectedPromo.start_date + 'T00:00:00'), "dd/MM/yyyy")} al {format(new Date(selectedPromo.end_date + 'T00:00:00'), "dd/MM/yyyy")}
                       </p>
                       <p>Aplican terminos y condiciones. Inventario sujeto a disponibilidad.</p>
                     </div>

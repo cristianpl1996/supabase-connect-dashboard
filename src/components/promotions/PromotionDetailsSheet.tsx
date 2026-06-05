@@ -128,7 +128,7 @@ export function PromotionDetailsSheet({
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
   const formatDate = (date: string) => {
-    try { return format(new Date(date), "dd MMM yyyy", { locale: es }); }
+    try { return format(new Date(date + 'T00:00:00'), "dd MMM yyyy", { locale: es }); }
     catch { return date; }
   };
 

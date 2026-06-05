@@ -504,8 +504,8 @@ const Promotions = () => {
 
   const formatDateRange = (start: string, end: string) => {
     try {
-      const startDate = format(new Date(start), 'dd MMM', { locale: es });
-      const endDate = format(new Date(end), 'dd MMM yyyy', { locale: es });
+      const startDate = format(new Date(start + 'T00:00:00'), 'dd MMM', { locale: es });
+      const endDate = format(new Date(end + 'T00:00:00'), 'dd MMM yyyy', { locale: es });
       return `${startDate} - ${endDate}`;
     } catch {
       return `${start} - ${end}`;
