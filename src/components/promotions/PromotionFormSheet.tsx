@@ -1106,10 +1106,6 @@ export function PromotionFormSheet({
   };
 
   const goNext = () => {
-    if (isActiveSynced && currentStep === 1) {
-      setCurrentStep(5);
-      return;
-    }
     if (currentStep < 5) {
       setCurrentStep((s) => s + 1);
     } else {
@@ -1123,10 +1119,6 @@ export function PromotionFormSheet({
   };
 
   const goPrev = () => {
-    if (isActiveSynced && currentStep === 5) {
-      setCurrentStep(1);
-      return;
-    }
     if (currentStep > 1) setCurrentStep((s) => s - 1);
     else onOpenChange(false);
   };
@@ -1150,18 +1142,15 @@ export function PromotionFormSheet({
                 const isActive = step.id === currentStep;
                 const isDone = step.id < currentStep;
                 const hasError = submitted && stepHasErrors(step.id);
-                const isLocked = isActiveSynced && step.id > 1 && step.id < 5;
                 return (
                   <Fragment key={step.id}>
                     <div className="flex flex-col items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => !isLocked && setCurrentStep(step.id)}
-                        disabled={isLocked}
-                        title={isLocked ? 'No editable — sincronizado en SAP' : step.label}
+                        onClick={() => setCurrentStep(step.id)}
+                        title={step.label}
                         className={[
-                          'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all sm:size-9 sm:text-sm',
-                          isLocked ? 'cursor-not-allowed opacity-35' : 'cursor-pointer hover:opacity-80',
+                          'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all cursor-pointer hover:opacity-80 sm:size-9 sm:text-sm',
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30'
                             : hasError
@@ -1279,7 +1268,7 @@ export function PromotionFormSheet({
 
               {/* STEP 2: Productos */}
               {currentStep === 2 && (
-                <div className="space-y-5">
+                <div className={`space-y-5${isActiveSynced ? ' pointer-events-none opacity-50 select-none' : ''}`}>
                   <div className="space-y-2">
                     <Label className="font-medium">Aplica a <span className="text-destructive">*</span></Label>
                     <Select value={productApplicationMode} onValueChange={setProductApplicationMode}>
@@ -1504,7 +1493,7 @@ export function PromotionFormSheet({
 
               {/* STEP 3: Alcance */}
               {currentStep === 3 && (
-                <div className="space-y-5">
+                <div className={`space-y-5${isActiveSynced ? ' pointer-events-none opacity-50 select-none' : ''}`}>
                   <div className="space-y-2">
                     <Label className="font-medium">Alcance <span className="text-destructive">*</span></Label>
                     <Select value={scope} onValueChange={setScope}>
@@ -1781,7 +1770,7 @@ export function PromotionFormSheet({
 
               {/* STEP 4: Regla Comercial */}
               {currentStep === 4 && (
-                <div className="space-y-5">
+                <div className={`space-y-5${isActiveSynced ? ' pointer-events-none opacity-50 select-none' : ''}`}>
                   <div className="space-y-2">
                     <Label className="font-medium">Tipo de promocion <span className="text-destructive">*</span></Label>
                     <Select value={mechanicState.promotionType} onValueChange={setPromotionType}>
@@ -2044,7 +2033,7 @@ export function PromotionFormSheet({
                           <Package className="size-3.5 text-primary" />
                         </div>
                         <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Productos</span>
-                        <button type="button" onClick={() => setCurrentStep(2)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                        <button type="button" onClick={() => setCurrentStep(2)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">{isActiveSynced ? 'Ver' : 'Editar'}</button>
                       </div>
                       <div className="divide-y px-4">
                         <SummaryRow2 label="Modo" value={productApplicationMode === 'specific' ? 'Productos especificos' : 'Por filtros'} />
@@ -2084,7 +2073,7 @@ export function PromotionFormSheet({
                           <Users className="size-3.5 text-primary" />
                         </div>
                         <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Alcance</span>
-                        <button type="button" onClick={() => setCurrentStep(3)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                        <button type="button" onClick={() => setCurrentStep(3)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">{isActiveSynced ? 'Ver' : 'Editar'}</button>
                       </div>
                       <div className="divide-y px-4">
                         <SummaryRow2 label="Aplica a" value={SCOPE_OPTIONS.find((o) => o.value === scope)?.label || scope} />
@@ -2115,7 +2104,7 @@ export function PromotionFormSheet({
                           <Zap className="size-3.5 text-primary" />
                         </div>
                         <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Regla Comercial</span>
-                        <button type="button" onClick={() => setCurrentStep(4)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">Editar</button>
+                        <button type="button" onClick={() => setCurrentStep(4)} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">{isActiveSynced ? 'Ver' : 'Editar'}</button>
                       </div>
                       <div className="divide-y px-4">
                         <SummaryRow2 label="Tipo" value={
