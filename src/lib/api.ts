@@ -153,6 +153,13 @@ export interface EcommerceOtpChallenge {
 
 export type EcommerceSessionOrChallenge = EcommerceSession | EcommerceOtpChallenge;
 
+export interface EcommerceProductPromo {
+  id: string;
+  title: string;
+  promotion_type: string;
+  mechanic_summary: string;
+}
+
 export interface EcommerceProduct {
   product_sku: string;
   product_commercial_name?: string | null;
@@ -172,6 +179,7 @@ export interface EcommerceProduct {
   price?: number | null;
   price_list?: string | null;
   can_add_to_cart?: boolean | null;
+  promos?: EcommerceProductPromo[];
   [key: string]: unknown;
 }
 
@@ -186,6 +194,7 @@ export interface EcommerceProductParams {
   category?: string;
   in_stock_only?: boolean;
   with_price_only?: boolean;
+  with_promo_only?: boolean;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   limit?: number;
@@ -195,14 +204,7 @@ export interface EcommerceProductParams {
 export interface EcommerceCartItemInput {
   sku: string;
   quantity: number;
-}
-
-export interface EcommercePromotion {
-  id: string;
-  title: string;
-  promotion_type: string;
-  mechanic_summary: string;
-  product_skus: string[];
+  promo_id?: string;
 }
 
 export interface EcommerceCartQuoteItemPromo {
@@ -278,6 +280,7 @@ export function getEcommerceProductsPage(token: string, params: EcommerceProduct
     category: params.category,
     in_stock_only: params.in_stock_only,
     with_price_only: params.with_price_only,
+    with_promo_only: params.with_promo_only,
     sort_by: params.sort_by,
     sort_dir: params.sort_dir,
     limit: params.limit ?? 24,
@@ -295,10 +298,6 @@ export function getEcommerceFilterOptions(token: string): Promise<EcommerceFilte
     .then((res) => res.data);
 }
 
-export function getEcommerceActivePromotions(token: string): Promise<EcommercePromotion[]> {
-  return publicApiFetch<ApiDetailResponse<EcommercePromotion[]>>("/api/v1/e-commerce/active-promotions", {}, token)
-    .then((res) => res.data);
-}
 
 export function quoteEcommerceCart(token: string, items: EcommerceCartItemInput[]): Promise<EcommerceCartQuote> {
   return publicApiFetch<ApiDetailResponse<EcommerceCartQuote>>("/api/v1/e-commerce/cart/quote", {

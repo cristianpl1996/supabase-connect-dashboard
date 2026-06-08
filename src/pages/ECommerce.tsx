@@ -58,9 +58,8 @@ import {
   EcommerceCartQuote,
   EcommerceMyOrder,
   EcommerceProduct,
-  EcommercePromotion,
+  EcommerceProductPromo,
   EcommerceSession,
-  getEcommerceActivePromotions,
   getEcommerceFilterOptions,
   getEcommerceProductsPage,
   listMyEcommerceOrders,
@@ -722,13 +721,14 @@ export default function ECommerce() {
     error: productsQueryError,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['ecommerce-products', token, { search, brand, category, inStockOnly, withPriceOnly, sortParams, currentPage }],
+    queryKey: ['ecommerce-products', token, { search, brand, category, inStockOnly, withPriceOnly, withPromoOnly, sortParams, currentPage }],
     queryFn: () => getEcommerceProductsPage(token, {
       search: search.trim() || undefined,
       brand_name: brand === "all" ? undefined : brand,
       category: category === "all" ? undefined : category,
       in_stock_only: inStockOnly || undefined,
       with_price_only: withPriceOnly || undefined,
+      with_promo_only: withPromoOnly || undefined,
       ...sortParams,
       limit: PAGE_SIZE,
       offset: (currentPage - 1) * PAGE_SIZE,
@@ -744,27 +744,7 @@ export default function ECommerce() {
   });
   const filters = { brands: filtersRaw?.brands ?? [], categories: filtersRaw?.categories ?? [] };
 
-  const { data: activePromos = [] } = useQuery({
-    queryKey: ['ecommerce-active-promotions', token],
-    queryFn: () => getEcommerceActivePromotions(token!),
-    enabled: !!token,
-    staleTime: 5 * 60_000,
-  });
-  const promosBySku = useMemo(() => {
-    const map = new Map<string, EcommercePromotion[]>();
-    for (const promo of activePromos) {
-      for (const sku of promo.product_skus) {
-        map.set(sku, [...(map.get(sku) ?? []), promo]);
-      }
-    }
-    return map;
-  }, [activePromos]);
-
-  const allProducts = productsResponse?.data ?? [];
-  const products = useMemo(
-    () => withPromoOnly ? allProducts.filter((p) => promosBySku.has(p.product_sku)) : allProducts,
-    [allProducts, withPromoOnly, promosBySku],
-  );
+  const products = productsResponse?.data ?? [];
   const totalProducts = productsResponse ? listTotal(productsResponse) : null;
   const productError = isProductError ? (productsQueryError instanceof Error ? productsQueryError.message : 'Error al cargar productos') : null;
 
@@ -986,14 +966,20 @@ export default function ECommerce() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.expires_at]);
 
-  const addToCart = (product: EcommerceProduct) => {
+  const [addTarget, setAddTarget] = useState<EcommerceProduct | null>(null);
+
+  const addToCart = (product: EcommerceProduct, qty = 1, promoId?: string) => {
     if (!product.can_add_to_cart) return;
     setCart((prev) => {
       const existing = prev.find((item) => item.sku === product.product_sku);
       if (existing) {
-        return prev.map((item) => item.sku === product.product_sku ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map((item) =>
+          item.sku === product.product_sku
+            ? { ...item, quantity: item.quantity + qty, promo_id: promoId ?? item.promo_id }
+            : item,
+        );
       }
-      return [...prev, { sku: product.product_sku, quantity: 1 }];
+      return [...prev, { sku: product.product_sku, quantity: qty, promo_id: promoId }];
     });
     setCartOpen(true);
   };
@@ -1413,13 +1399,13 @@ export default function ECommerce() {
                 {viewMode === "grid" ? (
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {products.map((product) => (
-                      <EcommerceProductCard key={product.product_sku} product={product} promos={promosBySku.get(product.product_sku)} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                      <EcommerceProductCard key={product.product_sku} product={product} promos={product.promos ?? []} onOpen={() => openProduct(product)} onAdd={() => product.promos?.length ? setAddTarget(product) : addToCart(product)} />
                     ))}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {products.map((product) => (
-                      <EcommerceProductListRow key={product.product_sku} product={product} promos={promosBySku.get(product.product_sku)} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                      <EcommerceProductListRow key={product.product_sku} product={product} promos={product.promos ?? []} onOpen={() => openProduct(product)} onAdd={() => product.promos?.length ? setAddTarget(product) : addToCart(product)} />
                     ))}
                   </div>
                 )}
@@ -1776,7 +1762,155 @@ export default function ECommerce() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <AddToCartDialog
+        product={addTarget}
+        onClose={() => setAddTarget(null)}
+        onConfirm={(qty, promoId) => {
+          if (addTarget) addToCart(addTarget, qty, promoId);
+          setAddTarget(null);
+        }}
+      />
     </div>
+  );
+}
+
+function AddToCartDialog({
+  product,
+  onClose,
+  onConfirm,
+}: {
+  product: EcommerceProduct | null;
+  onClose: () => void;
+  onConfirm: (qty: number, promoId?: string) => void;
+}) {
+  const [qty, setQty] = useState(1);
+  const [selectedPromoId, setSelectedPromoId] = useState<string | undefined>(undefined);
+  const promos = product?.promos ?? [];
+
+  useEffect(() => {
+    if (product) {
+      setQty(1);
+      setSelectedPromoId(promos[0]?.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.product_sku]);
+
+  return (
+    <Dialog open={!!product} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogTitle className="text-base leading-snug">
+          {product?.product_commercial_name ?? product?.product_sku}
+        </DialogTitle>
+        <DialogDescription className="sr-only">Selecciona cantidad y promoción</DialogDescription>
+
+        <div className="space-y-4 pt-1">
+          {/* Cantidad */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Cantidad</label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+              >
+                <Minus className="size-3.5" />
+              </Button>
+              <Input
+                type="number"
+                min={1}
+                max={9999}
+                value={qty}
+                onChange={(e) => setQty(Math.max(1, Math.min(9999, parseInt(e.target.value) || 1)))}
+                className="h-8 w-20 text-center"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => setQty((q) => Math.min(9999, q + 1))}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Selector de promo */}
+          {promos.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Star className="size-3.5 text-muted-foreground" />
+                Promoción a aplicar
+              </label>
+              <div className="space-y-1.5">
+                {promos.map((promo) => {
+                  const isBonus = promo.promotion_type.startsWith("bonificacion");
+                  const isDiscount = promo.promotion_type.startsWith("descuento") || promo.promotion_type === "precio_especial";
+                  const selected = selectedPromoId === promo.id;
+                  return (
+                    <button
+                      key={promo.id}
+                      type="button"
+                      onClick={() => setSelectedPromoId(promo.id)}
+                      className={cn(
+                        "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                        selected
+                          ? isBonus
+                            ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/60"
+                            : isDiscount
+                              ? "border-blue-400 bg-blue-50 dark:bg-blue-950/60"
+                              : "border-primary bg-primary/5"
+                          : "border-border bg-background hover:bg-muted/50",
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className={cn(
+                          "mt-0.5 size-3.5 shrink-0 rounded-full border-2",
+                          selected
+                            ? isBonus ? "border-emerald-500 bg-emerald-500" : isDiscount ? "border-blue-500 bg-blue-500" : "border-primary bg-primary"
+                            : "border-muted-foreground/40",
+                        )} />
+                        <div className="min-w-0">
+                          <p className={cn(
+                            "font-semibold",
+                            selected && (isBonus ? "text-emerald-700 dark:text-emerald-300" : isDiscount ? "text-blue-700 dark:text-blue-300" : "text-primary"),
+                          )}>{promo.title}</p>
+                          <p className="text-muted-foreground leading-snug">{promo.mechanic_summary}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPromoId(undefined)}
+                  className={cn(
+                    "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                    !selectedPromoId ? "border-border bg-muted/40" : "border-border bg-background hover:bg-muted/50",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={cn("size-3.5 shrink-0 rounded-full border-2", !selectedPromoId ? "border-foreground/60 bg-foreground/20" : "border-muted-foreground/40")} />
+                    <span className="text-muted-foreground">Sin promoción</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
+          <Button className="flex-1 gap-1.5" onClick={() => onConfirm(qty, selectedPromoId)}>
+            <ShoppingCart className="size-4" />
+            Agregar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2124,7 +2258,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
 
 // ── Promo Badge ───────────────────────────────────────────────────────────────
 
-function PromoMiniBadge({ promo }: { promo: EcommercePromotion }) {
+function PromoMiniBadge({ promo }: { promo: EcommerceProductPromo }) {
   const isBonus = promo.promotion_type.startsWith("bonificacion");
   const isDiscount = promo.promotion_type.startsWith("descuento") || promo.promotion_type === "precio_especial";
   return (
@@ -2142,7 +2276,7 @@ function PromoMiniBadge({ promo }: { promo: EcommercePromotion }) {
 
 // ── Product Card ──────────────────────────────────────────────────────────────
 
-function EcommerceProductCard({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommercePromotion[]; onOpen: () => void; onAdd: () => void }) {
+function EcommerceProductCard({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommerceProductPromo[]; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
@@ -2259,7 +2393,7 @@ function EcommerceProductCard({ product, promos, onOpen, onAdd }: { product: Eco
 
 // ── Product List Row ──────────────────────────────────────────────────────────
 
-function EcommerceProductListRow({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommercePromotion[]; onOpen: () => void; onAdd: () => void }) {
+function EcommerceProductListRow({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommerceProductPromo[]; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
