@@ -163,7 +163,7 @@ function DeliveryMapPicker({
   );
 }
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 28;
 const SESSION_KEY = "ivanagro_ecommerce_session";
 const CART_KEY = "ivanagro_ecommerce_cart";
 
