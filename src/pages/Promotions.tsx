@@ -541,21 +541,24 @@ const Promotions = () => {
                   ? formatDistanceToNow(parseISO(last_run_at), { addSuffix: true, locale: es })
                   : '';
                 if (status === 'ok') return (
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-700 shrink-0" />
-                    <span>Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
+                  <span className="flex items-start gap-1.5 text-xs text-muted-foreground mt-0.5 text-left">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-700 shrink-0 mt-px" />
+                    <span className="leading-snug">Auto-sync SAP: {timeAgo} · {imported + updated} sincronizadas</span>
                   </span>
                 );
                 if (status === 'errors') return (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <button type="button" className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        <span>Auto-sync SAP: {timeAgo} · {errors.length} error(es) — Ver detalles</span>
+                      <button type="button" className="flex items-start gap-1.5 text-xs text-amber-600 hover:text-amber-700 mt-0.5 text-left">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                        <span className="leading-snug">
+                          Auto-sync SAP: {timeAgo}
+                          <span className="block sm:inline"> · {imported + updated} exitosas · {errors.length} error(es) — Ver detalles</span>
+                        </span>
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-80 p-3" align="start">
-                      <p className="text-xs font-medium mb-1.5">Errores en última sincronización automática:</p>
+                      <p className="text-xs font-medium mb-1.5">Errores:</p>
                       <ul className="space-y-1 text-xs text-red-700 max-h-40 overflow-y-auto">
                         {errors.map((e, i) => <li key={i} className="break-words">• {e}</li>)}
                       </ul>
@@ -563,9 +566,9 @@ const Promotions = () => {
                   </Popover>
                 );
                 return (
-                  <span className="flex items-center gap-1.5 text-xs text-red-600">
-                    <XCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>Auto-sync SAP: falló {timeAgo}</span>
+                  <span className="flex items-start gap-1.5 text-xs text-red-600 mt-0.5 text-left">
+                    <XCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                    <span className="leading-snug">Auto-sync SAP: falló {timeAgo}</span>
                   </span>
                 );
               })()}

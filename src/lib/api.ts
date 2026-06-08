@@ -197,6 +197,21 @@ export interface EcommerceCartItemInput {
   quantity: number;
 }
 
+export interface EcommercePromotion {
+  id: string;
+  title: string;
+  promotion_type: string;
+  mechanic_summary: string;
+  product_skus: string[];
+}
+
+export interface EcommerceCartQuoteItemPromo {
+  promo_id: string;
+  title: string;
+  description: string;
+  savings: number;
+}
+
 export interface EcommerceCartQuoteItem {
   line_number: number;
   sku: string;
@@ -207,12 +222,14 @@ export interface EcommerceCartQuoteItem {
   price_list?: string | null;
   available: number;
   can_add_to_cart: boolean;
+  promo_applied?: EcommerceCartQuoteItemPromo | null;
 }
 
 export interface EcommerceCartQuote {
   items: EcommerceCartQuoteItem[];
   subtotal: number;
   total: number;
+  total_savings?: number;
   errors: Array<{ sku: string; message: string }>;
 }
 
@@ -275,6 +292,11 @@ export function getEcommerceProduct(token: string, sku: string): Promise<Ecommer
 
 export function getEcommerceFilterOptions(token: string): Promise<EcommerceFilterOptions> {
   return publicApiFetch<ApiDetailResponse<EcommerceFilterOptions>>("/api/v1/e-commerce/products/filter-options", {}, token)
+    .then((res) => res.data);
+}
+
+export function getEcommerceActivePromotions(token: string): Promise<EcommercePromotion[]> {
+  return publicApiFetch<ApiDetailResponse<EcommercePromotion[]>>("/api/v1/e-commerce/active-promotions", {}, token)
     .then((res) => res.data);
 }
 

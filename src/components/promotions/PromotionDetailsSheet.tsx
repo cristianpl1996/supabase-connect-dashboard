@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Promotion, PromoMechanic, getAllProducts, getAllCustomers, getPromotion } from "@/lib/api";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
+import { AlertTriangle, Calendar, ChevronDown, DollarSign, Info, Megaphone, Package, Users, WalletCards, Zap } from "lucide-react";
 import { SapStatusBadge } from "@/components/promotions/SapStatusBadge";
 import { parseISO } from "date-fns";
 import { format } from "date-fns";
@@ -77,13 +77,15 @@ export function PromotionDetailsSheet({
 }: PromotionDetailsSheetProps) {
   const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [loadingPromo, setLoadingPromo] = useState(false);
+  const [promoError, setPromoError] = useState(false);
   const [nameState, setNameState] = useState({ productMap: {} as Record<string, string>, customerMap: {} as Record<string, string>, loading: false });
   const { productMap: productNameMap, customerMap: customerNameMap, loading: loadingNames } = nameState;
 
   useEffect(() => {
-    if (!open || !promotionId) { setPromotion(null); return; }
+    if (!open || !promotionId) { setPromotion(null); setPromoError(false); return; }
     setLoadingPromo(true);
-    getPromotion(promotionId).then(setPromotion).catch(() => {}).finally(() => setLoadingPromo(false));
+    setPromoError(false);
+    getPromotion(promotionId).then(setPromotion).catch(() => setPromoError(true)).finally(() => setLoadingPromo(false));
   }, [open, promotionId]);
 
   useEffect(() => {
@@ -133,6 +135,27 @@ export function PromotionDetailsSheet({
   };
 
   if (!promotionId) return null;
+
+  if (promoError) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
+          <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+            <span className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-7" />
+            </span>
+            <div className="space-y-1">
+              <p className="text-base font-semibold">No se pudo cargar la promoción</p>
+              <p className="text-sm text-muted-foreground">
+                El detalle de esta campaña no está disponible.<br />
+                Puede que no tenga laboratorio asignado o el registro no exista.
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const mechanic = promotion?.mechanic ?? null;
   const statusConfig = promotion ? (STATUS_CONFIG[promotion.status] || STATUS_CONFIG.borrador) : STATUS_CONFIG.borrador;

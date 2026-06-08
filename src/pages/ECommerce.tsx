@@ -58,7 +58,9 @@ import {
   EcommerceCartQuote,
   EcommerceMyOrder,
   EcommerceProduct,
+  EcommercePromotion,
   EcommerceSession,
+  getEcommerceActivePromotions,
   getEcommerceFilterOptions,
   getEcommerceProductsPage,
   listMyEcommerceOrders,
@@ -334,6 +336,13 @@ export function CheckoutDialog({
                 )}
               </div>
             </div>
+
+            {quote?.total_savings != null && quote.total_savings > 0 && (
+              <div className="relative mt-3 flex items-center justify-between rounded-md border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-white">
+                <span className="font-medium">Ahorro por promociones</span>
+                <span className="font-bold">-{money(quote.total_savings)}</span>
+              </div>
+            )}
 
             <div className="relative mt-4 grid gap-2.5 text-sm font-medium text-white/82">
               <div className="flex items-center gap-2.5 rounded-md bg-black/10 px-3 py-2 ring-1 ring-white/10 backdrop-blur">
@@ -616,6 +625,7 @@ export default function ECommerce() {
   const [sort, setSort] = useState("name_asc");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [withPriceOnly, setWithPriceOnly] = useState(false);
+  const [withPromoOnly, setWithPromoOnly] = useState(false);
 
   const [cart, setCart] = useState<EcommerceCartItemInput[]>(() => loadStoredCart());
   const [cartOpen, setCartOpen] = useState(false);
@@ -708,8 +718,9 @@ export default function ECommerce() {
     if (category !== "all") chips.push({ key: "category", label: `Categoría: ${category}`, clear: () => setCategory("all") });
     if (inStockOnly) chips.push({ key: "stock", label: "Solo con stock", clear: () => setInStockOnly(false) });
     if (withPriceOnly) chips.push({ key: "price", label: "Solo con precio", clear: () => setWithPriceOnly(false) });
+    if (withPromoOnly) chips.push({ key: "promo", label: "Con promoción", clear: () => setWithPromoOnly(false) });
     return chips;
-  }, [search, brand, category, inStockOnly, withPriceOnly]);
+  }, [search, brand, category, inStockOnly, withPriceOnly, withPromoOnly]);
 
   const filteredOrders = useMemo(
     () => filterEcommerceOrders(orders, { state: orderStateFilter, dateFrom: orderDateFrom, dateTo: orderDateTo }),
@@ -719,7 +730,7 @@ export default function ECommerce() {
   // Reset page to 1 cuando los filtros cambian
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, brand, category, inStockOnly, withPriceOnly, sort]);
+  }, [search, brand, category, inStockOnly, withPriceOnly, withPromoOnly, sort]);
 
   const {
     data: productsResponse,
@@ -742,7 +753,11 @@ export default function ECommerce() {
     enabled: !!token,
     staleTime: 30_000,
   });
-  const products = productsResponse?.data ?? [];
+  const allProducts = productsResponse?.data ?? [];
+  const products = useMemo(
+    () => withPromoOnly ? allProducts.filter((p) => promosBySku.has(p.product_sku)) : allProducts,
+    [allProducts, withPromoOnly, promosBySku],
+  );
   const totalProducts = productsResponse ? listTotal(productsResponse) : null;
   const productError = isProductError ? (productsQueryError instanceof Error ? productsQueryError.message : 'Error al cargar productos') : null;
 
@@ -753,6 +768,22 @@ export default function ECommerce() {
     staleTime: 5 * 60_000,
   });
   const filters = { brands: filtersRaw?.brands ?? [], categories: filtersRaw?.categories ?? [] };
+
+  const { data: activePromos = [] } = useQuery({
+    queryKey: ['ecommerce-active-promotions', token],
+    queryFn: () => getEcommerceActivePromotions(token!),
+    enabled: !!token,
+    staleTime: 5 * 60_000,
+  });
+  const promosBySku = useMemo(() => {
+    const map = new Map<string, EcommercePromotion[]>();
+    for (const promo of activePromos) {
+      for (const sku of promo.product_skus) {
+        map.set(sku, [...(map.get(sku) ?? []), promo]);
+      }
+    }
+    return map;
+  }, [activePromos]);
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -784,6 +815,7 @@ export default function ECommerce() {
     setCategory("all");
     setInStockOnly(false);
     setWithPriceOnly(false);
+    setWithPromoOnly(false);
   };
 
   const handlePageChange = (page: number) => {
@@ -1318,10 +1350,12 @@ export default function ECommerce() {
                 category={category}
                 inStockOnly={inStockOnly}
                 withPriceOnly={withPriceOnly}
+                withPromoOnly={withPromoOnly}
                 onBrandChange={setBrand}
                 onCategoryChange={setCategory}
                 onInStockChange={setInStockOnly}
                 onWithPriceChange={setWithPriceOnly}
+                onWithPromoChange={setWithPromoOnly}
                 onClear={clearAllFilters}
                 hasActiveFilters={activeFilters.length > 0}
                 disabled={loadingProducts || !!productError}
@@ -1340,8 +1374,10 @@ export default function ECommerce() {
               onSortChange={setSort}
               inStockOnly={inStockOnly}
               withPriceOnly={withPriceOnly}
+              withPromoOnly={withPromoOnly}
               onInStockToggle={() => setInStockOnly((v) => !v)}
               onWithPriceToggle={() => setWithPriceOnly((v) => !v)}
+              onWithPromoToggle={() => setWithPromoOnly((v) => !v)}
               totalProducts={totalProducts}
               currentPage={currentPage}
               activeFilters={activeFilters}
@@ -1378,13 +1414,13 @@ export default function ECommerce() {
                 {viewMode === "grid" ? (
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {products.map((product) => (
-                      <EcommerceProductCard key={product.product_sku} product={product} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                      <EcommerceProductCard key={product.product_sku} product={product} promos={promosBySku.get(product.product_sku)} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
                     ))}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {products.map((product) => (
-                      <EcommerceProductListRow key={product.product_sku} product={product} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
+                      <EcommerceProductListRow key={product.product_sku} product={product} promos={promosBySku.get(product.product_sku)} onOpen={() => openProduct(product)} onAdd={() => addToCart(product)} />
                     ))}
                   </div>
                 )}
@@ -1404,10 +1440,12 @@ export default function ECommerce() {
         category={category}
         inStockOnly={inStockOnly}
         withPriceOnly={withPriceOnly}
+        withPromoOnly={withPromoOnly}
         onBrandChange={setBrand}
         onCategoryChange={setCategory}
         onInStockChange={setInStockOnly}
         onWithPriceChange={setWithPriceOnly}
+        onWithPromoChange={setWithPromoOnly}
         onClear={clearAllFilters}
         hasActiveFilters={activeFilters.length > 0}
       />
@@ -1457,6 +1495,11 @@ export default function ECommerce() {
                               <p className="truncate font-semibold">{quoted?.product_name ?? item.sku}</p>
                               <p className="mt-1 text-xs text-muted-foreground">SKU: {item.sku}</p>
                               <p className="mt-2 font-bold">{quoted ? money(quoted.line_total) : "Pendiente"}</p>
+                              {quoted?.promo_applied && (
+                                <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                  {quoted.promo_applied.description} · -{money(quoted.promo_applied.savings)}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <Button variant="ghost" size="icon" disabled={quoteLoading} onClick={() => setQuantity(item.sku, 0)}>
@@ -1473,6 +1516,12 @@ export default function ECommerce() {
                   })}
                 </div>
                 <div className="rounded-md border bg-card p-4">
+                  {quote?.total_savings != null && quote.total_savings > 0 && (
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-emerald-600 dark:text-emerald-400">Ahorro por promociones</span>
+                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">-{money(quote.total_savings)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Total</span>
                     <span className="text-2xl font-bold">{money(quote?.total ?? 0)}</span>
@@ -1777,16 +1826,18 @@ interface SidebarFiltersProps {
   category: string;
   inStockOnly: boolean;
   withPriceOnly: boolean;
+  withPromoOnly: boolean;
   onBrandChange: (v: string) => void;
   onCategoryChange: (v: string) => void;
   onInStockChange: (v: boolean) => void;
   onWithPriceChange: (v: boolean) => void;
+  onWithPromoChange: (v: boolean) => void;
   onClear: () => void;
   hasActiveFilters: boolean;
   disabled?: boolean;
 }
 
-function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, category, inStockOnly, withPriceOnly, onBrandChange, onCategoryChange, onInStockChange, onWithPriceChange, onClear, hasActiveFilters, disabled }: SidebarFiltersProps) {
+function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, category, inStockOnly, withPriceOnly, withPromoOnly, onBrandChange, onCategoryChange, onInStockChange, onWithPriceChange, onWithPromoChange, onClear, hasActiveFilters, disabled }: SidebarFiltersProps) {
   const [brandSearch, setBrandSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
 
@@ -1924,6 +1975,22 @@ function EcommerceSidebarFilters({ brandOptions, categoryOptions, brand, categor
         </CollapsibleContent>
       </Collapsible>
 
+      <Separator />
+
+      {/* Promociones */}
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="group flex w-full items-center justify-between py-1.5 text-sm font-semibold hover:text-primary">
+          <span className="flex items-center gap-2"><Star className="size-3.5 text-muted-foreground" />Promociones</span>
+          <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="flex items-center gap-2 pt-2 px-1 cursor-pointer" onClick={() => onWithPromoChange(!withPromoOnly)}>
+            <Checkbox id="with-promo" checked={withPromoOnly} onCheckedChange={(v) => onWithPromoChange(Boolean(v))} />
+            <Label htmlFor="with-promo" className="cursor-pointer text-sm font-normal">Solo con promoción activa</Label>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
       {hasActiveFilters && (
         <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground hover:text-foreground" onClick={onClear}>
           <X className="size-3.5" />Limpiar filtros
@@ -1945,8 +2012,10 @@ interface ResultsHeaderProps {
   onSortChange: (v: string) => void;
   inStockOnly: boolean;
   withPriceOnly: boolean;
+  withPromoOnly: boolean;
   onInStockToggle: () => void;
   onWithPriceToggle: () => void;
+  onWithPromoToggle: () => void;
   totalProducts: number | null;
   currentPage: number;
   activeFilters: Array<{ key: string; label: string; clear: () => void }>;
@@ -1958,7 +2027,7 @@ interface ResultsHeaderProps {
   hasError?: boolean;
 }
 
-function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSearchCommit, onSearchClear, sort, onSortChange, inStockOnly, withPriceOnly, onInStockToggle, onWithPriceToggle, totalProducts, currentPage, activeFilters, viewMode, onViewModeChange, onOpenMobileFilters, onClear, disabled, hasError }: ResultsHeaderProps) {
+function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSearchCommit, onSearchClear, sort, onSortChange, inStockOnly, withPriceOnly, withPromoOnly, onInStockToggle, onWithPriceToggle, onWithPromoToggle, totalProducts, currentPage, activeFilters, viewMode, onViewModeChange, onOpenMobileFilters, onClear, disabled, hasError }: ResultsHeaderProps) {
   const from = ((currentPage - 1) * PAGE_SIZE + 1).toLocaleString("es-CO");
   const to = totalProducts !== null
     ? Math.min(currentPage * PAGE_SIZE, totalProducts).toLocaleString("es-CO")
@@ -2031,6 +2100,7 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
         </Button>
         <Button variant={inStockOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !inStockOnly && "bg-background")} onClick={onInStockToggle}>Con stock</Button>
         <Button variant={withPriceOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !withPriceOnly && "bg-background")} onClick={onWithPriceToggle}>Con precio</Button>
+        <Button variant={withPromoOnly ? "default" : "outline"} size="sm" className={cn("h-8 gap-1.5", !withPromoOnly && "bg-background")} onClick={onWithPromoToggle}>Con promoción</Button>
         {activeFilters.length > 0 && (
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={onClear} disabled={disabled}>
             <X className="size-3.5" />Limpiar filtros
@@ -2053,9 +2123,27 @@ function EcommerceResultsHeader({ search, searchInput, onSearchInputChange, onSe
   );
 }
 
+// ── Promo Badge ───────────────────────────────────────────────────────────────
+
+function PromoMiniBadge({ promo }: { promo: EcommercePromotion }) {
+  const isBonus = promo.promotion_type.startsWith("bonificacion");
+  const isDiscount = promo.promotion_type.startsWith("descuento") || promo.promotion_type === "precio_especial";
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold truncate max-w-full",
+      isBonus && "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+      isDiscount && "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300",
+      !isBonus && !isDiscount && "border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-300",
+    )}>
+      <Star className="size-2.5 shrink-0" />
+      <span className="truncate">{promo.mechanic_summary}</span>
+    </span>
+  );
+}
+
 // ── Product Card ──────────────────────────────────────────────────────────────
 
-function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
+function EcommerceProductCard({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommercePromotion[]; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
@@ -2130,6 +2218,14 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
           <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-700 text-[11px] dark:bg-amber-500/10 dark:text-amber-200">Descontinuado</Badge>
         )}
 
+        {promos && promos.length > 0 && (
+          <div className="flex flex-col gap-1">
+            {promos.slice(0, 2).map((promo) => (
+              <PromoMiniBadge key={promo.id} promo={promo} />
+            ))}
+          </div>
+        )}
+
         <div className="mt-auto">
           {hasPrice ? (
             <>
@@ -2164,7 +2260,7 @@ function EcommerceProductCard({ product, onOpen, onAdd }: { product: EcommercePr
 
 // ── Product List Row ──────────────────────────────────────────────────────────
 
-function EcommerceProductListRow({ product, onOpen, onAdd }: { product: EcommerceProduct; onOpen: () => void; onAdd: () => void }) {
+function EcommerceProductListRow({ product, promos, onOpen, onAdd }: { product: EcommerceProduct; promos?: EcommercePromotion[]; onOpen: () => void; onAdd: () => void }) {
   const hasPrice = product.price !== null && product.price !== undefined;
   const stock = Number(product.total_units_available || 0);
   const canAdd = Boolean(product.can_add_to_cart);
@@ -2230,6 +2326,13 @@ function EcommerceProductListRow({ product, onOpen, onAdd }: { product: Ecommerc
             <Star key={i} className="size-3 fill-amber-400 text-amber-400" />
           ))}
         </div>
+        {promos && promos.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {promos.slice(0, 2).map((promo) => (
+              <PromoMiniBadge key={promo.id} promo={promo} />
+            ))}
+          </div>
+        )}
       </div>
       <div className="hidden sm:block shrink-0 w-28 text-right">
         {hasPrice ? <p className="text-sm font-bold">{money(product.price)}</p> : <p className="text-sm text-muted-foreground">Sin precio</p>}
