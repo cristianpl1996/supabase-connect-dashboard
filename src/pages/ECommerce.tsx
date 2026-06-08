@@ -686,19 +686,6 @@ export default function ECommerce() {
   useEffect(() => {
     hydrateCheckoutForm();
   }, [hydrateCheckoutForm]);
-  const brandOptions = useMemo(
-    () => filters.brands.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
-    [filters.brands],
-  );
-  const categoryOptions = useMemo(
-    () => filters.categories.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
-    [filters.categories],
-  );
-  const productsBySku = useMemo(
-    () => new Map(products.map((product) => [product.product_sku, product])),
-    [products],
-  );
-
   const sortParams = useMemo(() => {
     if (sort === "price_asc") return { sort_by: "price", sort_dir: "asc" as const };
     if (sort === "price_desc") return { sort_by: "price", sort_dir: "desc" as const };
@@ -706,10 +693,6 @@ export default function ECommerce() {
     if (sort === "name_desc") return { sort_by: "name", sort_dir: "desc" as const };
     return { sort_by: "name", sort_dir: "asc" as const };
   }, [sort]);
-
-  const totalPages = useMemo(() =>
-    totalProducts === null ? 1 : Math.max(1, Math.ceil(totalProducts / PAGE_SIZE)),
-    [totalProducts]);
 
   const activeFilters = useMemo(() => {
     const chips: Array<{ key: string; label: string; clear: () => void }> = [];
@@ -753,14 +736,6 @@ export default function ECommerce() {
     enabled: !!token,
     staleTime: 30_000,
   });
-  const allProducts = productsResponse?.data ?? [];
-  const products = useMemo(
-    () => withPromoOnly ? allProducts.filter((p) => promosBySku.has(p.product_sku)) : allProducts,
-    [allProducts, withPromoOnly, promosBySku],
-  );
-  const totalProducts = productsResponse ? listTotal(productsResponse) : null;
-  const productError = isProductError ? (productsQueryError instanceof Error ? productsQueryError.message : 'Error al cargar productos') : null;
-
   const { data: filtersRaw } = useQuery({
     queryKey: ['ecommerce-filter-options', token],
     queryFn: () => getEcommerceFilterOptions(token),
@@ -784,6 +759,30 @@ export default function ECommerce() {
     }
     return map;
   }, [activePromos]);
+
+  const allProducts = productsResponse?.data ?? [];
+  const products = useMemo(
+    () => withPromoOnly ? allProducts.filter((p) => promosBySku.has(p.product_sku)) : allProducts,
+    [allProducts, withPromoOnly, promosBySku],
+  );
+  const totalProducts = productsResponse ? listTotal(productsResponse) : null;
+  const productError = isProductError ? (productsQueryError instanceof Error ? productsQueryError.message : 'Error al cargar productos') : null;
+
+  const brandOptions = useMemo(
+    () => filters.brands.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
+    [filters.brands],
+  );
+  const categoryOptions = useMemo(
+    () => filters.categories.flatMap((item) => { const s = String(item ?? "").trim(); return s ? [s] : []; }),
+    [filters.categories],
+  );
+  const productsBySku = useMemo(
+    () => new Map(products.map((product) => [product.product_sku, product])),
+    [products],
+  );
+  const totalPages = useMemo(() =>
+    totalProducts === null ? 1 : Math.max(1, Math.ceil(totalProducts / PAGE_SIZE)),
+    [totalProducts]);
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
