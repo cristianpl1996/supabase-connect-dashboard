@@ -268,6 +268,7 @@ export function PromotionFormSheet({
   const [isLoadingMechanic, setIsLoadingMechanic] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [spendableBalance, setSpendableBalance] = useState<number | null>(null);
+  const [overcommitmentWarning, setOvercommitmentWarning] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -506,6 +507,7 @@ export function PromotionFormSheet({
     if (!labId || !open) {
       setBudgetError(null);
       setSpendableBalance(null);
+      setOvercommitmentWarning(null);
       return;
     }
     const checkBudget = async () => {
@@ -518,6 +520,19 @@ export function PromotionFormSheet({
           );
         } else {
           setBudgetError(null);
+        }
+        // Riesgo de sobrecompromiso: lo comprometido supera el fondo GANADO a la fecha
+        // (rebate aún no ganado según escalas/condiciones del plan). No bloquea.
+        const projectedRisk = Math.max(
+          0,
+          (summary.committed_amount ?? 0) + (estimatedCost > 0 ? estimatedCost : 0) - (summary.earned_budget ?? 0),
+        );
+        if ((summary.overcommitment_risk > 0 || projectedRisk > 0) && estimatedCost > 0) {
+          setOvercommitmentWarning(
+            `Riesgo de sobrecompromiso: con esta promoción habrás comprometido ${formatCurrency(projectedRisk)} de un rebate aún no ganado (fondos ganados a la fecha: ${formatCurrency(summary.earned_budget ?? 0)}).`
+          );
+        } else {
+          setOvercommitmentWarning(null);
         }
       } catch (err) {
         console.error('Error checking budget:', err);
@@ -2161,6 +2176,12 @@ export function PromotionFormSheet({
                       <div className="mx-4 mb-4 flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
                         <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                         <p className="text-xs font-medium text-amber-800">{approvalWarning}</p>
+                      </div>
+                    )}
+                    {overcommitmentWarning && !budgetError && (
+                      <div className="mx-4 mb-4 flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                        <p className="text-xs font-medium text-amber-800">{overcommitmentWarning}</p>
                       </div>
                     )}
                   </div>

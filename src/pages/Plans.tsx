@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -60,8 +61,25 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   cerrado: { label: "Cerrado", variant: "outline" },
 };
 
+const EXTRACTION_CONFIG: Record<string, { label: string; className: string }> = {
+  no_document: { label: "Sin documento", className: "border-muted-foreground/30 text-muted-foreground" },
+  pending_review: { label: "Por revisar", className: "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/30" },
+  approved: { label: "Aprobado", className: "border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30" },
+  rejected: { label: "Rechazado", className: "border-destructive/50 text-destructive" },
+};
+
+const DATE_FORMATTER = new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "2-digit" });
+
+function formatValidity(plan: AnnualPlan): string {
+  if (!plan.validity_start_date || !plan.validity_end_date) return "—";
+  const start = new Date(`${plan.validity_start_date}T00:00:00`);
+  const end = new Date(`${plan.validity_end_date}T00:00:00`);
+  return `${DATE_FORMATTER.format(start)} – ${DATE_FORMATTER.format(end)}`;
+}
+
 const Plans = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // ── Queries ────────────────────────────────────────────────────────────────
   const {
@@ -90,6 +108,7 @@ const Plans = () => {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [extractionFilter, setExtractionFilter] = useState("all");
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [viewingPlan, setViewingPlan] = useState<AnnualPlan | null>(null);
 
@@ -155,6 +174,7 @@ const Plans = () => {
   const filteredPlans = useMemo(() => {
     return plans.filter((plan) => {
       if (statusFilter !== "all" && plan.status !== statusFilter) return false;
+      if (extractionFilter !== "all" && plan.extraction_status !== extractionFilter) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const labName = labMap[plan.lab_id] || "";
@@ -166,7 +186,7 @@ const Plans = () => {
       }
       return true;
     });
-  }, [plans, searchQuery, statusFilter, labMap]);
+  }, [plans, searchQuery, statusFilter, extractionFilter, labMap]);
 
   const handlePlanSaved = () => {
     setSheetOpen(false);
@@ -223,8 +243,26 @@ const Plans = () => {
     });
   };
 
-  const totalPurchaseGoal = plans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
-  const totalBudget = plans.reduce((sum, plan) => sum + (plan.total_budget_allocated || 0), 0);
+  // Agregados sobre planes VIGENTES a la fecha; los padres reemplazados por un
+  // otrosí aprobado se excluyen (el otrosí reemplaza al plan original).
+  const currentValidPlans = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const replacedIds = new Set(
+      plans
+        .filter((plan) => plan.parent_plan_id && plan.extraction_status !== "rejected" && plan.validity_start_date <= today)
+        .map((plan) => plan.parent_plan_id as string),
+    );
+    return plans.filter(
+      (plan) =>
+        plan.extraction_status !== "rejected" &&
+        !replacedIds.has(plan.id) &&
+        (!plan.validity_start_date || plan.validity_start_date <= today) &&
+        (!plan.validity_end_date || plan.validity_end_date >= today),
+    );
+  }, [plans]);
+
+  const totalPurchaseGoal = currentValidPlans.reduce((sum, plan) => sum + (plan.total_purchase_goal || 0), 0);
+  const totalBudget = currentValidPlans.reduce((sum, plan) => sum + (plan.total_budget_allocated || 0), 0);
 
   const formatCurrency = (value: number) => COP_FORMATTER.format(value);
 
@@ -234,11 +272,13 @@ const Plans = () => {
     setSearchInput('');
     setSearchQuery('');
     setStatusFilter('all');
+    setExtractionFilter('all');
   };
 
   const activeFilters = [
     searchQuery.trim() && { key: 'search', label: `Busqueda: ${searchQuery.trim()}`, clear: () => { setSearchInput(''); setSearchQuery(''); } },
     statusFilter !== 'all' && { key: 'status', label: `Estado: ${STATUS_CONFIG[statusFilter]?.label || statusFilter}`, clear: () => setStatusFilter('all') },
+    extractionFilter !== 'all' && { key: 'extraction', label: `Extracción: ${EXTRACTION_CONFIG[extractionFilter]?.label || extractionFilter}`, clear: () => setExtractionFilter('all') },
   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
 
   return (
@@ -326,6 +366,17 @@ const Plans = () => {
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([value, config]) => (
+                    <SelectItem key={value} value={value}>{config.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={extractionFilter} onValueChange={setExtractionFilter} disabled={isLoading}>
+                <SelectTrigger className="h-10 w-full sm:w-48">
+                  <SelectValue placeholder="Extracción" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toda extracción</SelectItem>
+                  {Object.entries(EXTRACTION_CONFIG).map(([value, config]) => (
                     <SelectItem key={value} value={value}>{config.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -426,7 +477,17 @@ const Plans = () => {
                             aria-label={`${plan.status === "activo" ? "Desactivar" : "Activar"} plan`}
                           />
                         </div>
-                        <div className="mt-3"><Badge variant={statusConfig.variant}>{statusConfig.label}</Badge></div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                          <Badge
+                            variant="outline"
+                            className={EXTRACTION_CONFIG[plan.extraction_status]?.className || ""}
+                            onClick={plan.extraction_status === "pending_review" ? () => navigate(`/plans/${plan.id}/review`) : undefined}
+                          >
+                            {EXTRACTION_CONFIG[plan.extraction_status]?.label || plan.extraction_status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{formatValidity(plan)}</span>
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                           {showGoalColumn && (
                             <div>
@@ -458,7 +519,9 @@ const Plans = () => {
                         <TableHead>Nombre del Plan</TableHead>
                         <TableHead>Laboratorio</TableHead>
                         <TableHead>Año</TableHead>
+                        <TableHead>Vigencia</TableHead>
                         <TableHead>Estado</TableHead>
+                        <TableHead>Extracción</TableHead>
                         {showGoalColumn && (
                           <TableHead className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -531,8 +594,29 @@ const Plans = () => {
                             <TableCell className="font-medium">{plan.name}</TableCell>
                             <TableCell className="text-muted-foreground">{labMap[plan.lab_id] || "—"}</TableCell>
                             <TableCell>{plan.year}</TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatValidity(plan)}</TableCell>
                             <TableCell>
                               <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {plan.extraction_status === "pending_review" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/plans/${plan.id}/review`)}
+                                  title="Abrir pantalla de revisión"
+                                >
+                                  <Badge variant="outline" className={EXTRACTION_CONFIG.pending_review.className}>
+                                    {EXTRACTION_CONFIG.pending_review.label}
+                                  </Badge>
+                                </button>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className={EXTRACTION_CONFIG[plan.extraction_status]?.className || ""}
+                                >
+                                  {EXTRACTION_CONFIG[plan.extraction_status]?.label || plan.extraction_status}
+                                </Badge>
+                              )}
                             </TableCell>
                             {showGoalColumn && (
                               <TableCell className="text-right">

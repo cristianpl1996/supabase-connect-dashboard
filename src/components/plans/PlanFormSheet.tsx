@@ -25,6 +25,15 @@ import { Layers3, Plus, Trash2, Loader2, FileText, ExternalLink, Building2, Cale
 import { toast } from 'sonner';
 import { ContractDropzone } from './ContractDropzone';
 
+type SettlementFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual';
+
+const SETTLEMENT_OPTIONS: Array<{ value: SettlementFrequency; label: string }> = [
+  { value: 'quarterly', label: 'Trimestral' },
+  { value: 'biannual', label: 'Semestral' },
+  { value: 'annual', label: 'Anual' },
+  { value: 'monthly', label: 'Mensual' },
+];
+
 interface PlanFundInput {
   id: string;
   dbId?: string;
@@ -32,6 +41,7 @@ interface PlanFundInput {
   amount_type: 'fijo' | 'porcentaje';
   amount_value: number;
   budget_period: string;
+  settlement_frequency: SettlementFrequency;
 }
 
 interface PlanFormSheetProps {
@@ -65,6 +75,9 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
   const [labId, setLabId] = useState('');
   const [year, setYear] = useState(currentYear + 1);
+  const [validityStart, setValidityStart] = useState(`${currentYear + 1}-01-01`);
+  const [validityEnd, setValidityEnd] = useState(`${currentYear + 1}-12-31`);
+  const validityTouchedRef = useRef(false);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
   const aiExtractedDataRef = useRef<Record<string, unknown> | null>(null);
@@ -75,8 +88,10 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   useEffect(() => {
     if (open && editingPlan) {
       setLabId(editingPlan.lab_id);
-      setLabNameFromAI('');
       setYear(editingPlan.year);
+      setValidityStart(editingPlan.validity_start_date || `${editingPlan.year}-01-01`);
+      setValidityEnd(editingPlan.validity_end_date || `${editingPlan.year}-12-31`);
+      validityTouchedRef.current = true;
       setPurchaseGoal(editingPlan.total_purchase_goal || 0);
       aiExtractedDataRef.current = editingPlan.ai_extracted_data ?? null;
 
@@ -91,6 +106,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
             amount_type: fund.amount_type,
             amount_value: fund.amount_value || 0,
             budget_period: fund.budget_period || 'annual',
+            settlement_frequency: fund.settlement_frequency || 'annual',
           }));
           setFunds(mappedFunds);
         } catch (err) {
@@ -124,8 +140,17 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
         amount_type: FUND_CONCEPTS[0].amountType,
         amount_value: 0,
         budget_period: 'annual',
+        settlement_frequency: 'annual',
       },
     ]);
+  };
+
+  const handleYearChange = (newYear: number) => {
+    setYear(newYear);
+    if (!validityTouchedRef.current && newYear >= 2020 && newYear <= 2100) {
+      setValidityStart(`${newYear}-01-01`);
+      setValidityEnd(`${newYear}-12-31`);
+    }
   };
 
   const removeFund = (id: string) => {
@@ -155,6 +180,9 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   const resetForm = () => {
     setLabId('');
     setYear(currentYear + 1);
+    setValidityStart(`${currentYear + 1}-01-01`);
+    setValidityEnd(`${currentYear + 1}-12-31`);
+    validityTouchedRef.current = false;
     setPurchaseGoal(0);
     setFunds([]);
     setFormErrors({});
@@ -183,6 +211,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
         lab_id: labId,
         year,
         name: `Plan Comercial ${lab?.name || 'Lab'} ${year}`,
+        validity_start_date: validityStart,
+        validity_end_date: validityEnd,
         total_purchase_goal: purchaseGoal,
         ai_extracted_data: aiExtractedDataRef.current,
         contract_pdf_url: pdfUrl,
@@ -192,6 +222,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
           amount_type: fund.amount_type,
           amount_value: fund.amount_value,
           budget_period: fund.budget_period || 'annual',
+          settlement_frequency: fund.settlement_frequency,
         })),
       };
 
@@ -336,7 +367,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                   max={2100}
                   value={year}
                   className={formErrors.year ? 'border-destructive' : ''}
-                  onChange={(e) => { setYear(parseInt(e.target.value, 10) || currentYear); setFormErrors((err) => ({ ...err, year: undefined })); }}
+                  onChange={(e) => { handleYearChange(parseInt(e.target.value, 10) || currentYear); setFormErrors((err) => ({ ...err, year: undefined })); }}
                 />
                 {formErrors.year && <p className="text-xs text-destructive">{formErrors.year}</p>}
               </div>
@@ -353,6 +384,27 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                   onChange={(e) => { setPurchaseGoal(parseFloat(e.target.value) || 0); setFormErrors((err) => ({ ...err, purchase_goal: undefined })); }}
                 />
                 {formErrors.purchase_goal && <p className="text-xs text-destructive">{formErrors.purchase_goal}</p>}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="validityStart">Vigencia desde</Label>
+                <Input
+                  id="validityStart"
+                  type="date"
+                  value={validityStart}
+                  onChange={(e) => { validityTouchedRef.current = true; setValidityStart(e.target.value); }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="validityEnd">Vigencia hasta</Label>
+                <Input
+                  id="validityEnd"
+                  type="date"
+                  value={validityEnd}
+                  onChange={(e) => { validityTouchedRef.current = true; setValidityEnd(e.target.value); }}
+                />
               </div>
             </div>
           </div>
@@ -388,8 +440,8 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                     key={fund.id}
                     className={`grid gap-2 rounded-lg bg-muted/50 p-3 ${
                       isPresetConcept(fund.concept)
-                        ? 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto]'
-                        : 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1.15fr)_minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto]'
+                        ? 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_auto]'
+                        : 'grid-cols-1 md:grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_auto]'
                     }`}
                   >
                     <span className="text-xs text-muted-foreground sm:w-6 sm:self-center">
@@ -452,6 +504,24 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                         placeholder={fund.amount_type === 'porcentaje' ? '3.0' : '1000000'}
                       />
                     </div>
+
+                    <Select
+                      value={fund.settlement_frequency}
+                      onValueChange={(v) => updateFund(fund.id, 'settlement_frequency', v)}
+                    >
+                      <SelectTrigger className="w-full min-w-0" title="Frecuencia de liquidación">
+                        <SelectValue>
+                          {SETTLEMENT_OPTIONS.find((option) => option.value === fund.settlement_frequency)?.label}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SETTLEMENT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
                     <Button
                       variant="ghost"
