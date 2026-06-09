@@ -1,32 +1,23 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { createPlanExtraction, uploadPlanContract } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface ContractDropzoneProps {
-  onFileAnalyzed: (result: {
-    brand_name: string;
-    year: number;
-    annual_goal: number;
-    invoice_discount_perc: number;
-    rebate_sell_in_perc: number;
-    rebate_sell_out_perc: number;
-    marketing_perc: number;
-    marketing_fixed_value: number;
-    financial_discount_perc: number;
-    total_margin_perc: number;
-    funds: Array<{
-      concept_key: 'Desc_Pie_Factura' | 'Rebate_SellIn' | 'Rebate_SellOut' | 'Marketing' | 'Pronto_Pago' | 'Otro';
-      custom_concept?: string;
-      type: 'percentage' | 'fixed';
-      value: number;
-    }>;
-  }, file: File) => void;
+  labId: string;
+  parentPlanId?: string | null;
   disabled?: boolean;
 }
 
 type DropzoneState = 'idle' | 'dragover' | 'analyzing' | 'success' | 'error';
 
-export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneProps) {
+/**
+ * Zona "Análisis Inteligente": sube el PDF al backend, dispara la extracción IA
+ * (crea un plan borrador en pending_review) y navega a la pantalla de revisión.
+ */
+export function ContractDropzone({ labId, parentPlanId, disabled }: ContractDropzoneProps) {
+  const navigate = useNavigate();
   const [state, setState] = useState<DropzoneState>('idle');
   const [fileName, setFileName] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -37,21 +28,35 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
       setErrorMessage('Solo se aceptan archivos PDF');
       return;
     }
+    if (!labId) {
+      setState('error');
+      setErrorMessage('Selecciona primero el laboratorio');
+      return;
+    }
 
     setFileName(file.name);
     setState('analyzing');
     setErrorMessage('');
 
     try {
-      const { analyzeContract } = await import('@/services/aiPlanParser');
-      const result = await analyzeContract(file);
+      const { url } = await uploadPlanContract(file);
+      const plan = await createPlanExtraction({
+        contract_pdf_url: url,
+        lab_id: labId,
+        parent_plan_id: parentPlanId ?? null,
+      });
+      if (plan.extraction_status === 'rejected') {
+        setState('error');
+        setErrorMessage('La IA no pudo extraer un JSON válido del documento. Revisa el plan creado o reintenta.');
+        return;
+      }
       setState('success');
-      onFileAnalyzed(result, file);
+      navigate(`/plans/${plan.id}/review`);
     } catch (err) {
       setState('error');
       setErrorMessage(err instanceof Error ? err.message : 'Error al analizar el contrato');
     }
-  }, [onFileAnalyzed]);
+  }, [labId, parentPlanId, navigate]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -108,7 +113,11 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
           <>
             <Upload className="size-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">Arrastra tu contrato PDF aqui</p>
-            <p className="text-xs text-muted-foreground">o haz clic para seleccionar un archivo</p>
+            <p className="text-xs text-muted-foreground">
+              {labId
+                ? 'La IA extraerá fondos, escalas, períodos y condiciones para tu revisión'
+                : 'Selecciona primero el laboratorio para habilitar el análisis'}
+            </p>
           </>
         )}
 
@@ -122,7 +131,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
         {state === 'analyzing' && (
           <>
             <Loader2 className="size-8 animate-spin text-amber-600" />
-            <p className="text-sm font-medium text-amber-700">Analizando el archivo PDF…</p>
+            <p className="text-sm font-medium text-amber-700">Analizando el contrato con IA…</p>
             <p className="text-xs text-amber-600">{fileName}</p>
           </>
         )}
@@ -131,17 +140,7 @@ export function ContractDropzone({ onFileAnalyzed, disabled }: ContractDropzoneP
           <>
             <CheckCircle2 className="size-8 text-green-600" />
             <p className="text-sm font-medium text-green-700">Contrato analizado</p>
-            <p className="text-xs text-green-600">{fileName} - Revisa los datos abajo</p>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                resetDropzone();
-              }}
-              className="pointer-events-auto mt-1 text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              Subir otro archivo
-            </button>
+            <p className="text-xs text-green-600">{fileName} - Abriendo la pantalla de revisión…</p>
           </>
         )}
 

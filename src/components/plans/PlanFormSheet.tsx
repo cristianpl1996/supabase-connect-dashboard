@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const COP_FORMATTER = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 });
-import { createPlan, getPlan, updatePlan, uploadPlanContract, BASE_URL } from '@/lib/api';
+import { createPlan, getPlan, updatePlan, BASE_URL } from '@/lib/api';
 import { Laboratory, AnnualPlan, PlanFund } from '@/types/database';
 import {
   Sheet,
@@ -23,7 +23,6 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Layers3, Plus, Trash2, Loader2, FileText, ExternalLink, Building2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ContractAnalysisResult } from '@/services/aiPlanParser';
 import { ContractDropzone } from './ContractDropzone';
 
 interface PlanFundInput {
@@ -65,12 +64,10 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
   const isEditing = !!editingPlan;
 
   const [labId, setLabId] = useState('');
-  const [labNameFromAI, setLabNameFromAI] = useState('');
   const [year, setYear] = useState(currentYear + 1);
   const [purchaseGoal, setPurchaseGoal] = useState<number>(0);
   const [funds, setFunds] = useState<PlanFundInput[]>([]);
   const aiExtractedDataRef = useRef<Record<string, unknown> | null>(null);
-  const [contractFile, setContractFile] = useState<File | null>(null);
   const [formErrors, setFormErrors] = useState<{ lab_id?: string; year?: string; purchase_goal?: string; funds?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingFunds, setIsLoadingFunds] = useState(false);
@@ -118,59 +115,6 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     return sum + (purchaseGoal * fund.amount_value / 100);
   }, 0);
 
-  const handleContractAnalyzed = useCallback((result: ContractAnalysisResult, file: File) => {
-    setContractFile(file);
-    const matchedLab = laboratories.find(
-      (lab) => lab.name.toLowerCase() === result.brand_name.toLowerCase()
-        || lab.name.toLowerCase().includes(result.brand_name.toLowerCase())
-        || result.brand_name.toLowerCase().includes(lab.name.toLowerCase())
-    );
-
-    if (matchedLab) {
-      setLabId(matchedLab.id);
-      setLabNameFromAI('');
-    } else {
-      setLabId('');
-      setLabNameFromAI(result.brand_name);
-    }
-
-    setYear(result.year || currentYear + 1);
-    setPurchaseGoal(result.annual_goal || 0);
-    aiExtractedDataRef.current = result as unknown as Record<string, unknown>;
-
-    const mappedFunds: PlanFundInput[] = [];
-    const addAIFund = (concept: string, amount_type: 'fijo' | 'porcentaje', amount_value: number) => {
-      if (amount_value <= 0) return;
-      mappedFunds.push({
-        id: crypto.randomUUID(),
-        concept,
-        amount_type,
-        amount_value,
-        budget_period: 'annual',
-      });
-    };
-
-    if (Array.isArray(result.funds) && result.funds.length > 0) {
-      result.funds.forEach((fund) => {
-        const concept = fund.concept_key === 'Otro'
-          ? (fund.custom_concept?.trim() || '')
-          : fund.concept_key;
-        const amountType = fund.type === 'fixed' ? 'fijo' : 'porcentaje';
-        addAIFund(concept, amountType, fund.value);
-      });
-    } else {
-      addAIFund('Desc_Pie_Factura', 'porcentaje', result.invoice_discount_perc);
-      addAIFund('Rebate_SellIn', 'porcentaje', result.rebate_sell_in_perc);
-      addAIFund('Rebate_SellOut', 'porcentaje', result.rebate_sell_out_perc);
-      addAIFund('Marketing', 'porcentaje', result.marketing_perc);
-      addAIFund('Marketing', 'fijo', result.marketing_fixed_value);
-      addAIFund('Pronto_Pago', 'porcentaje', result.financial_discount_perc);
-    }
-
-    setFunds(mappedFunds);
-    toast.success(`Datos extraidos: ${result.brand_name} - Margen Total: ${result.total_margin_perc}%`);
-  }, [laboratories, currentYear]);
-
   const addFund = () => {
     setFunds((prev) => [
       ...prev,
@@ -210,11 +154,9 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
   const resetForm = () => {
     setLabId('');
-    setLabNameFromAI('');
     setYear(currentYear + 1);
     setPurchaseGoal(0);
     setFunds([]);
-    setContractFile(null);
     setFormErrors({});
     aiExtractedDataRef.current = null;
   };
@@ -235,12 +177,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
     setIsSubmitting(true);
 
     try {
-      let pdfUrl: string | null = editingPlan?.contract_pdf_url ?? null;
-      if (contractFile) {
-        const { url } = await uploadPlanContract(contractFile);
-        pdfUrl = url;
-      }
-
+      const pdfUrl: string | null = editingPlan?.contract_pdf_url ?? null;
       const lab = laboratories.find((l) => l.id === labId);
       const payload = {
         lab_id: labId,
@@ -311,7 +248,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
                 {isEditing ? 'Contrato comercial' : 'Análisis Inteligente'}
               </h3>
-              {isEditing && editingPlan?.contract_pdf_url && !contractFile && (
+              {isEditing && editingPlan?.contract_pdf_url && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
                   <span className="size-1.5 rounded-full bg-green-500" />
                   PDF adjunto
@@ -319,7 +256,7 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
               )}
             </div>
 
-            {isEditing && editingPlan?.contract_pdf_url && !contractFile && (
+            {isEditing && editingPlan?.contract_pdf_url && (
               <a
                 href={`${BASE_URL}${editingPlan.contract_pdf_url}`}
                 target="_blank"
@@ -340,23 +277,11 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
               </a>
             )}
 
-            <div>
-              {isEditing && (
-                <p className="mb-2 text-xs text-muted-foreground">
-                  {editingPlan?.contract_pdf_url ? 'Sube un nuevo PDF para reemplazar el contrato actual' : 'Adjunta el contrato en formato PDF'}
-                </p>
-              )}
+            {!isEditing && (
               <ContractDropzone
-                onFileAnalyzed={handleContractAnalyzed}
-                disabled={isSubmitting}
+                labId={labId}
+                disabled={isSubmitting || !labId}
               />
-            </div>
-
-            {contractFile && (
-              <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2">
-                <FileText className="size-4 text-green-600 shrink-0" />
-                <p className="text-xs text-green-700 font-medium truncate">{contractFile.name}, se subirá al guardar</p>
-              </div>
             )}
           </div>
           <Separator />
@@ -375,9 +300,9 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
 
             <div className="space-y-2">
               <Label htmlFor="laboratory">Laboratorio</Label>
-              <Select value={labId} onValueChange={(v) => { setLabId(v); setLabNameFromAI(''); setFormErrors((e) => ({ ...e, lab_id: undefined })); }}>
+              <Select value={labId} onValueChange={(v) => { setLabId(v); setFormErrors((e) => ({ ...e, lab_id: undefined })); }}>
                 <SelectTrigger id="laboratory" className={formErrors.lab_id ? 'border-destructive' : ''}>
-                  <SelectValue placeholder={labNameFromAI || 'Selecciona un laboratorio'} />
+                  <SelectValue placeholder="Selecciona un laboratorio" />
                 </SelectTrigger>
                 <SelectContent>
                   {laboratories.length === 0 ? (
@@ -394,11 +319,6 @@ export function PlanFormSheet({ open, onOpenChange, laboratories, onSuccess, edi
                 </SelectContent>
               </Select>
               {formErrors.lab_id && <p className="text-xs text-destructive">{formErrors.lab_id}</p>}
-              {labNameFromAI && !labId && (
-                <p className="text-xs text-amber-600">
-                  La IA detecto "{labNameFromAI}" pero no coincide con ningun laboratorio. Selecciona uno manualmente.
-                </p>
-              )}
               {laboratories.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Primero debes crear laboratorios en la base de datos

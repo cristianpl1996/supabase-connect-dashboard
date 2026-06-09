@@ -69,11 +69,18 @@ export interface AnnualPlan {
   year: number;
   name: string;
   status: 'activo' | 'negociacion' | 'cerrado';
+  validity_start_date: string;
+  validity_end_date: string;
+  parent_plan_id: string | null;
+  extraction_status: 'no_document' | 'pending_review' | 'approved' | 'rejected';
+  extraction_confidence: number | null;
+  notes: string | null;
   created_by_identifier?: string | null;
   created_by_responsible?: string | null;
   created_by_brand?: string | null;
   contract_pdf_url: string | null;
   ai_extracted_data: Record<string, unknown> | null;
+  review_draft_data?: Record<string, unknown> | null;
   total_purchase_goal: number | null;
   total_budget_allocated: number | null;
   created_at: string;
@@ -89,6 +96,11 @@ export interface PlanFund {
   amount_value: number | null;
   budget_period: string;
   current_balance: number;
+  settlement_frequency: 'monthly' | 'quarterly' | 'biannual' | 'annual';
+  payment_method: 'credit_note' | 'product' | 'rotation_boost_note' | 'invoice' | 'mixed';
+  product_exclusions: string | null;
+  compliance_threshold_pct: number;
+  allows_carryover: boolean;
 }
 
 export interface WalletLedger {

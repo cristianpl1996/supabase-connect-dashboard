@@ -840,6 +840,48 @@ export interface SupabaseBrandListParams {
   offset?: number;
 }
 
+export type SettlementFrequency = "monthly" | "quarterly" | "biannual" | "annual";
+export type FundPaymentMethod = "credit_note" | "product" | "rotation_boost_note" | "invoice" | "mixed";
+export type ExtractionStatus = "no_document" | "pending_review" | "approved" | "rejected";
+
+export interface PlanFundScale {
+  id?: string;
+  level: number;
+  goal_value: number;
+  goal_unit: "money" | "units";
+  benefit_pct: number;
+}
+
+export interface PlanFundModifier {
+  id?: string;
+  modifier_type: "penalty" | "cap";
+  condition_text: string | null;
+  effect_pct: number | null;
+  cap_pct_over_goal: number | null;
+}
+
+export interface PlanPeriod {
+  id?: string;
+  annual_plan_id?: string;
+  plan_fund_id?: string | null;
+  label: string;
+  start_date: string;
+  end_date: string;
+  goal_value: number | null;
+  goal_unit: "money" | "units";
+  distribution_pct: number | null;
+}
+
+export interface PlanCondition {
+  id?: string;
+  annual_plan_id?: string;
+  plan_fund_id?: string | null;
+  condition_type: "current_account" | "compliance_threshold" | "interim_progress" | "information_delivery" | "other";
+  params: Record<string, unknown> | null;
+  original_text: string | null;
+  is_blocking: boolean;
+}
+
 export interface PlanFund {
   id: string;
   plan_id: string;
@@ -848,6 +890,22 @@ export interface PlanFund {
   amount_value: number | null;
   budget_period: string;
   current_balance: number;
+  settlement_frequency: SettlementFrequency;
+  payment_method: FundPaymentMethod;
+  product_exclusions: string | null;
+  compliance_threshold_pct: number;
+  allows_carryover: boolean;
+  scales?: PlanFundScale[];
+  modifiers?: PlanFundModifier[];
+}
+
+export interface PlanAmendmentSummary {
+  id: string;
+  name: string;
+  status: string;
+  extraction_status: ExtractionStatus;
+  validity_start_date: string;
+  validity_end_date: string;
 }
 
 export interface Plan {
@@ -857,16 +915,26 @@ export interface Plan {
   year: number;
   name: string;
   status: "activo" | "negociacion" | "cerrado";
+  validity_start_date: string;
+  validity_end_date: string;
+  parent_plan_id: string | null;
+  extraction_status: ExtractionStatus;
+  extraction_confidence: number | null;
+  notes: string | null;
   created_by_identifier?: string | null;
   created_by_responsible?: string | null;
   created_by_brand?: string | null;
   contract_pdf_url: string | null;
   ai_extracted_data: Record<string, unknown> | null;
+  review_draft_data?: Record<string, unknown> | null;
   total_purchase_goal: number | null;
   total_budget_allocated: number | null;
   created_at: string;
   updated_at: string;
   funds?: PlanFund[];
+  periods?: PlanPeriod[];
+  conditions?: PlanCondition[];
+  amendments?: PlanAmendmentSummary[];
 }
 
 export interface PlanFundPayload {
@@ -875,6 +943,11 @@ export interface PlanFundPayload {
   amount_type: "fijo" | "porcentaje";
   amount_value: number | null;
   budget_period?: string;
+  settlement_frequency?: SettlementFrequency;
+  payment_method?: FundPaymentMethod;
+  product_exclusions?: string | null;
+  compliance_threshold_pct?: number;
+  allows_carryover?: boolean;
 }
 
 export interface PlanPayload {
@@ -882,6 +955,10 @@ export interface PlanPayload {
   year: number;
   name?: string;
   status?: "activo" | "negociacion" | "cerrado";
+  validity_start_date?: string | null;
+  validity_end_date?: string | null;
+  parent_plan_id?: string | null;
+  notes?: string | null;
   created_by_identifier?: string | null;
   created_by_responsible?: string | null;
   created_by_brand?: string | null;
@@ -889,6 +966,84 @@ export interface PlanPayload {
   ai_extracted_data?: Record<string, unknown> | null;
   total_purchase_goal: number | null;
   funds: PlanFundPayload[];
+}
+
+export interface PlanExtractionApproveFund {
+  concept: string;
+  amount_type: "fijo" | "porcentaje";
+  amount_value: number | null;
+  settlement_frequency: SettlementFrequency;
+  payment_method: FundPaymentMethod;
+  product_exclusions: string | null;
+  compliance_threshold_pct: number;
+  allows_carryover: boolean;
+  scales: PlanFundScale[];
+  periods: PlanPeriod[];
+  modifiers: PlanFundModifier[];
+}
+
+export interface PlanExtractionApproveCondition {
+  condition_type: PlanCondition["condition_type"];
+  fund_index: number | null;
+  params: Record<string, unknown> | null;
+  original_text: string | null;
+  is_blocking: boolean;
+}
+
+export interface PlanExtractionApprovePayload {
+  name?: string | null;
+  year: number;
+  validity_start_date: string;
+  validity_end_date: string;
+  total_purchase_goal: number;
+  notes?: string | null;
+  created_by_brand?: string | null;
+  funds: PlanExtractionApproveFund[];
+  periods: PlanPeriod[];
+  conditions: PlanExtractionApproveCondition[];
+}
+
+export interface PlanCompliancePeriod {
+  id: string | null;
+  label: string;
+  plan_fund_id: string | null;
+  start_date: string;
+  end_date: string;
+  goal_value: number;
+  goal_unit: "money" | "units";
+  distribution_pct: number | null;
+  executed: number;
+  compliance_pct: number;
+  closed: boolean;
+}
+
+export interface PlanComplianceFund {
+  fund_id: string;
+  plan_id: string;
+  concept: string;
+  budgeted: number;
+  earned: number;
+  accumulated_purchases: number;
+  reached_level: number | null;
+  applied_pct: number;
+  status: "earned" | "pending" | "blocked" | "not_reached";
+  settlement_frequency: SettlementFrequency;
+  blocking_conditions_unmet: PlanCondition[];
+  blocking_conditions_pending: PlanCondition[];
+}
+
+export interface PlanCompliance {
+  plan_id: string;
+  cutoff_date: string;
+  validity_start_date: string;
+  validity_end_date: string;
+  total_goal: number;
+  executed_to_date: number;
+  overall_compliance_pct: number;
+  periods: PlanCompliancePeriod[];
+  funds: PlanComplianceFund[];
+  conditions: Array<PlanCondition & { state: "met" | "pending" | "unmet" }>;
+  blocking_conditions_unmet: PlanCondition[];
 }
 
 export type PromoStatus = "borrador" | "revision" | "aprobada" | "activa" | "pausada" | "finalizada" | "cancelada";
@@ -999,6 +1154,17 @@ export interface PromotionListItem {
   mechanic: PromoMechanic | null;
 }
 
+export interface PromotionBudgetFund {
+  fund_id: string;
+  plan_id: string;
+  concept: string;
+  settlement_frequency: SettlementFrequency;
+  budgeted: number;
+  earned: number;
+  status: "earned" | "pending" | "blocked" | "not_reached";
+  reached_level: number | null;
+}
+
 export interface PromotionBudgetSummary {
   lab_id: string;
   spendable_balance: number;
@@ -1006,6 +1172,9 @@ export interface PromotionBudgetSummary {
   committed_amount: number;
   positive_adjustments: number;
   negative_adjustments: number;
+  earned_budget: number;
+  overcommitment_risk: number;
+  funds: PromotionBudgetFund[];
 }
 
 export interface BudgetRule {
@@ -1572,6 +1741,41 @@ export function uploadPlanContract(file: File): Promise<{ url: string }> {
     method: "POST",
     body: form,
   });
+}
+
+export function createPlanExtraction(payload: {
+  contract_pdf_url: string;
+  lab_id: string;
+  parent_plan_id?: string | null;
+}): Promise<Plan> {
+  return apiDetail<Plan>("/api/v1/plans/extractions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approvePlanExtraction(planId: string, payload: PlanExtractionApprovePayload): Promise<Plan> {
+  return apiDetail<Plan>(`/api/v1/plans/${planId}/extraction/approve`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rejectPlanExtraction(planId: string): Promise<Plan> {
+  return apiDetail<Plan>(`/api/v1/plans/${planId}/extraction/reject`, { method: "POST" });
+}
+
+export function savePlanExtractionDraft(planId: string, data: Record<string, unknown>): Promise<Plan> {
+  return apiDetail<Plan>(`/api/v1/plans/${planId}/extraction/draft`, {
+    method: "PUT",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export function getPlanCompliance(planId: string, cutoffDate?: string): Promise<PlanCompliance> {
+  return apiDetail<PlanCompliance>(
+    withQuery(`/api/v1/plans/${planId}/compliance`, { cutoff_date: cutoffDate }),
+  );
 }
 
 export function listPromotions(params: PromotionListParams = {}): Promise<Promotion[]> {

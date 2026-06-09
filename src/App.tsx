@@ -14,6 +14,7 @@ import { AuthGuard } from "@/components/layout/AuthGuard";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
 import Index from "./pages/Index";
 import Plans from "./pages/Plans";
+import PlanReview from "./pages/PlanReview";
 import Promotions from "./pages/Promotions";
 import Calendar from "./pages/Calendar";
 import Middleware from "./pages/Middleware";
@@ -65,6 +66,7 @@ const App = () => (
                           <Route path="/" element={<Navigate to="/home" replace />} />
                           <Route path="/home" element={<SalesRepRouteGuard><PromoterRouteGuard><Index /></PromoterRouteGuard></SalesRepRouteGuard>} />
                           <Route path="/plans" element={<SalesRepRouteGuard><Plans /></SalesRepRouteGuard>} />
+                          <Route path="/plans/:planId/review" element={<SalesRepRouteGuard><PlanReview /></SalesRepRouteGuard>} />
                           <Route path="/promotions" element={<SalesRepRouteGuard><Promotions /></SalesRepRouteGuard>} />
                           <Route path="/orders" element={<SalesRepRouteGuard><Orders /></SalesRepRouteGuard>} />
                           <Route path="/products" element={<SalesRepRouteGuard><Products /></SalesRepRouteGuard>} />
