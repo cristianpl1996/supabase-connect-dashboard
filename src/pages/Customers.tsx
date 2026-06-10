@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type React from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CustomerParams,
   CustomerRecord,
@@ -8,7 +9,9 @@ import {
   CustomerTopProduct,
   getAllRepresentatives,
   getCustomerFilterOptions,
+  getCustomer,
   getCustomersPage,
+  listCustomerTopProducts,
   listTotal,
   Representative,
   SaleRecord,
@@ -318,6 +321,8 @@ function customerSortParams(value: string): Pick<CustomerParams, "sort_by" | "so
 }
 
 export default function Customers() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [exporting, setExporting] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -405,6 +410,26 @@ export default function Customers() {
     queryKey: ['representatives'],
     queryFn: getAllRepresentatives,
     staleTime: 5 * 60_000,
+  });
+
+  const linkedCustomerId = Number(searchParams.get("customerId"));
+  const { data: linkedCustomer } = useQuery({
+    queryKey: ["customer", linkedCustomerId],
+    queryFn: () => getCustomer(linkedCustomerId),
+    enabled: Number.isFinite(linkedCustomerId) && linkedCustomerId > 0,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (linkedCustomer) setSelected(linkedCustomer);
+  }, [linkedCustomer]);
+
+  const selectedCustomerId = Number(selected?.id);
+  const { data: selectedTopProducts = [] } = useQuery({
+    queryKey: ["customer-top-products", selectedCustomerId],
+    queryFn: () => listCustomerTopProducts(selectedCustomerId, 10),
+    enabled: Number.isFinite(selectedCustomerId) && selectedCustomerId > 0,
+    staleTime: 60_000,
   });
 
   const filterOptions = useMemo(() => ({
@@ -619,6 +644,9 @@ export default function Customers() {
 
   const openProfile = (customer: CustomerRecord) => {
     setSelected(customer);
+    const next = new URLSearchParams(searchParams);
+    next.set("customerId", field(customer, "id", ""));
+    setSearchParams(next, { replace: true });
   };
 
   const currentProfile = selected;
@@ -627,7 +655,10 @@ export default function Customers() {
   const profileCommercialStatus = currentProfile ? commercialStatus(currentProfile) : null;
   const profileSegment = customerSegmentLabel(currentProfile);
   const profileCluster = customerClusterLabel(currentProfile);
-  const topProducts = useMemo(() => extractTopProducts(currentProfile), [currentProfile]);
+  const topProducts = useMemo(
+    () => selectedTopProducts.length > 0 ? selectedTopProducts : extractTopProducts(currentProfile),
+    [currentProfile, selectedTopProducts],
+  );
 
   const copyText = async (value: string, label: string) => {
     if (!value || value === "N/A") return;
@@ -916,7 +947,19 @@ export default function Customers() {
                                 <p className="truncate text-xs text-muted-foreground">{field(customer, "customer_email", field(customer, "customer_cellphone"))}</p>
                               </div>
                             </TableCell>
-                            <TableCell>{field(customer, "customer_government_id")}</TableCell>
+                            <TableCell>
+                              <div className="group/nit flex items-center gap-1.5">
+                                <span className="text-sm">{field(customer, "customer_government_id")}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")}
+                                  title="Copiar NIT"
+                                  className="rounded p-0.5 text-muted-foreground/40 transition-colors hover:text-foreground"
+                                >
+                                  <Copy className="size-3" />
+                                </button>
+                              </div>
+                            </TableCell>
                             <TableCell>{field(customer, "sales_rep_full_name")}</TableCell>
                             <TableCell className="text-center">{numeric(customer.customer_total_number_of_purchases).toLocaleString("es-CO")}</TableCell>
                             <TableCell className="text-center">{money(customer.customer_average_purchase_ticket_amount)}</TableCell>
@@ -927,7 +970,7 @@ export default function Customers() {
                             <TableCell>
                               <div className="flex justify-start gap-1">
                                 <Button variant="ghost" size="icon" className="size-8" onClick={() => openProfile(customer)} disabled={loadingInitial} title="Ver perfil"><Eye className="size-4" /></Button>
-                                <Button variant="ghost" size="icon" className="size-8" onClick={() => copyText(field(customer, "customer_government_id", ""), "NIT")} disabled={loadingInitial} title="Copiar NIT"><Copy className="size-4" /></Button>
+                                <Button variant="ghost" size="icon" className="size-8" onClick={() => navigate(`/customer-bi?customerId=${field(customer, "id", "")}`)} disabled={loadingInitial} title="Ver análisis del cliente"><BarChart3 className="size-4" /></Button>
                                 {field(customer, "customer_email", "") && <Button variant="ghost" size="icon" className="size-8" asChild title="Escribir email"><a href={`mailto:${field(customer, "customer_email", "")}`}><Mail className="size-4" /></a></Button>}
                                 {field(customer, "customer_cellphone", "") && <Button variant="ghost" size="icon" className="size-8" asChild title="Llamar"><a href={`tel:${field(customer, "customer_cellphone_country_dial_code", "")}${field(customer, "customer_cellphone", "")}`}><Phone className="size-4" /></a></Button>}
                               </div>
@@ -952,7 +995,16 @@ export default function Customers() {
           </CardContent>
         </Card>
 
-        <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <Sheet
+          open={!!selected}
+          onOpenChange={(open) => {
+            if (open) return;
+            setSelected(null);
+            const next = new URLSearchParams(searchParams);
+            next.delete("customerId");
+            setSearchParams(next, { replace: true });
+          }}
+        >
           <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
             {selected && (
               <>
@@ -987,6 +1039,13 @@ export default function Customers() {
                           </SheetDescription>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            className="h-9 gap-2"
+                            onClick={() => navigate(`/customer-bi?customerId=${field(currentProfile, "id", "")}`)}
+                          >
+                            <BarChart3 className="size-4" /> Ver análisis del cliente
+                          </Button>
                           <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => copyText(field(currentProfile, "customer_government_id", ""), "NIT")} title="Copiar NIT"><Copy className="size-4" /> NIT</Button>
                           {field(currentProfile, "customer_email", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Email"><a href={`mailto:${field(currentProfile, "customer_email", "")}`}><Mail className="size-4" /> Email</a></Button>}
                           {field(currentProfile, "customer_cellphone", "") && <Button variant="outline" size="sm" className="h-9 gap-2" asChild title="Llamar"><a href={`tel:${field(currentProfile, "customer_cellphone_country_dial_code", "")}${field(currentProfile, "customer_cellphone", "")}`}><Phone className="size-4" /> Llamar</a></Button>}
@@ -997,10 +1056,14 @@ export default function Customers() {
                 </div>
 
                 <div className="space-y-5 px-4 py-4 sm:px-6">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <Activity className="size-3.5" />
+                    Indicadores de todo el historico
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <ProfileMetric label="Ingresos" value={money(currentProfile?.customer_total_lifetime_revenue)} />
-                    <ProfileMetric label="Compras" value={numeric(currentProfile?.customer_total_number_of_purchases).toLocaleString("es-CO")} />
-                    <ProfileMetric label="Ticket prom." value={money(currentProfile?.customer_average_purchase_ticket_amount)} />
+                    <ProfileMetric label="Ingresos historicos" value={money(currentProfile?.customer_total_lifetime_revenue)} />
+                    <ProfileMetric label="Compras historicas" value={numeric(currentProfile?.customer_total_number_of_purchases).toLocaleString("es-CO")} />
+                    <ProfileMetric label="Ticket promedio histórico" value={money(currentProfile?.customer_average_purchase_ticket_amount)} />
                     <ProfileMetric label="Ultima compra" value={`${numeric(currentProfile?.customer_days_since_last_purchase)} d`} />
                   </div>
 

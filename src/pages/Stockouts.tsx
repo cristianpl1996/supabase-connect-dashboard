@@ -786,7 +786,7 @@ function SuperadminView() {
       <ErrorDisabledContent disabled={isError}>
         <PageHeader
           icon={PackageX}
-          title="Dashboard Agotados"
+          title="Agotados"
           description="Reportes de productos agotados de los representantes de venta."
           actions={
             <Button

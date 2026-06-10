@@ -24,6 +24,7 @@ import Settings from "./pages/Settings";
 import MapPage from "./pages/MapPage";
 import Products from "./pages/Products";
 import Customers from "./pages/Customers";
+import CustomerBI from "./pages/CustomerBI";
 import Orders from "./pages/Orders";
 import ECommerce from "./pages/ECommerce";
 import LoginPage from "./pages/LoginPage";
@@ -71,6 +72,7 @@ const App = () => (
                           <Route path="/orders" element={<SalesRepRouteGuard><Orders /></SalesRepRouteGuard>} />
                           <Route path="/products" element={<SalesRepRouteGuard><Products /></SalesRepRouteGuard>} />
                           <Route path="/customers" element={<SalesRepRouteGuard><Customers /></SalesRepRouteGuard>} />
+                          <Route path="/customer-bi" element={<SalesRepRouteGuard><CustomerBI /></SalesRepRouteGuard>} />
                           <Route path="/calendar" element={<SalesRepRouteGuard><PromoterRouteGuard restricted><Calendar /></PromoterRouteGuard></SalesRepRouteGuard>} />
                           <Route path="/middleware" element={<SalesRepRouteGuard><Middleware /></SalesRepRouteGuard>} />
                           <Route path="/marketing" element={<SalesRepRouteGuard><Marketing /></SalesRepRouteGuard>} />

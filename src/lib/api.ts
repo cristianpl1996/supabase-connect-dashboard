@@ -472,6 +472,63 @@ export interface CustomerTopProduct {
   last_purchase_date: string | null;
 }
 
+export interface CustomerBISummary {
+  total_revenue: number;
+  total_purchases: number;
+  total_units: number;
+  average_ticket: number;
+  first_purchase_date: string | null;
+  last_purchase_date: string | null;
+}
+
+export interface CustomerBIMonth {
+  sale_month: string;
+  revenue: number;
+  purchases: number;
+  units: number;
+}
+
+export interface CustomerBIProduct extends CustomerTopProduct {
+  purchase_count: number;
+}
+
+export interface CustomerBIRecentPurchase {
+  commercial_sale_id: number;
+  sale_invoice_number: string | null;
+  sale_origin_channel: string | null;
+  sale_status_code: string | null;
+  purchase_date: string | null;
+  total_revenue: number;
+  total_units: number;
+  product_count: number;
+}
+
+export interface CustomerBIData {
+  customer: CustomerRecord;
+  period: {
+    date_from: string;
+    date_to: string;
+    month_count: number;
+    previous_date_from: string;
+    previous_date_to: string;
+  };
+  summary: CustomerBISummary;
+  previous_period_summary: CustomerBISummary;
+  lifetime_summary: CustomerBISummary;
+  monthly_series: CustomerBIMonth[];
+  top_products: CustomerBIProduct[];
+  recent_purchases: CustomerBIRecentPurchase[];
+  insights: {
+    best_month: CustomerBIMonth | null;
+    active_months: number;
+    purchases_per_active_month: number | null;
+    recent_3m_revenue: number;
+    previous_3m_revenue: number;
+    recent_trend: number;
+    opportunity: string;
+  };
+}
+
 export interface OrderLineItem {
   id: number;
   commercial_order_id: number;
@@ -644,6 +701,13 @@ export function listCustomerTopProducts(customerId: number, limit = 10): Promise
   return apiList<CustomerTopProduct>(withQuery(`/api/v1/customers/${customerId}/top-products`, {
     limit,
     offset: 0,
+  }));
+}
+
+export function getCustomerBI(customerId: number, dateFrom?: string, dateTo?: string): Promise<CustomerBIData> {
+  return apiDetail<CustomerBIData>(withQuery(`/api/v1/customers/${customerId}/bi`, {
+    date_from: dateFrom,
+    date_to: dateTo,
   }));
 }
 
@@ -1535,6 +1599,7 @@ export interface ProductNameItem {
 }
 
 export interface CustomerNameItem {
+  id: number;
   customer_government_id: string;
   customer_full_name: string | null;
 }
@@ -1545,6 +1610,10 @@ function getProductNamesPage(limit: number, offset: number): Promise<ApiListResp
 
 function getCustomerNamesPage(limit: number, offset: number): Promise<ApiListResponse<CustomerNameItem>> {
   return apiFetch<ApiListResponse<CustomerNameItem>>(withQuery("/api/v1/customers/names", { limit, offset }));
+}
+
+export function searchCustomerNames(search: string, limit: number, offset: number): Promise<ApiListResponse<CustomerNameItem>> {
+  return apiFetch<ApiListResponse<CustomerNameItem>>(withQuery("/api/v1/customers/names", { search: search || undefined, limit, offset }));
 }
 
 let _allProductsCache: ProductNameItem[] | null = null;
